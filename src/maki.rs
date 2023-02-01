@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 pub const X_SIZE: u32 = 1024;
 pub const Y_SIZE: u32 = 512;
@@ -16,7 +16,7 @@ pub struct MakiModule {
     pub graffa: RefCell<[u8; (ALUE * 2 + 1024) as usize]>, //{ osoite m�en grafiikkaan }
     pub video: RefCell<[u8; 64000]>,                       //{ osoite v�lipuskuriin }
 
-    siirto_osoite: RefCell<u32>,
+    siirto_osoite: Cell<u32>,
 }
 
 impl MakiModule {
@@ -28,7 +28,7 @@ impl MakiModule {
             x: 0,
             y: 0,
 
-            siirto_osoite: RefCell::new(0),
+            siirto_osoite: Cell::new(0),
             graffa: RefCell::new([0; (ALUE * 2 + 1024) as usize]),
             video: RefCell::new([0; 64000]),
         }
@@ -45,7 +45,7 @@ impl MakiModule {
     pub fn paivita_kirjoitus_sivu(&self) {
         let mut graffa = self.graffa.borrow_mut();
         let video = self.video.borrow();
-        let siirto_osoite = *self.siirto_osoite.borrow() as usize;
+        let siirto_osoite = self.siirto_osoite.get() as usize;
         for index in 0..=((SIVU_KOKO - 1) as usize) {
             graffa[siirto_osoite + index] = video[index];
         }
@@ -63,8 +63,7 @@ impl MakiModule {
 
     pub fn lukitse_kirjoitus_sivu(&self, sivu: u32) {
         if sivu < SIVUJA * 2 {
-            let mut siirto_osoite = self.siirto_osoite.borrow_mut();
-            *siirto_osoite = sivu * SIVU_KOKO;
+            self.siirto_osoite.set(sivu * SIVU_KOKO);
         }
     }
 

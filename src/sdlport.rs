@@ -8,7 +8,7 @@ use sdl2::surface::Surface;
 use sdl2::timer::Timer;
 use sdl2::video::{Window, WindowContext};
 use sdl2::{EventPump, EventSubsystem, TimerSubsystem};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::time::Duration;
 use std::{process, thread};
 
@@ -26,9 +26,9 @@ pub struct SDLPortModule<'a> {
     original_surface: RefCell<Surface<'static>>,
     display_texture: RefCell<Texture<'a>>,
     palette: [Color; 256],
-    render_dest_rect: RefCell<Rect>,
+    render_dest_rect: Cell<Rect>,
 
-    window_resized: RefCell<bool>,
+    window_resized: Cell<bool>,
     full_screen: bool,
     aspect: f64,
 
@@ -84,9 +84,9 @@ impl<'a> SDLPortModule<'a> {
             original_surface: RefCell::new(original_surface),
             display_texture: RefCell::new(display_texture),
             palette: [Color::RGB(0, 0, 0); 256],
-            render_dest_rect: RefCell::new(render_dest_rect),
+            render_dest_rect: Cell::new(render_dest_rect),
 
-            window_resized: RefCell::new(false),
+            window_resized: Cell::new(false),
             full_screen: false,
             aspect,
 
@@ -123,10 +123,9 @@ impl<'a> SDLPortModule<'a> {
     }
 
     pub fn render(&self, buffer: &[u8]) {
-        if *self.window_resized.borrow() {
-            *self.render_dest_rect.borrow_mut() =
-                get_render_rect(&self.canvas.borrow(), self.aspect);
-            *self.window_resized.borrow_mut() = false;
+        if self.window_resized.replace(false) {
+            self.render_dest_rect
+                .set(get_render_rect(&self.canvas.borrow(), self.aspect));
         }
 
         let mut canvas = self.canvas.borrow_mut();
@@ -162,7 +161,7 @@ impl<'a> SDLPortModule<'a> {
 
         // Render texture to display
         canvas
-            .copy(&display_texture, None, *self.render_dest_rect.borrow())
+            .copy(&display_texture, None, self.render_dest_rect.get())
             .unwrap();
         canvas.present();
     }
@@ -180,7 +179,7 @@ impl<'a> SDLPortModule<'a> {
                     win_event: WindowEvent::Resized(..),
                     ..
                 } => {
-                    *self.window_resized.borrow_mut() = true;
+                    self.window_resized.set(true);
                 }
                 Event::Quit { .. } => {
                     process::exit(0);
