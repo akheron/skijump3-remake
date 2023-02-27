@@ -63,9 +63,9 @@ pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
     l: &'l LangModule,
     p: &'p PcxModule<'m, 's, 'si>,
     top: Vec<Hiscore>,
-    nimet: Vec<Vec<u8>>,
-    jnimet: Vec<Vec<u8>>,
-    pmaara: u8,
+    pub nimet: Vec<Vec<u8>>,
+    pub jnimet: Vec<Vec<u8>>,
+    pub pmaara: u8,
     num_profiles: u8, //{ piilota alas }
     profileorder: [u8; 21],
     profile: Vec<Profile>, //{ ehk� my�s }

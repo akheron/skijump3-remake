@@ -24,7 +24,7 @@ impl LangModule {
         let mut lines = BufReader::new(f).split(b'\n');
         loop {
             let Some(Ok(line)) = lines.next() else {
-                panic!("Language widh index {} not found", languageindex)
+                panic!("Language with index {} not found", languageindex)
             };
             if line.starts_with(b"*") && line[1] - b'A' == languageindex {
                 break;

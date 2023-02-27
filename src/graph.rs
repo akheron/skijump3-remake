@@ -35,7 +35,8 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
         self.s.render(self.m.video.borrow().as_ref());
     }
     pub fn draw_hill_screen(&self) {
-        unimplemented!()
+        self.m.tulosta();
+        self.draw_screen();
     }
     pub fn close_graph(&self) {
         unimplemented!()
@@ -58,7 +59,7 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
         }
     }
 
-    fn draw_anim(&self, x: i32, y: i32, num: u8) {
+    pub fn draw_anim(&self, x: i32, y: i32, num: u8) {
         let anim = self.anim.borrow();
 
         let x = x - self.anim_p[num as usize][0] as i32;

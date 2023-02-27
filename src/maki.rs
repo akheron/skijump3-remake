@@ -10,8 +10,8 @@ pub struct MakiModule {
     pub linjan_pituus: [u16; Y_SIZE as usize],
     pub profiili_y: [i16; 1301],
 
-    pub x: i32,
-    pub y: i32,
+    pub x: Cell<i32>,
+    pub y: Cell<i32>,
 
     pub graffa: RefCell<[u8; (ALUE * 2 + 1024) as usize]>, //{ osoite m�en grafiikkaan }
     pub video: RefCell<[u8; 64000]>,                       //{ osoite v�lipuskuriin }
@@ -25,8 +25,8 @@ impl MakiModule {
             linjan_pituus: [0; Y_SIZE as usize],
             profiili_y: [0; 1301],
 
-            x: 0,
-            y: 0,
+            x: Cell::new(0),
+            y: Cell::new(0),
 
             siirto_osoite: Cell::new(0),
             graffa: RefCell::new([0; (ALUE * 2 + 1024) as usize]),
@@ -52,13 +52,39 @@ impl MakiModule {
     }
 
     pub fn tulosta(&self) {
-        unimplemented!()
+        let a: i32 = self.y.get() * X_SIZE as i32;
+        let b: i32 = ALUE as i32 - (self.x.get() >> 1) - (self.y.get() >> 1) * X_SIZE as i32;
+        self.kopioi_maki(a, b);
     }
     pub fn alusta(&self) -> bool {
         unimplemented!()
     }
     pub fn lopeta(&self) {
         unimplemented!()
+    }
+
+    fn kopioi_maki(&self, osoite: i32, delta: i32) {
+        let mut video = self.video.borrow_mut();
+        let graffa = self.graffa.borrow();
+
+        let mut output: usize = 0;
+        let mut d: i32;
+        for y_index in 0..200i32 {
+            let mut input = osoite + y_index * X_SIZE as i32 + self.x.get();
+            let line = self.linjan_pituus[(y_index + self.y.get()) as usize];
+
+            for x_index in 0..320 {
+                if x_index + self.x.get() >= line as i32 {
+                    d = delta;
+                } else {
+                    d = 0;
+                }
+
+                video[output] = graffa[(input + d) as usize];
+                input += 1;
+                output += 1;
+            }
+        }
     }
 
     pub fn lukitse_kirjoitus_sivu(&self, sivu: u32) {
@@ -74,6 +100,10 @@ impl MakiModule {
         unimplemented!()
     }
     pub fn profiili(&self, x: i32) -> i32 {
-        unimplemented!()
+        let mut temp: i32 = 0;
+        if (x > 0) && (x < 1300) {
+            temp = self.profiili_y[x as usize] as i32;
+        }
+        temp
     }
 }

@@ -2,21 +2,26 @@ mod graph;
 mod help;
 mod info;
 mod lang;
+mod lumi;
 mod maki;
 mod pcx;
 mod regfree;
+mod rs_util;
 mod sdlport;
 mod sj3;
+mod tuuli;
 mod unit;
 
 use crate::graph::GraphModule;
 use crate::help::HelpModule;
 use crate::info::InfoModule;
 use crate::lang::LangModule;
+use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
 use crate::sdlport::{SDLPortModule, X_RES, Y_RES};
 use crate::sj3::SJ3Module;
+use crate::tuuli::TuuliModule;
 use crate::unit::UnitModule;
 use sdl2::event::Event;
 use std::process;
@@ -63,9 +68,26 @@ fn main() {
     lang_module.load_language(1);
 
     let info_module = InfoModule::new(&graph_module, &lang_module, &pcx_module);
-    let unit_module = UnitModule::new(&graph_module, &help_module, &lang_module, &sdl_port_module);
+    let tuuli_module = TuuliModule::new(&graph_module, &help_module);
+    let unit_module = UnitModule::new(
+        &graph_module,
+        &help_module,
+        &lang_module,
+        &pcx_module,
+        &sdl_port_module,
+    );
 
-    let sj3_module = SJ3Module::new(&graph_module, &info_module, &unit_module);
+    let lumi_module = LumiModule::init();
+    let mut sj3_module = SJ3Module::new(
+        &graph_module,
+        &help_module,
+        &info_module,
+        &lang_module,
+        lumi_module,
+        &maki_module,
+        &tuuli_module,
+        &unit_module,
+    );
     sj3_module.main_menu();
 
     // loop {

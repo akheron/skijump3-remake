@@ -33,7 +33,7 @@ The remake will be written in Rust.
 - Port the game to web browsers. This requires some amount of JS glue code.
 - Invent a touch UI that works well in mobile browsers.
 
-The original game contains about 10k lines of Pascal code. Phase 1 about 10 % done.
+The original game contains about 10k lines of Pascal code. Phase 1 about 25 % done.
 
 ## Development
 
