@@ -9,6 +9,7 @@ mod regfree;
 mod rs_util;
 mod sdlport;
 mod sj3;
+mod table;
 mod tuuli;
 mod unit;
 
@@ -73,6 +74,7 @@ fn main() {
         &graph_module,
         &help_module,
         &lang_module,
+        &maki_module,
         &pcx_module,
         &sdl_port_module,
     );
@@ -85,6 +87,8 @@ fn main() {
         &lang_module,
         lumi_module,
         &maki_module,
+        &pcx_module,
+        &sdl_port_module,
         &tuuli_module,
         &unit_module,
     );

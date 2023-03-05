@@ -4,12 +4,37 @@ use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
 
-const NUM_SKIS: u16 = 4;
-const NUM_SUITS: u16 = 8;
+pub const NUM_SKIS: u16 = 4;
+pub const NUM_SUITS: u16 = 8;
 
 const REPLACE_MENU: [u8; 6 * 2 * 3] = [
     20, 20, 20, 26, 26, 26, 10, 10, 10, 15, 15, 15, 28, 8, 24, 34, 13, 28, 0, 24, 24, 6, 30, 30, 0,
     25, 0, 5, 30, 5, 47, 0, 0, 54, 10, 10,
+];
+
+const REPLACE_LOGO: [u8; 6 * 4] = [
+    46, 46, 63, 32, 32, 63, //{ sininen logo }
+    51, 51, 51, 38, 38, 38, //{ harmaa logo }
+    54, 10, 10, 47, 0, 0, //{ punainen valo! }
+    10, 54, 10, 0, 47, 0, //{ vihre� valo! }
+];
+
+const SUITS: [[u8; 4]; NUM_SUITS as usize] = [
+    [0, 53, 17, 53], //{ Violetti }
+    [0, 55, 33, 11], //{ Oranssi }
+    [0, 11, 48, 18], //{ Vihre� }
+    [0, 24, 28, 63], //{ Sininen }
+    [0, 63, 17, 17], //{ Punainen }
+    [0, 33, 33, 33], //{ Harmaa }
+    [1, 10, 10, 10], //{ Musta, feidi yl�s }
+    [0, 45, 17, 63], //{ Lila }
+];
+
+const SKIS: [[u8; 3]; NUM_SKIS as usize] = [
+    [63, 63, 32], //{ keltainen default }
+    [60, 60, 60], //{ valkoiset }
+    [33, 60, 33], //{ vihre�t }
+    [63, 43, 43], //{ punaiset }
 ];
 
 const STANDARDI_PALETTI: [u8; 40 * 3] = [
@@ -24,7 +49,7 @@ pub struct PcxModule<'m, 's, 'si> {
     m: &'m MakiModule,
     s: &'s SDLPortModule<'si>,
     pub paletti: RefCell<[[u8; 3]; 256]>,
-    pub pelasta_alkuosa: [u8; 255 * 3],
+    pub pelasta_alkuosa: RefCell<[[u8; 3]; 256]>,
 }
 
 impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
@@ -33,7 +58,7 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
             m,
             s,
             paletti: RefCell::new([[0; 3]; 256]),
-            pelasta_alkuosa: [0; 255 * 3],
+            pelasta_alkuosa: RefCell::new([[0; 3]; 256]),
         }
     }
 
@@ -50,10 +75,21 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
         }
     }
     pub fn siirra_liivi_pois(&self) {
-        unimplemented!()
+        let mut paletti = self.paletti.borrow_mut();
+        for temp in 0..=2 {
+            paletti[220][temp] = paletti[216][temp];
+        }
+        for temp in 0..=2 {
+            paletti[221][temp] = paletti[218][temp];
+        }
     }
     pub fn muuta_logo(&self, col: u8) {
-        unimplemented!()
+        let mut paletti = self.paletti.borrow_mut();
+        for temp1 in 0..=1 {
+            for temp2 in 0..=2 {
+                paletti[253 + temp1][temp2] = REPLACE_LOGO[(col as usize + temp1) * 3 + temp2];
+            }
+        }
     }
     pub fn muuta_replay(&self, mode: u8) {
         unimplemented!()
@@ -70,10 +106,35 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
         }
     }
     pub fn tumma_lumi(&self) {
-        unimplemented!()
+        let mut paletti = self.paletti.borrow_mut();
+        for temp in 232..=235 {
+            for temp2 in 0..=2 {
+                paletti[temp as usize][temp2 as usize] -=
+                    f32::round(0.4 * (paletti[temp as usize][temp2 as usize] as f32 - 32.0)) as u8;
+            }
+        }
     }
     pub fn savyta_paletti(&self, alue: u8, bkbright: u8) {
-        unimplemented!()
+        let mut start: i32 = 0;
+        let mut fin: i32 = 239;
+
+        if alue == 1 {
+            start = 64;
+            fin = 215;
+        }
+
+        let r1 = bkbright as f32 / 100.0;
+
+        let mut paletti = self.paletti.borrow_mut();
+        for temp1 in start..=fin {
+            for temp2 in 0..=2 {
+                paletti[temp1 as usize][temp2 as usize] =
+                    (paletti[temp1 as usize][temp2 as usize] as f32 * r1) as u8;
+                if paletti[temp1 as usize][temp2 as usize] > 63 {
+                    paletti[temp1 as usize][temp2 as usize] = 63;
+                }
+            }
+        }
     }
     pub fn special_main_paletti(&self) {
         {
@@ -89,16 +150,56 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
         self.muuta_menu(3, 0);
     }
     pub fn tallenna_alkuosa(&self, alue: u8) {
-        unimplemented!()
+        let mut len = 240;
+        if alue == 1 {
+            len = 64;
+        }
+        self.pelasta_alkuosa.borrow_mut()[0..len].copy_from_slice(&self.paletti.borrow()[0..len]);
     }
     pub fn takaisin_alkuosa(&self, alue: u8) {
-        unimplemented!()
+        let mut len = 240;
+        if alue == 1 {
+            len = 64;
+        }
+        self.paletti.borrow_mut()[0..len].copy_from_slice(&self.pelasta_alkuosa.borrow()[0..len]);
+        self.paletti.borrow_mut()[0][0] = 0;
     }
-    pub fn load_skis(&self, col: u8, phase: u8) {
-        unimplemented!()
+    pub fn load_skis(&self, mut col: u8, phase: u8) {
+        let mut target = 231;
+        if phase > 0 {
+            target = phase * 5;
+        }
+        if col < 0 || col > (NUM_SKIS - 1) as u8 {
+            col = 0;
+        }
+
+        let mut paletti = self.paletti.borrow_mut();
+        paletti[target as usize][0] = SKIS[col as usize][0];
+        paletti[target as usize][1] = SKIS[col as usize][1];
+        paletti[target as usize][2] = SKIS[col as usize][2];
     }
-    pub fn load_suit(&self, col: u8, phase: u8) {
-        unimplemented!()
+    pub fn load_suit(&self, mut col: u8, phase: u8) {
+        const NUMS: [[f32; 4]; 2] = [[1.0, 0.87, 0.75, 0.63], [1.0, 1.5, 2.0, 2.5]];
+        let mut target = 215;
+        if phase > 0 {
+            target = phase * 5;
+        }
+        if col < 0 || col > (NUM_SUITS - 1) as u8 {
+            col = 0;
+        }
+        let w1 = SUITS[col as usize][1];
+        let w2 = SUITS[col as usize][2];
+        let w3 = SUITS[col as usize][3];
+
+        let mut paletti = self.paletti.borrow_mut();
+        for temp in 0..=3 {
+            paletti[(target + temp) as usize][0] =
+                f32::round(NUMS[SUITS[col as usize][0] as usize][temp as usize] * w1 as f32) as u8;
+            paletti[(target + temp) as usize][1] =
+                f32::round(NUMS[SUITS[col as usize][0] as usize][temp as usize] * w2 as f32) as u8;
+            paletti[(target + temp) as usize][2] =
+                f32::round(NUMS[SUITS[col as usize][0] as usize][temp as usize] * w3 as f32) as u8;
+        }
     }
 
     pub fn lataa_pcx(&self, name: &str, picsize: i32, mut page: u32, mirror: u8) -> bool {

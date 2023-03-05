@@ -17,6 +17,20 @@ impl HelpModule {
         self.ch.set(1);
         self.ch2.set(1);
     }
+
+    // Originally in SJ3UNIT.PAS
+    pub fn kword(&self) -> u16 {
+        ((self.ch.get() as u16) << 8) + self.ch2.get() as u16
+    }
+}
+
+pub fn nsqrt(x: f32) -> f32 {
+    let temp = f32::sqrt(f32::abs(x));
+    if x < 0f32 {
+        -temp
+    } else {
+        temp
+    }
 }
 
 pub fn txtp(mut jokuluku: i32) -> Vec<u8> {

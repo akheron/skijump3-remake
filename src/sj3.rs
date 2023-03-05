@@ -1,13 +1,16 @@
 use crate::graph::GraphModule;
-use crate::help::{txt, txtp, HelpModule};
+use crate::help::{nsqrt, txt, txtp, HelpModule};
 use crate::info::InfoModule;
 use crate::lang::LangModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
+use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::regfree::{REGNAME, REGNUMBER};
-use crate::rs_util::{random, random_u16};
+use crate::rs_util::random;
+use crate::sdlport::SDLPortModule;
+use crate::table::{parru_anim, suksi_laskussa};
 use crate::tuuli::TuuliModule;
-use crate::unit::{Hill, Stat, UnitModule, NUM_PL, NUM_WC_HILLS};
+use crate::unit::{loadgoal, Hill, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS};
 use std::fs::File;
 
 pub struct SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
@@ -17,6 +20,8 @@ pub struct SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
     l: &'l LangModule,
     lumi: LumiModule,
     m: &'m MakiModule,
+    p: &'p PcxModule<'m, 's, 'si>,
+    s: &'s SDLPortModule<'si>,
     tuuli: &'t TuuliModule<'g, 'h, 'm, 's, 'si>,
     u: &'u UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si>,
 
@@ -27,6 +32,9 @@ pub struct SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
     wcup: bool,
     jcup: bool,
     cupslut: bool,
+    //today: Date,
+    now: Time,
+    start: Time,
     stats: [[Stat; NUM_WC_HILLS as usize + 1]; 16],
     cstats: [[i32; NUM_PL + 2]; 3],
     eka: bool,
@@ -84,6 +92,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
         l: &'l LangModule,
         lumi: LumiModule,
         m: &'m MakiModule,
+        p: &'p PcxModule<'m, 's, 'si>,
+        s: &'s SDLPortModule<'si>,
         tuuli: &'t TuuliModule<'g, 'h, 'm, 's, 'si>,
         u: &'u UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si>,
     ) -> Self {
@@ -94,6 +104,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
             l,
             lumi,
             m,
+            p,
+            s,
             tuuli,
             u,
             version_full: b"3.13-remake0",
@@ -103,6 +115,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
             wcup: false,
             jcup: false,
             cupslut: false,
+            now: Time::default(),
+            start: Time::default(),
             stats: ([[Stat::default(); NUM_WC_HILLS as usize + 1]; 16]),
             cstats: ([[0; NUM_PL + 2]; 3]),
             eka: false,
@@ -150,6 +164,82 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
             this_is_a_hill_record: 0,
         }
     }
+    fn makikulma(&self, x: i32) -> i32 {
+        let value = self.m.profiili(x + 9)
+            + self.m.profiili(x + 8)
+            + self.m.profiili(x + 7)
+            + self.m.profiili(x + 6);
+        let value = value
+            - self.m.profiili(x - 3)
+            - self.m.profiili(x - 4)
+            - self.m.profiili(x - 5)
+            - self.m.profiili(x - 2);
+
+        if (x > self.keula_x - 15) && (x <= self.keula_x) {
+            0
+        } else {
+            value
+        }
+    }
+
+    fn drawwcinfo(&self) {
+        if self.jcup {
+            self.g.e_write_font(308, 9, self.l.lstr(71));
+        } else {
+            self.g.e_write_font(308, 9, self.l.lstr(70));
+        }
+
+        for temp in 1..=5 {
+            if self.mcpisteet[self.mcluett[temp] as usize] > 0 {
+                let mut str1 = txtp(self.mcpisteet[self.mcluett[temp] as usize]);
+
+                if self.diffwc && temp > 1 {
+                    str1 = [
+                        &self.i.jnimet[self.mcluett[temp] as usize] as &[u8],
+                        b"$",
+                        &str1,
+                    ]
+                    .concat();
+                } else {
+                    str1 = [
+                        &self.i.nimet[self.mcluett[temp] as usize] as &[u8],
+                        b"$",
+                        &str1,
+                    ]
+                    .concat();
+                }
+
+                self.g.e_write_font(308, 13 + temp as i32 * 7, &str1);
+            }
+        }
+    }
+
+    fn drawhrinfo(&self) {
+        self.g.e_write_font(
+            308,
+            9,
+            &[&self.act_hill.name as &[u8], b" K", &txt(self.act_hill.kr)].concat(),
+        );
+        self.g.e_write_font(308, 19, self.l.lstr(65));
+        self.g.e_write_font(308, 29, self.u.hrname(self.nytmaki));
+        self.g.e_write_font(
+            308,
+            39,
+            &[&txtp(self.u.hrlen(self.nytmaki)) as &[u8], b"\xab"].concat(),
+        );
+        if self.goals && self.nytmaki <= NUM_WC_HILLS {
+            self.g.e_write_font(
+                308,
+                49,
+                &[
+                    self.l.lstr(242),
+                    b": ",
+                    &txtp(loadgoal(self.nytmaki)) as &[u8],
+                ]
+                .concat(),
+            );
+        }
+    }
 
     fn hyppy(&mut self, index: i32, pel: i32, team: i32) {
         let mut tempb: u8;
@@ -188,7 +278,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
         let mut y: i32;
         let mut height: i32;
 
-        let mut deltah: [i32; 6];
+        let mut deltah: [i32; 6] = [0; 6];
 
         let mut sx: i32;
         let mut sy: i32;
@@ -215,8 +305,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
 
         let mut riski: i32;
         let mut laskuri: i32;
-        let mut tyylip: [i32; 8];
-        let mut lmaara: u16;
+        let mut tyylip: [i32; 9] = [0; 9]; // 1-indexed in the original code
+
+        let mut lmaara: u16 = 0;
 
         let mut score: i32;
 
@@ -251,251 +342,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
 
         let mut actprofile: u8; //{ aktiivine profiili }
 
-        let makikulma = |x: i32| -> i32 {
-            let value = self.m.profiili(x + 9)
-                + self.m.profiili(x + 8)
-                + self.m.profiili(x + 7)
-                + self.m.profiili(x + 6);
-            let value = value
-                - self.m.profiili(x - 3)
-                - self.m.profiili(x - 4)
-                - self.m.profiili(x - 5)
-                - self.m.profiili(x - 2);
-
-            if (x > self.keula_x - 15) && (x <= self.keula_x) {
-                0
-            } else {
-                value
-            }
-        };
-
-        let drawkothinfo = |pel: i32| {
-            let str1 = [
-                self.l.lstr(67),
-                b" ",
-                &txt(1 + self.kothmaara as i32 + self.i.pmaara as i32 - self.mcpisteet[0]),
-                b" ",
-                self.l.lstr(8),
-                b" ",
-                &txt(self.kothmaara as i32 + self.i.pmaara as i32),
-            ]
-            .concat();
-
-            self.g.e_write_font(308, 9, &str1);
-
-            if top5[1] > 0 {
-                let mut str1 = self.l.lstr(68);
-
-                if (self.kierros == 1) && (self.kothrounds > 1) {
-                    str1 = self.l.lstr(69)
-                };
-
-                self.g.e_write_font(308, 19, str1);
-
-                let mut str1 = txtp(self.pisteet[top5[1] as usize]);
-
-                if self.kierros == 2 {
-                    str1 = txtp(self.pisteet[top5[1] as usize] - self.pisteet[pel as usize]);
-                }
-
-                self.g.e_write_font(
-                    308,
-                    29,
-                    &([
-                        self.i.nimet[top5[1] as usize].as_slice(),
-                        b"$",
-                        str1.as_slice(),
-                    ]
-                    .concat()),
-                );
-            }
-        };
-
-        let drawkeymap = || {
-            self.g.draw_anim(227, 2, 64);
-
-            self.g.font_color(246);
-            self.g.e_write_font(308, 9, self.l.lstr(330));
-
-            for temp in 1..=5 {
-                self.g.e_write_font(
-                    308,
-                    temp * 10 + 9,
-                    &([
-                        self.l.lstr((330 + temp) as u32),
-                        b": ",
-                        self.u.keyname(self.k[temp as usize]),
-                    ]
-                    .concat()),
-                );
-            }
-            self.g.font_color(247);
-        };
-
-        let drawtop5info = |index: i32, pel: i32| {
-            // var str1 : string;
-            //     temp : integer;
-            //
-            // begin
-            let text = [&self.act_hill.name as &[u8], b" K", &txt(self.act_hill.kr)].concat();
-            self.g.e_write_font(308, 9, &text);
-
-            for temp in 0..5 {
-                if (self.pisteet[top5[temp] as usize] > 0) {
-                    let mut str1 = txtp(self.pisteet[top5[temp] as usize]);
-
-                    if self.diff && temp > 1 {
-                        str1 = txtp(
-                            self.pisteet[top5[temp] as usize] - self.pisteet[top5[1] as usize],
-                        );
-                    }
-                    if self.jcup {
-                        str1 = [&self.i.jnimet[top5[temp] as usize] as &[u8], b"$", &str1].concat();
-                    } else {
-                        str1 = [&self.i.nimet[top5[temp] as usize] as &[u8], b"$", &str1].concat();
-                    }
-
-                    self.g.e_write_font(308, 13 + temp as i32 * 7, &str1);
-                }
-            }
-
-            let mut str1 = self.l.lstr(62);
-            if (self.kierros == 2) && (index == 1) && (self.wcup) {
-                str1 = self.l.lstr(63);
-            }
-
-            let temp = self.pisteet[top5[1] as usize] - self.pisteet[pel as usize];
-            if temp > 0 {
-                self.g
-                    .e_write_font(308, 62, &([str1, b": ", &txtp(temp + 1)].concat()));
-            }
-        };
-
         /*
-        procedure drawwcinfo;
-        var str1 : string;
-            temp : integer;
-
-        begin
-
-         if (jcup) then ewritefont(308,9,lstr(71))
-                   else ewritefont(308,9,lstr(70));
-
-         for temp:=1 to 5 do
-          begin
-           if (mcpisteet[mcluett[temp]]>0) then
-            begin
-
-             str1:=txt(mcpisteet[mcluett[temp]]);
-
-             if (diffwc) and (temp>1) then str1:=txt(mcpisteet[mcluett[temp]]-mcpisteet[mcluett[1]]);
-
-             if (jcup) then str1:=jnimet[mcluett[temp]]+'$'+str1
-                       else str1:=nimet[mcluett[temp]]+'$'+str1;
-
-             ewritefont(308,13+temp*7,str1);
-            end;
-          end;
-
-        end;
-
-        procedure drawhrinfo;
-        begin
-         ewritefont(308,9,acthill.name+' K'+txt(acthill.kr));
-         ewritefont(308,19,lstr(65));
-         ewritefont(308,29,HRName(nytmaki));
-         ewritefont(308,39,txtp(HRLen(nytmaki))+'�');
-         if (goals) and (nytmaki<=NumWcHills) then ewritefont(308,49,lstr(242)+': '+txtp(loadgoal(nytmaki)));
-
-        end;
-
-
-        procedure drawinfo(var l:longint;index,pel:integer);
-        begin
-
-         if (pisteet[top5[1]]=0) or (kierros<0) then
-          begin { ei tuloksia n�ytett�v�n� }
-           if ((wcup) or (jcup)) and (mcpisteet[mcluett[1]]>0) then
-            begin
-             case l of
-             0..130 : drawhrinfo;
-             146..276 : drawwcinfo;
-             291 : l:=0;
-             end;
-            end else drawhrinfo;
-          end else
-            begin { on tuloksia }
-             if (koth) then
-              begin
-               case l of
-                0..130 : drawkothinfo(pel);
-                146..276 : drawhrinfo;
-                291 : l:=0;
-               end;
-              end
-               else
-               case l of
-                0..130 : drawtop5info(index,pel);
-                146..276 : drawhrinfo;
-                292..422 : if (mcpisteet[mcluett[1]]>0) then drawwcinfo else l:=0;
-                437 : l:=0;
-               end;
-            end;
-        end;
-
-
-        procedure jarjesta5(index:integer);
-        var num : byte;
-            apu1, apu2, apu3 : integer;
-        begin
-
-         for apu1:=1 to 5 do top5[apu1]:=0;
-
-         if (koth) then  { haetaan huonoin }
-          begin
-
-           apu2:=30000; apu3:=0;                   { hae huonoin t�h�n menness� }
-
-           for apu1:=1 to index-1 do
-            if (mcpisteet[mcluett[apu1]]=0) then { jos pelaaja mukana ja ei itse? KOTH }
-             if (pisteet[mcluett[apu1]] < apu2) then
-              begin
-               apu2:=pisteet[mcluett[apu1]];
-               apu3:=mcluett[apu1];
-              end;
-
-           if (apu2<>30000) then
-            begin
-             top5[1]:=apu3;
-            end;
-
-          end else
-
-          begin
-
-           if (jcup) then num:=NumTeams else num:=NumPl;
-
-           for apu1:=1 to num do
-            begin
-             apu2:=1;
-             repeat   { Verrataan jokaiseen }
-               if (pisteet[apu1]>pisteet[top5[apu2]]) then
-                begin
-                  for apu3:=5 downto apu2+1 do
-                   top5[apu3]:=top5[apu3-1];
-
-                  top5[apu2]:=apu1;
-
-                  apu2:=num;
-                end;
-              inc(apu2);
-
-             until (apu2>=6);
-           end;
-          end;
-        end;
-
-
         function writereplay(author,name:string):byte;
         var t1, t2 : integer;
             check : longint;
@@ -567,9 +414,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
         rturns = 0;
 
         if self.eka {
-            lmaara = random_u16(2) * random_u16(256);
+            lmaara = random(2) as u16 * random(256) as u16;
             if (lmaara > 0) && (lmaara < 40) {
-                lmaara = 41 + random_u16(150);
+                lmaara = 41 + random(150) as u16;
             }
             if (lmaara > 0) && (random(4) == 0) {
                 lmaara += 1000; //{ r�nt� }
@@ -600,488 +447,738 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
 
             self.tuuli.hae();
         }
+
+        self.p.siirra_standardi_paletti();
+
+        if lmaara > 1000 {
+            self.p.tumma_lumi();
+        }
+        if (self.eka) {
+            self.p.aseta_paletti();
+        }
+        cjumper = true;
+        draw = false;
+
+        if pel > NUM_PL as i32 - self.i.pmaara as i32 {
+            //{ oma j�tk� }
+            cjumper = false;
+            draw = true;
+        }
+
+        temp = 0;
+
+        if self.seecomps > NUM_PL as u8 {
+            //{ jos ei suoraa pelaajavalintaa }
+            match self.seecomps {
+                //{ ketk� n�ytet��n }
+                235 => temp = 1,
+                236 => temp = 3,
+                237 => temp = 5,
+                238 => temp = 10,
+                239 => temp = 100,
+                _ => {}
+            }
+            temp2 = index;
+            if self.koth || self.jcup {
+                temp2 = team; //{ koth: t�nne johdetaan se realindex }
+            }
+            if temp2 <= temp {
+                draw = true;
+            }
+        } else {
+            //{ suora pelaaja }
+            if self.seecomps as i32 == pel {
+                draw = true;
+            }
+        }
+
+        statsvictim = 0;
+        actprofile = 0;
+
+        self.p.load_suit((pel % NUM_SUITS as i32) as u8, 0);
+        self.p.load_skis((pel % NUM_SKIS as i32) as u8, 0);
+
+        if !cjumper {
+            statsvictim = NUM_PL as i32 + 1 - pel; /* antaa pelaajan numeron 1..10 */
+            actprofile = self.i.profileorder[statsvictim as usize];
+            self.p
+                .load_suit(self.i.profile[actprofile as usize].suitcolor, 0);
+            self.p
+                .load_skis(self.i.profile[actprofile as usize].skicolor, 0);
+        }
+
+        mcliivi = true;
+        if self.mcluett[1] as i32 != pel || self.treeni || self.koth {
+            mcliivi = false;
+        }
+        if !mcliivi {
+            self.p.siirra_liivi_pois();
+        }
+
+        temp = random(80) as i32; //{ 120 }
+        temp -= random(24 * pel as u32) as i32; //{ 34,32, 30, 25,20, 13 ennen muutosta }
+        temp -= random(12 * pel as u32) as i32; //{ 17,16,15, 12, 8,  5  e.m. }
+        temp -= random(10 * pel as u32) as i32; //{ uusi }
+        temp = 63 - temp; //{ 80,100,110,114,119,119  e.m. }
+
+        skill = 17 - f32::round(nsqrt(temp as f32) / 4f32) as u8;
+        if skill > 16 {
+            skill = 16;
+        }
+
+        reflex = f32::round((34 + pel + random(10) as i32) as f32 / 5f32) as u8;
         /*
-          SiirraStandardiPaletti;
-
-          if (LMaara>1000) then TummaLumi;
-
-          if (eka) then AsetaPaletti;
-
-          cjumper:=true;
-          draw:=false;
-
-          if (pel > NumPl-pmaara) then  { oma j�tk� }
-           begin
-            cjumper:=false;
-            draw:=true;
-           end;
-
-          temp:=0;
-
-          if (seecomps>NumPl) then  { jos ei suoraa pelaajavalintaa }
-           begin
-            case (seecomps) of { ketk� n�ytet��n }
-             235 : temp:=1;
-             236 : temp:=3;
-             237 : temp:=5;
-             238 : temp:=10;
-             239 : temp:=100;
-            end;
-
-            temp2:=index;
-            if (koth) or (jcup) then temp2:=team; { koth: t�nne johdetaan se realindex }
-            if (temp2 <= temp) then draw:=true;
-           end
-            else
-             begin { suora pelaaja }
-              if (seecomps=pel) then draw:=true;
-             end;
-
-          statsvictim:=0; actprofile:=0;
-
-          LoadSuit(pel mod NumSuits,0);
-          LoadSkis(pel mod NumSkis,0);
-
-          if (not cjumper) then
-           begin
-            statsvictim:=NumPl+1-pel;     { antaa pelaajan numeron 1..10 }
-            actprofile:=profileorder[statsvictim];
-            LoadSuit(Profile[actprofile].suitcolor,0);
-            LoadSkis(Profile[actprofile].skicolor,0);
-           end;
-
-          mcliivi:=true;
-          if (mcluett[1]<>pel) or (treeni) or (koth) then mcliivi:=false;
-
-          if (not mcliivi) then SiirraLiiviPois;
-
-        {  AsetaPaletti; }
-
-
-        (*
-          if (koth) then draw:=true; { KYSEENALAINEN! }
-        *)
-
-        {  draw:=true;
-           cjumper:=true; }
-
-
-        (*
-          if (not cjumper) and (jcup) then statsvictim:=index+((pel-1)*4); { toivottavasti tekee saman }
-        *)
-                                     { NumPl+1-pel+4*(team-1) }
-          temp:=random(80);   { 120 }
-          dec(temp,random(24*pel)); { 34,32, 30, 25,20, 13 ennen muutosta }
-          dec(temp,random(12*pel));  { 17,16,15, 12, 8,  5  e.m. }
-          dec(temp,random(10*pel)); { uusi }
-          temp:=63-temp;           { 80,100,110,114,119,119  e.m. }
-
-          skill:=17-round(nsqrt(temp)/4);
-
-          if (skill>16) then skill:=16;
-
-          reflex:=round((34+pel+random(10))/5);
         {  reflex:=round((33+pel+random(8))/4); }
         {  reflex:=round((45+pel+random(10))/5); }
         {  reflex:=round((30+1+random(30))/5); }
+        */
 
-          { floppihyppy }
-          if (random(300-pel)=0) then skill:=17+random(3+pel div 25);
-
-        {  skill:=16; }
-
-           GetNow(Now); { haetaan current time }
-
-          Maki.X:=0;
-          Maki.Y:=0;
-
-         x:=0; y:=0; sx:=0; sy:=0; fx:=0; fy:=0;  { Former X & Y }
-         hp:=0;
-         paras:=0; { treenijuttuja }
-
-         KeulaY:=Profiili(KeulaX);  { helpottaa vaan }
-
-         pl:=acthill.plsave;  { plsave on m�enparametreja }
-         maxspeed:=acthill.vxfinal; { n�in voidaan lavaa vaihtaa... }
-
-        { pl:=0.34;  temps }
-
-        { vxfinal:=150;  lopullinen nopeus pit�is olla GLOBAL tai jotain }
-
-          tyylip[1]:=195;  { ennen 200, v3.0 195 }
-          tyylip[6]:=200;
-          tyylip[7]:=0; { tyylip[6] => pienin, [7] => suurin }
-
-         qx:=KeulaX+0.5; { emme halua, ett� se toteaa keulalla matkan>0 }
-
-         wrx:=0; wry:=0; goalx:=0; goaly:=0;
-         matka:=0;
-
-         { haetaan m�kienkkakepille mesta! }
-
-         temp:=0;
-         if (nytmaki<=NumWcHills) then temp:=loadgoal(nytmaki);
-
-         if (draw) then
-           repeat
-            matka:=matka+1;
-
-            x:=round(matka+qx);
-            kor:=Profiili(x);
-            kkor:=kor-KeulaY;
-            hp:=round(nsqrt((matka*matka)+(kkor*kkor))*acthill.pk*0.5)*5;
-
-            if (hp>=HRLen(nytmaki)) and (HRLen(nytmaki)>0) and (wrx=0) then
-             begin wrx:=x; wry:=round(kor)-9; end;
-
-            if (hp>=temp) and (temp<>0) and (goalx=0) then
-             begin goalx:=x; goaly:=round(kor)-7; end;
-
-           until (x>1024);
-
-
-          hp:=0;
-          kkor:=0;
-
-          matka:=-KeulaX+10;
-           qx:=KeulaX+0.5; { emme halua, ett� se toteaa keulalla matkan>0 }
-
-          x:=round(matka+qx);
-
-          kor:=Profiili(x);  { alasp�in on positiivinen }
-
-          y:=round(kor);
-
-        (*
-          qy:=-Profiili(KeulaX);  { x & y kompensaatteja n�ytt�� varten }
-          *)
-
-          ponnistus:=0; Out:=False; Ok:=True;  { OK to be used w/ ei ponnistanut }
-          height:=0; { �ij�n korkeus m�est� }
-        (*  fheight:=0; { edellinen korkeus } *)
-          for temp:=0 to 5 do DeltaH[temp]:=0;
-          riski:=0; { kaatumisriski }
-
-          landing:=0; { 0 - ei, 1 - telemark, 2 - tasajalka }
-          clanding:=0; { tuleva lask. 0 - ei, 1 - tele, 2 - tasa }
-          kupat:=0;   { 0 - ei, 1 - oma moka, 2 - huono s�k� }
-
-          ponnphase:=0;  { t�m� m��r�� animaation asennon ukossa }
-
-
-          py:=0; { vauhtia Y-akselin ei oo, tai on mutta summa=0 }
-
-          px:=0;  { T�t� kerrotaan pxk:lla, kunnes px = vxfinal; }
-          pxk:=1.016; { hyv� kerroin }
-
-          t:=0;  { aika }
-
-          kulma1:=0; { �ij�n kropan kulma }
-         { kulmas:=900; } { Suksien kulma }
-          kulmas:=0; { Suksien kulma }
-
-          ssuunta:=0;  { sukset eiv�t liiku mihink��n }
-
-          replayname:='?'; replayfilename:='TEMP';
-
-        { temp:=1; temp2:=0; }
-
-
-
-        {  Port[$3c8]:=15; Port[$3c9]:=63; Port[$3c9]:=33; port[$3c9]:=33; }
-
-        {  x:=round(matka)+qx;
-           y:=Profiili(x); }
-
-
-        {  fillbox(0,9,319,16,10);
-
-          for a:=0 to 11 do
-           drawanim(10+a*20,20,a+87);
-
-          writefont(1,10,1,'Ville Juhana K�n�nen 118.3 (165.5�)'); }
-
-        {  writefont(1,10,1,'ABCDEFGHIJKLMNOPQRSTUVXYZ���1234567890�"().:,''#*-+?!'); }
-
-        {  fillbox(100,100,200,183,240); oikea neliskantti 320x200:ssa }
-
-           Maki.Tulosta;
-
-        (*    FontColor(251); { p��fonttiv�ri }  *)
-
-          namestr:=nimet[pel];
-
-        (*
-          if (jcup) then namestr:=nimet[NumPl+1-statsvictim]
-           else if (treeni) then namestr:=nimet[NumPl+1];
-        *)
-
-          str1:=namestr;
-
-          if (wcup) then
-           begin
-            if (kierros=2) then str1:=str1+' ('+txt(index)+'.)';
-            if (kierros=0) and (qual[pel]>0) then str1:=str1+' Q WC';
-           end;
-
-        {   writefont(32,4,15,'NEXT '+nimet[51-pel]); }
-
-          str2:=lstr(51);
-
-          case kierros of
-          -5..-1 : str2:=lstr(52)+' '+txt(abs(kierros));
-           0..2 : str2:=lstr(53+kierros);
-          end;
-
-          if (kierros=2) and (wcup) and (draw) then fontcolor(241);
-
-        {
-          writefont(200,10,'VXF '+txt(acthill.vxfinal));
-          writefont(200,20,'PL '+txt(round(pl*100)));
-          writefont(200,30,'PK '+txt(round(acthill.pk*100)));
+        //{ floppihyppy }
+        if random((300 - pel) as u32) == 0 {
+            skill = (17 + random((3 + pel / 25) as u32)) as u8;
         }
-          jarjesta5(index);
 
-        {  drawtop5info(index, pel); }
+        self.now = Time::now(); //{ haetaan current time }
 
-        {  DrawScreen; }
+        self.m.x.set(0);
+        self.m.y.set(0);
 
-        {  cupslut:=waitforkey3(180,ch); }
+        x = 0;
+        y = 0;
+        sx = 0;
+        sy = 0;
+        fx = 0;
+        fy = 0; //{ Former X & Y }
+        hp = 0;
+        paras = 0; //{ treenijuttuja }
 
-          DeltaX:=Maki.X;
-          DeltaY:=Maki.Y;
+        keula_y = self.m.profiili(self.keula_x); //{ helpottaa vaan }
+        pl = self.act_hill.pl_save; //{ plsave on m�enparametreja }
+        maxspeed = self.act_hill.vx_final; //{ n�in voidaan lavaa vaihtaa... }
 
-          laskuri:=0;  { t�t� k�ytet��n laskurina seuraavassa }
+        tyylip[1] = 195; //{ ennen 200, v3.0 195 }
+        tyylip[6] = 200;
+        tyylip[7] = 0; //{ tyylip[6] => pienin, [7] => suurin }
 
-        {  testspeed; }
+        qx = self.keula_x as f32 + 0.5; //{ emme halua, ett� se toteaa keulalla matkan>0 }
 
-         AsetaPaletti;
-
-        { Tuulisafe:=Tuuli.value; }
-
-         Tuuli.Hae;
-
-         if (draw) and (ch<>#27) then
-          repeat  { INFORUUTU LUUPPI! }
-
-           inc(laskuri);
-
-           Maki.Tulosta;
-
-        {   Tuuli.Hae; }
-
-           DrawLumi(DeltaX-Maki.X,DeltaY-Maki.Y,Tuuli.Value,LMaara,true);
-
-        {   writefont(5,100,txtp(fourpts[pel])); }
-
-        {   writefont(100,100,txt(wrx));
-            writefont(100,110,txt(wry));
-             drawanim(100,90,68);
-             drawanim(100,192,68); }
-
-           DrawAnim(227,2,64);
-           DrawAnim(3,150,65);
-
-           FontColor(247);
-
-           Writefont(12,160,str2);
-           Writefont(12,172,lstr(56));
-
-           if (treeni) then writefont(67+fontlen(lstr(58)),27,'(+/-)');
-
-           if (jcup) then WriteFont(14+fontlen(lstr(56)),179,jnimet[team]);
-
-           if (not cjumper) then FontColor(240);
-        {                else FontColor(240); }
-
-           WriteFont(12+fontlen(lstr(56)),172,str1); { nimi ruutuun }
-
-
-           if (treeni) then writefont(64,19,lstr(58));
-
-           Fontcolor(241);
-
-           if (kierros=2) and (wcup) then
-             Writefont(14+fontlen(lstr(56)),179,txtp(pisteet[pel])+' ('+txtp(Cstats[1,pel])+'�)');
-           Writefont(12,191,lstr(59));
-
-
-           FontColor(246);
-
-           if (treeni) then writefont(70+fontlen(lstr(58)),19,txt(startgate));
-                                             {252}
-           temp:=pel;
-           if (jcup) then temp:=team;
-            DrawInfo(laskuri, index, temp);
-
-        {   if (ex) then  balk(0); }
-
-        {    if (ex) then  balk(1); }
-
-           DrawScreen;
-
-           ch:=#1;
-
-           if (SDLPort.KeyPressed) then
-            begin
-             SDLPort.WaitForKeyPress(ch,ch2);
-             if (ch=#0) and (ch2=#68) then begin cupslut:=true; ch:=#27; end;
-             if (upcase(ch)=lch(60,1)) then
-              begin
-               SetupMenu;
-               ch:=#1;
-               LoadSuit(Profile[actprofile].suitcolor,0);
-               LoadSkis(Profile[actprofile].skicolor,0);
-               mcliivi:=true;
-               if (mcluett[1]<>pel) or (treeni) or (koth) then mcliivi:=false;
-               if (not mcliivi) then SiirraLiiviPois;
-               Tuuli.AsetaPaikka(windplace);
-              end;
-
-             if (treeni) then
-              begin
-               if (ch='+') then begin inc(startgate); ch:=#1; end;
-               if (ch='-') then begin dec(startgate); ch:=#1; end;
-               if (startgate<1) then startgate:=1;
-               if (startgate>30) then startgate:=30;
-              end;
-            end;
-
-          until (ch<>#1);
-
-          if (treeni) then maxspeed:=maxspeed+(startgate-15);
-
-        (*
-          if (keypressed) then
-           begin
-            ch:=readkey;
-            if (ch=#0) then if (readkey=#68) then begin cupslut:=true; ch:=#27; end;
-           end;
-        *)
-
-          laskuri:=0;  { t�t� ehk� k�ytet��n laskurina seuraavassa }
-          Out:=false;
-
-         if (draw) then
-          begin
-           MuutaLogo(6);
-           AsetaPaletti;
-          end;
-
-          SkiAnim:=SuksiLaskussa(MakiKulma(x));
-          JumperAnim:=164;
-
-          KulmaLaskuri:=0; { k�ytet��n t�t� parruanimia }
-          px:=0;
-
-          if (draw) then FontColor(247);
-
-          RstartX:=x;
-          RstartY:=y;
-
-         if (ch<>#27) and (draw) then  { ISTUU PARRULLA LUUPPI }
-          repeat
-
-           if (not treeni) then inc(laskuri);
-
-           Tuuli.Hae;
-
-           Maki.Tulosta;
-
-        {   PutPixel(KeulaX-Maki.X,Profiili(KeulaX)-Maki.Y,15); }
-
-        {   tempb:=SuksiAnim(x); }
-
-           if (kulmalaskuri>3024) and (kulmalaskuri<4000) then
-            begin
-             temp:=kulmalaskuri-3024;
-             sx:=x-Maki.X+4;
-             sy:=y-Maki.Y-10;
-
-             if (temp=1) then px:=0.6;
-             px:=px+((tuuli.value-20)/10000);
-
-             inc(sx,round(temp*px));
-             inc(sy,(temp*temp) div 160);
-
-             if (sy< profiili(sx)) then putpixel(sx,sy,225)
-                                   else kulmalaskuri:=0;
-
-            end;
-
-          if (laskuri<350) or (laskuri mod 40 > 19) then
-           DrawAnim(x-Maki.X+60,y-Maki.Y-10,67); { liikennevalo1 }
-
-           DrawAnim(x-Maki.X,y-Maki.Y-2,JumperAnim);
-           DrawAnim(x-Maki.X,y-Maki.Y-1,SkiAnim);
-
-           DrawLumi(DeltaX-Maki.X,DeltaY-Maki.Y,Tuuli.Value,LMaara,true);
-
-        {   Lumi.Update(Video,128,(DeltaX-Maki.X)*2,(DeltaY-Maki.Y)*2); }
-
-        {   Writefont(x-Maki.X,y-Maki.Y-20,1,txt(height)); }
-        {    Writefont(x-Maki.X,y-Maki.Y-15,txt(haalarit[statsvictim]));
-            Writefont(x-Maki.X+15,y-Maki.Y-15,txt(statsvictim)); }
-        {    Writefont(x-Maki.X+15,y-Maki.Y-15,txt(index)); }
-
-        {  if (cjumper) then ewritefont(308,9,'(C)'); }
-          if (cjumper) then writefont(x-Maki.X,y-Maki.Y-20,'C');
-
-        {  if (cjumper) and (laskuri mod 40 < 20) then
-            ewritefont(308,9,'(COMPUTER)'); }
-
-          if (windplace>10) then Tuuli.Tuo(x-Maki.X,y-Maki.Y);
-
-          if (laskuri<700) then Tuuli.Piirra;
-
-          if (eka) and (osakilpailu=1) and (not cjumper) then drawkeymap;
-
-        {  if (ex) then balk(0); }
-
-         {    inc(Rturns); }
-
-        {  if (ex) then balk(1); }
-
-          DrawScreen;
-
-          ch:=#0; ch2:=#0;
-
-          if (SDLPort.KeyPressed) then
-           begin
-            SDLPort.WaitForKeyPress(ch,ch2);
-            ch:=upcase(ch);
-            if (ch=#0) and (ch2=#68) then begin cupslut:=true; ch:=#27; end;
-            if (not cjumper) and ((kword(ch,ch2)=K[2]) or (ch=#13)) then out:=true; { liikkeelle }
-            if (ch=#0) and (ch2=#63) and (wcup) and (cupstyle=1) and
-               (index=NumPl) and (kierros=1) and (osakilpailu=1) then begin Tuuli.Alusta(windplace); end;
-            if (ch=#27) then out:=true;
-           end;
-             if (cjumper) and ((random(100)=0) or (laskuri>600)) then Out:=True;
-           if (cjumper) and (random(100)=0) and (kulmalaskuri=0) then
-            begin
-             kulmalaskuri:=(random(3)+1)*1000;
-             sx:=0; sy:=0;
-            end;
-
-           if (kulmalaskuri>0) then inc(kulmalaskuri);
-
-           if (kulmalaskuri=0) and (not cjumper) then
-            begin
-             if (kword(ch,ch2)=K[3]) then kulmalaskuri:=3000;
-             if (kword(ch,ch2)=K[4]) then kulmalaskuri:=2000;
-             if (kword(ch,ch2)=K[1]) then kulmalaskuri:=1000;
-
-             sx:=0;
-             sy:=0;
-
-            end;
-
-           JumperAnim:=ParruAnim(kulmalaskuri);
-
-           if (ch=#27) and (cjumper) then JumperAnim:=164; { emm� haluu tsiigaa }
-
-          until ((Out) and (JumperAnim=164)) or (laskuri>700);
-
+        wrx = 0;
+        wry = 0;
+        goalx = 0;
+        goaly = 0;
+        matka = 0.0;
+
+        //{ haetaan m�kienkkakepille mesta! }
+        temp = 0;
+        if self.nytmaki <= NUM_WC_HILLS {
+            temp = loadgoal(self.nytmaki);
+        }
+
+        if draw {
+            loop {
+                matka += 1.0;
+
+                x = f32::round(matka + qx) as i32;
+                kor = self.m.profiili(x) as f32;
+                kkor = kor - keula_y as f32;
+                hp = f32::round(nsqrt((matka * matka) + (kkor * kkor)) * self.act_hill.pk * 0.5)
+                    as i32
+                    * 5;
+
+                if hp >= self.u.hrlen(self.nytmaki) && self.u.hrlen(self.nytmaki) > 0 && wrx == 0 {
+                    wrx = x;
+                    wry = f32::round(kor) as i32 - 9;
+                }
+
+                if hp >= temp && temp != 0 && goalx == 0 {
+                    goalx = x;
+                    goaly = f32::round(kor) as i32 - 7;
+                }
+
+                if x > 1024 {
+                    break;
+                }
+            }
+        }
+
+        hp = 0;
+        kkor = 0.0;
+
+        matka = -self.keula_x as f32 + 10.0;
+        qx = self.keula_x as f32 + 0.5; //{ emme halua, ett� se toteaa keulalla matkan>0 }
+
+        x = f32::round(matka + qx) as i32;
+
+        kor = self.m.profiili(x) as f32;
+
+        y = f32::round(kor) as i32;
+
+        ponnistus = 0;
+        out = false;
+        ok = true; //{ OK to be used w/ ei ponnistanut }
+        height = 0; //{ �ij�n korkeus m�est� }
+        for temp in 0..=5 {
+            deltah[temp] = 0;
+        }
+        riski = 0; //{ kaatumisriski }
+
+        landing = 0; //{ 0 - ei, 1 - telemark, 2 - tasajalka }
+        clanding = 0; //{ tuleva lask. 0 - ei, 1 - tele, 2 - tasa }
+        kupat = 0; //{ 0 - ei, 1 - oma moka, 2 - huono s�k� }
+
+        ponnphase = 0; //{ t�m� m��r�� animaation asennon ukossa }
+
+        py = 0.0; //{ vauhtia Y-akselin ei oo, tai on mutta summa=0 }
+
+        px = 0.0; //{ T�t� kerrotaan pxk:lla, kunnes px = vxfinal; }
+        pxk = 1.016; //{ hyv� kerroin }
+
+        t = 0.0; //{ aika }
+
+        kulma1 = 0; //{ �ij�n kropan kulma }
+        kulmas = 0; //{ Suksien kulma }
+
+        ssuunta = 0; //{ sukset eiv�t liiku mihink��n }
+
+        replayname = b"?".to_vec();
+        replayfilename = b"TEMP".to_vec();
+
+        self.m.tulosta();
+
+        namestr = self.i.nimet[pel as usize].clone();
+        str1 = namestr.clone();
+
+        if self.wcup {
+            if self.kierros == 2 {
+                str1 = [&str1 as &[u8], b" (", &txt(index), b".)"].concat()
+            }
+            if self.kierros == 0 && self.qual[pel as usize] > 0 {
+                str1 = [&str1 as &[u8], b" Q WC"].concat()
+            }
+        }
+
+        str2 = self.l.lstr(51).to_vec();
+
+        match self.kierros {
+            -5..=-1 => {
+                str2 = [
+                    &self.l.lstr(52) as &[u8],
+                    b" ",
+                    &txt(i32::abs(self.kierros)),
+                ]
+                .concat()
+            }
+            0..=2 => str2 = self.l.lstr(53 + self.kierros as u32).to_vec(),
+            _ => {}
+        }
+
+        if self.kierros == 2 && self.wcup && draw {
+            self.g.font_color(241);
+        }
+
+        // jajesta5
+        {
+            for apu1 in 0..=5 {
+                top5[apu1 as usize] = 0;
+            }
+
+            if self.koth {
+                let mut apu2 = 30000;
+                let mut apu3 = 0; //{ hae huonoin t�h�n menness� }
+
+                for apu1 in 1..=index - 1 {
+                    if self.mcpisteet[self.mcluett[apu1 as usize] as usize] == 0 {
+                        //{ jos pelaaja mukana ja ei itse? KOTH }
+                        if self.pisteet[self.mcluett[apu1 as usize] as usize] < apu2 {
+                            apu2 = self.pisteet[self.mcluett[apu1 as usize] as usize];
+                            apu3 = self.mcluett[apu1 as usize];
+                        }
+                    }
+                }
+
+                if apu2 != 30000 {
+                    top5[1] = apu3;
+                }
+            } else {
+                let num = if self.jcup { NUM_TEAMS } else { NUM_PL } as u8;
+
+                for apu1 in 1..=num {
+                    let mut apu2 = 1;
+                    loop {
+                        //{ Verrataan jokaiseen }
+                        if self.pisteet[apu1 as usize] > self.pisteet[top5[apu2 as usize] as usize]
+                        {
+                            for apu3 in (apu2 + 1..=5).rev() {
+                                top5[apu3 as usize] = top5[apu3 as usize - 1];
+                            }
+                            top5[apu2 as usize] = apu1;
+                            apu2 = num;
+                        }
+                        apu2 += 1;
+                        if apu2 >= 6 {
+                            break;
+                        }
+                    }
+                }
+            }
+        };
+
+        delta_x = self.m.x.get();
+        delta_y = self.m.y.get();
+
+        laskuri = 0; //{ t�t� k�ytet��n laskurina seuraavassa }
+
+        self.p.aseta_paletti();
+
+        self.tuuli.hae();
+
+        if draw && self.h.ch.get() != 27 {
+            loop {
+                //{ INFORUUTU LUUPPI! }
+                laskuri += 1;
+
+                self.m.tulosta();
+
+                self.draw_lumi(
+                    delta_x - self.m.x.get(),
+                    delta_y - self.m.y.get(),
+                    self.tuuli.value.get(),
+                    lmaara,
+                    true,
+                );
+
+                self.g.draw_anim(227, 2, 64);
+                self.g.draw_anim(3, 150, 65);
+
+                self.g.font_color(247);
+
+                self.g.write_font(12, 160, &str2);
+                self.g.write_font(12, 172, self.l.lstr(56));
+
+                if self.treeni {
+                    self.g
+                        .write_font(67 + self.g.font_len(self.l.lstr(58)), 27, b"(+/-)");
+                }
+                if self.jcup {
+                    self.g.write_font(
+                        14 + self.g.font_len(self.l.lstr(56)),
+                        179,
+                        &self.i.jnimet[team as usize],
+                    );
+                }
+                if !cjumper {
+                    self.g.font_color(240);
+                }
+
+                self.g
+                    .write_font(12 + self.g.font_len(self.l.lstr(56)), 172, &str1); //{ nimi ruutuun }
+
+                if self.treeni {
+                    self.g.write_font(64, 19, self.l.lstr(58));
+                }
+
+                self.g.font_color(241);
+
+                if self.kierros == 2 && self.wcup {
+                    self.g.write_font(
+                        14 + self.g.font_len(self.l.lstr(56)),
+                        179,
+                        &[
+                            &txt(self.pisteet[pel as usize]) as &[u8],
+                            b" (",
+                            &txt(self.cstats[1][pel as usize]),
+                            b"\xab)",
+                        ]
+                        .concat(),
+                    );
+                }
+                self.g.write_font(12, 191, self.l.lstr(59));
+
+                self.g.font_color(246);
+
+                if self.treeni {
+                    self.g.write_font(
+                        70 + self.g.font_len(self.l.lstr(58)),
+                        19,
+                        &txt(self.startgate),
+                    );
+                }
+                temp = pel;
+                if self.jcup {
+                    temp = team;
+                }
+
+                // drawinfo
+                {
+                    if (self.pisteet[top5[1] as usize] == 0) || (self.kierros < 0) {
+                        //{ ei tuloksia n�ytett�v�n� }
+                        if (self.wcup || self.jcup)
+                            && (self.mcpisteet[self.mcluett[1] as usize] > 0)
+                        {
+                            match laskuri {
+                                0..=130 => self.drawhrinfo(),
+                                146..=276 => self.drawwcinfo(),
+                                291 => laskuri = 0,
+                                _ => (),
+                            }
+                        } else {
+                            self.drawhrinfo()
+                        }
+                    } else {
+                        //{ on tuloksia }
+                        if self.koth {
+                            match laskuri {
+                                0..=130 => {
+                                    // drawkothinfo
+                                    let str1 = [
+                                        self.l.lstr(67),
+                                        b" ",
+                                        &txt(1 + self.kothmaara as i32 + self.i.pmaara as i32
+                                            - self.mcpisteet[0]),
+                                        b" ",
+                                        self.l.lstr(8),
+                                        b" ",
+                                        &txt(self.kothmaara as i32 + self.i.pmaara as i32),
+                                    ]
+                                    .concat();
+
+                                    self.g.e_write_font(308, 9, &str1);
+
+                                    if top5[1] > 0 {
+                                        let mut str1 = self.l.lstr(68);
+
+                                        if (self.kierros == 1) && (self.kothrounds > 1) {
+                                            str1 = self.l.lstr(69)
+                                        };
+
+                                        self.g.e_write_font(308, 19, str1);
+
+                                        let mut str1 = txtp(self.pisteet[top5[1] as usize]);
+
+                                        if self.kierros == 2 {
+                                            str1 = txtp(
+                                                self.pisteet[top5[1] as usize]
+                                                    - self.pisteet[pel as usize],
+                                            );
+                                        }
+
+                                        self.g.e_write_font(
+                                            308,
+                                            29,
+                                            &([
+                                                self.i.nimet[top5[1] as usize].as_slice(),
+                                                b"$",
+                                                str1.as_slice(),
+                                            ]
+                                            .concat()),
+                                        );
+                                    }
+                                }
+                                146..=276 => self.drawhrinfo(),
+                                291 => laskuri = 0,
+                                _ => (),
+                            }
+                        } else {
+                            match laskuri {
+                                0..=130 => {
+                                    // drawtop5info
+                                    let text = [
+                                        &self.act_hill.name as &[u8],
+                                        b" K",
+                                        &txt(self.act_hill.kr),
+                                    ]
+                                    .concat();
+                                    self.g.e_write_font(308, 9, &text);
+
+                                    for temp in 0..5 {
+                                        if (self.pisteet[top5[temp] as usize] > 0) {
+                                            let mut str1 = txtp(self.pisteet[top5[temp] as usize]);
+
+                                            if self.diff && temp > 1 {
+                                                str1 = txtp(
+                                                    self.pisteet[top5[temp] as usize]
+                                                        - self.pisteet[top5[1] as usize],
+                                                );
+                                            }
+                                            if self.jcup {
+                                                str1 = [
+                                                    &self.i.jnimet[top5[temp] as usize] as &[u8],
+                                                    b"$",
+                                                    &str1,
+                                                ]
+                                                .concat();
+                                            } else {
+                                                str1 = [
+                                                    &self.i.nimet[top5[temp] as usize] as &[u8],
+                                                    b"$",
+                                                    &str1,
+                                                ]
+                                                .concat();
+                                            }
+
+                                            self.g.e_write_font(308, 13 + temp as i32 * 7, &str1);
+                                        }
+                                    }
+
+                                    let mut str1 = self.l.lstr(62);
+                                    if (self.kierros == 2) && (index == 1) && (self.wcup) {
+                                        str1 = self.l.lstr(63);
+                                    }
+
+                                    let temp =
+                                        self.pisteet[top5[1] as usize] - self.pisteet[pel as usize];
+                                    if temp > 0 {
+                                        self.g.e_write_font(
+                                            308,
+                                            62,
+                                            &([str1, b": ", &txtp(temp + 1)].concat()),
+                                        );
+                                    }
+                                }
+                                146..=276 => self.drawhrinfo(),
+                                291..=422 => {
+                                    if self.mcpisteet[self.mcluett[1] as usize] > 0 {
+                                        self.drawwcinfo()
+                                    } else {
+                                        laskuri = 0;
+                                    }
+                                }
+                                437 => laskuri = 0,
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+
+                self.g.draw_screen();
+
+                self.h.ch.set(1);
+
+                if self.s.key_pressed() {
+                    let (ch, ch2) = self.s.wait_for_key_press();
+                    self.h.ch.set(ch);
+                    self.h.ch2.set(ch2);
+
+                    if self.h.ch.get() == 0 && self.h.ch2.get() == 68 {
+                        self.cupslut = true;
+                        self.h.ch.set(27);
+                    }
+
+                    /*
+                    if (upcase(ch)=lch(60,1)) then
+                     begin
+                      SetupMenu;
+                      ch:=#1;
+                      LoadSuit(Profile[actprofile].suitcolor,0);
+                      LoadSkis(Profile[actprofile].skicolor,0);
+                      mcliivi:=true;
+                      if (mcluett[1]<>pel) or (treeni) or (koth) then mcliivi:=false;
+                      if (not mcliivi) then SiirraLiiviPois;
+                      Tuuli.AsetaPaikka(windplace);
+                     end;
+
+                    if (treeni) then
+                     begin
+                      if (ch='+') then begin inc(startgate); ch:=#1; end;
+                      if (ch='-') then begin dec(startgate); ch:=#1; end;
+                      if (startgate<1) then startgate:=1;
+                      if (startgate>30) then startgate:=30;
+                     end;
+                    */
+                }
+
+                if self.h.ch.get() != 1 {
+                    break;
+                }
+            }
+        }
+
+        if self.treeni {
+            maxspeed += (self.startgate - 15) as u8;
+        }
+
+        laskuri = 0; //{ t�t� ehk� k�ytet��n laskurina seuraavassa }
+        out = false;
+
+        if draw {
+            self.p.muuta_logo(6);
+            self.p.aseta_paletti();
+        }
+
+        ski_anim = suksi_laskussa(self.makikulma(x));
+        jumper_anim = 164;
+
+        kulmalaskuri = 0; //{ k�ytet��n t�t� parruanimia }
+        px = 0.0;
+
+        if draw {
+            self.g.font_color(247);
+        }
+
+        rstartx = x;
+        rstarty = y;
+
+        if self.h.ch.get() != 27 && draw {
+            loop {
+                //{ ISTUU PARRULLA LUUPPI }
+                if !self.treeni {
+                    laskuri += 1;
+                }
+
+                self.tuuli.hae();
+
+                self.m.tulosta();
+
+                if kulmalaskuri > 3024 && kulmalaskuri < 4000 {
+                    temp = kulmalaskuri - 3024;
+                    sx = x - self.m.x.get() + 4;
+                    sy = y - self.m.y.get() - 10;
+
+                    if temp == 1 {
+                        px = 0.6;
+                    }
+                    px += (self.tuuli.value.get() - 20) as f32 / 10000.0;
+
+                    sx += f32::round(temp as f32 * px) as i32;
+                    sy += (temp * temp) / 160;
+
+                    if sy < self.m.profiili(sx) {
+                        self.g.put_pixel(sx, sy, 225);
+                    } else {
+                        kulmalaskuri = 0;
+                    }
+                }
+
+                if laskuri < 350 || laskuri % 40 > 19 {
+                    self.g
+                        .draw_anim(x - self.m.x.get() + 60, y - self.m.y.get() - 10, 67);
+                    //{ liikennevalo1 }
+                }
+
+                self.g
+                    .draw_anim(x - self.m.x.get(), y - self.m.y.get() - 2, jumper_anim);
+                self.g
+                    .draw_anim(x - self.m.x.get(), y - self.m.y.get() - 1, ski_anim);
+
+                self.draw_lumi(
+                    delta_x - self.m.x.get(),
+                    delta_y - self.m.y.get(),
+                    self.tuuli.value.get(),
+                    lmaara,
+                    true,
+                );
+
+                self.g.write_font(
+                    x - self.m.x.get() + 15,
+                    y - self.m.y.get() - 15,
+                    &txt(statsvictim),
+                );
+
+                if cjumper {
+                    self.g
+                        .write_font(x - self.m.x.get(), y - self.m.y.get() - 20, b"C");
+                }
+
+                if self.windplace > 10 {
+                    self.tuuli.tuo(x - self.m.x.get(), y - self.m.y.get());
+                }
+
+                if laskuri < 700 {
+                    self.tuuli.piirra();
+                }
+
+                if self.eka && self.osakilpailu == 1 && !cjumper {
+                    // drawkeymap
+                    self.g.draw_anim(227, 2, 64);
+
+                    self.g.font_color(246);
+                    self.g.e_write_font(308, 9, self.l.lstr(330));
+
+                    for temp in 1..=5 {
+                        self.g.e_write_font(
+                            308,
+                            temp * 10 + 9,
+                            &([
+                                self.l.lstr((330 + temp) as u32),
+                                b": ",
+                                self.u.keyname(self.k[temp as usize]),
+                            ]
+                            .concat()),
+                        );
+                    }
+                    self.g.font_color(247);
+                }
+
+                self.g.draw_screen();
+
+                self.h.ch.set(0);
+                self.h.ch2.set(0);
+
+                if self.s.key_pressed() {
+                    let (ch, ch2) = self.s.wait_for_key_press();
+                    self.h.ch.set(ch);
+                    self.h.ch2.set(ch2);
+                    self.h.ch.set(self.h.ch.get().to_ascii_uppercase());
+                    if self.h.ch.get() == 0 && self.h.ch2.get() == 68 {
+                        self.cupslut = true;
+                        self.h.ch.set(27);
+                    }
+                    if !cjumper && (self.h.kword() == self.k[2] || self.h.ch.get() == 13) {
+                        out = true; //{ liikkeelle }
+                    }
+                    if self.h.ch.get() == 0
+                        && self.h.ch2.get() == 63
+                        && self.wcup
+                        && self.cup_style == 1
+                        && index == NUM_PL as i32
+                        && self.kierros == 1
+                        && self.osakilpailu == 1
+                    {
+                        self.tuuli.alusta(self.windplace);
+                    }
+                    if self.h.ch.get() == 27 {
+                        out = true;
+                    }
+                }
+                if cjumper && (random(100) == 0 || laskuri > 600) {
+                    out = true;
+                }
+                if cjumper && random(100) == 0 && kulmalaskuri == 0 {
+                    kulmalaskuri = (random(3) as i32 + 1) * 1000;
+                    sx = 0;
+                    sy = 0;
+                }
+
+                if kulmalaskuri > 0 {
+                    kulmalaskuri += 1;
+                }
+
+                if kulmalaskuri == 0 && !cjumper {
+                    if self.h.kword() == self.k[3] {
+                        kulmalaskuri = 3000;
+                    }
+                    if self.h.kword() == self.k[4] {
+                        kulmalaskuri = 4000;
+                    }
+                    if self.h.kword() == self.k[1] {
+                        kulmalaskuri = 1000;
+                    }
+                    sx = 0;
+                    sy = 0;
+                }
+
+                jumper_anim = parru_anim(&mut kulmalaskuri);
+
+                if self.h.ch.get() == 27 && cjumper {
+                    jumper_anim = 164; //{ emm� haluu tsiigaa }
+                }
+
+                if out && jumper_anim == 164 || laskuri > 700 {
+                    break;
+                }
+            }
+        }
+        /*
           sx:=0;
           sy:=0;
 
@@ -2806,6 +2903,19 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'h, 'i, 'l, 'm, 'p, 
             }
 
             self.g.draw_screen();
+        }
+    }
+
+    // originally in SJ3UNIT.PAS
+    pub fn draw_lumi(&mut self, delx: i32, dely: i32, wind: i32, lmaara: u16, draw: bool) {
+        if lmaara > 0 {
+            self.lumi.update(
+                self.m.video.borrow_mut(),
+                delx * 2,
+                dely * 2,
+                wind * 8,
+                draw,
+            );
         }
     }
 }

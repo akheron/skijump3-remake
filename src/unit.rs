@@ -1,14 +1,17 @@
 use crate::graph::GraphModule;
 use crate::help::{txt, HelpModule};
 use crate::lang::LangModule;
+use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
 use crate::rs_util::{parse_line, read_line};
 use crate::sdlport::SDLPortModule;
+use chrono::Timelike;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::os::unix::prelude::OsStringExt;
 use std::path::Path;
+use std::str::from_utf8;
 
 pub const NUM_PL: usize = 75; //{ montako pelaajaa on ylip��t��n }
 pub const NUM_TEAMS: usize = 15;
@@ -63,12 +66,44 @@ pub struct Hill {
     pub hr_time: Vec<u8>,
 }
 
+#[derive(Clone, Default)]
+pub struct Hillinfo {
+    pub name: Vec<u8>,
+    pub kr: i32,
+    pub hrname: Vec<u8>,
+    pub hrlen: i32,
+    pub hrtime: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct Time {
+    hour: u16,
+    minute: u16,
+    second: u16,
+    sec100: u16,
+}
+
+impl Time {
+    pub fn now() -> Self {
+        let now = chrono::Local::now();
+        Time {
+            hour: now.hour() as u16,
+            minute: now.minute() as u16,
+            second: now.second() as u16,
+            sec100: (now.nanosecond() / 10_000_000) as u16,
+        }
+    }
+}
+
 pub struct UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
     g: &'g GraphModule<'m, 's, 'si>,
     h: &'h HelpModule,
     l: &'l LangModule,
+    m: &'m MakiModule,
     p: &'p PcxModule<'m, 's, 'si>,
     s: &'s SDLPortModule<'si>,
+
+    hd: Vec<Hillinfo>,
 }
 
 impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
@@ -76,21 +111,22 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
         g: &'g GraphModule<'m, 's, 'si>,
         h: &'h HelpModule,
         l: &'l LangModule,
+        m: &'m MakiModule,
         p: &'p PcxModule<'m, 's, 'si>,
         s: &'s SDLPortModule<'si>,
     ) -> Self {
-        UnitModule { g, h, l, p, s }
+        UnitModule {
+            g,
+            h,
+            l,
+            m,
+            p,
+            s,
+            hd: Vec::from_iter((0..NUM_WC_HILLS + MAX_EXTRA_HILLS).map(|_| Hillinfo::default())),
+        }
     }
 
-    pub fn load_hill(&self, KeulaX: &mut i32, nytmaki: i32, ActHill: &Hill) -> u8 {
-        /*
-                function LoadHill(var KeulaX:integer;nytmaki:integer;Acthill:hill_type):byte;
-        var temp : integer;
-            l  : longint;
-            str1 : string;
-            res : byte;
-        begin
-        */
+    pub fn load_hill(&self, keula_x: &mut i32, nytmaki: i32, act_hill: &Hill) -> u8 {
         let mut res: u8 = 0;
         self.p.lataa_pcx("LOAD.PCX", 320 * 200, 0, 0);
         self.p.siirra_standardi_paletti();
@@ -109,7 +145,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
         WriteFont(185,99,'...PLEASE WAIT');
         AsetaPaletti;   }*/
 
-        let mut str1 = txt(ActHill.kr);
+        let mut str1 = txt(act_hill.kr);
 
         self.g.font_color(246); //{ 205 }
                                 //{          Writefont(160-fontlen(str1) div 2,97,str1); }
@@ -118,62 +154,67 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
         self.g.e_write_font(
             311 - self.g.font_len(&str1),
             107,
-            &[&ActHill.name as &[u8], b" K"].concat(),
+            &[&act_hill.name as &[u8], b" K"].concat(),
         );
 
         self.g.draw_screen();
 
-        /*
-                  LataaPCX('FRONT'+Acthill.frindex+'.PCX',1024*512,0,0);
+        self.p.lataa_pcx(
+            &["FRONT", from_utf8(&act_hill.fr_index).unwrap(), ".PCX"].concat(),
+            1024 * 512,
+            0,
+            0,
+        );
 
-                  TallennaAlkuosa(1);
+        self.p.tallenna_alkuosa(1);
 
-                  LaskeLinjat(KeulaX,acthill.kr,acthill.pk);
+        self.m.laske_linjat(keula_x, act_hill.kr, act_hill.pk);
 
-                  l:=0;
+        let mut l: i32 = 0;
 
-                  for temp:=0 to 1023 do
-                   inc(l,longint(profiili(temp)*(temp mod 13+profiili(temp) mod 11)) mod 13313);
+        for temp in 0..=1023 {
+            l += self.m.profiili(temp) * (temp % 13 + self.m.profiili(temp) % 11) % 13313;
+        }
+        l -= 1500000;
 
-                   dec(l,1500000);
+        self.p.lataa_pcx(
+            &["BACK", from_utf8(&act_hill.bk_index).unwrap(), ".PCX"].concat(),
+            1024 * 400,
+            SIVUJA,
+            act_hill.bk_mirror,
+        );
 
-                  LataaPCX('BACK'+acthill.bkindex+'.PCX',1024*400,Maki.Sivuja,acthill.bkmirror);
+        self.p.takaisin_alkuosa(1);
+        if l != act_hill.profile {
+            //{ profiilichekkaus }
+            /*
+               alertbox;
 
-                  TakaisinAlkuosa(1);
+               str1:='RUN THE HILL MAKER AGAIN.';
 
-                  if (l<>acthill.profile) then { profiilichekkaus }
-                   begin
+               if (nytmaki<=NumWCHills) then
+                begin
+                 res:=1;
+                 str1:='EXITING CUP.';
+                end;
 
-                     alertbox;
+               writefont(80,90,'THE PROFILE OF HILL #'+acthill.frindex);
+               writefont(80,102,'HAS BEEN CHANGED! NOT GOOD.');
+               writefont(80,114,str1);
 
-                     str1:='RUN THE HILL MAKER AGAIN.';
+               writefont(80,130,'PRESS A KEY...');
+               drawscreen;
 
-                     if (nytmaki<=NumWCHills) then
-                      begin
-                       res:=1;
-                       str1:='EXITING CUP.';
-                      end;
+               waitforkey;
+            */
+            panic!(
+                "The profile of hill #{} has been changed! Not good.",
+                from_utf8(&act_hill.fr_index).unwrap()
+            );
+        }
 
-                     writefont(80,90,'THE PROFILE OF HILL #'+acthill.frindex);
-                     writefont(80,102,'HAS BEEN CHANGED! NOT GOOD.');
-                     writefont(80,114,str1);
-
-                     writefont(80,130,'PRESS A KEY...');
-                     drawscreen;
-
-                     waitforkey;
-
-                   end;
-
-                  SavytaPaletti(1,acthill.bkbright);
-
-                  Loadhill:=res;
-
-        end;
-
-                 */
-        // todo
-        0
+        self.p.savyta_paletti(1, act_hill.bk_bright);
+        res
     }
 
     pub fn make_menu(
@@ -351,6 +392,16 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
 
         self.h.clearchs();
         index
+    }
+
+    pub fn hrname(&self, nytmaki: i32) -> &[u8] {
+        &self.hd[nytmaki as usize].hrname
+    }
+    pub fn hrlen(&self, nytmaki: i32) -> i32 {
+        self.hd[nytmaki as usize].hrlen
+    }
+    pub fn hrtime(&self, nytmaki: i32) -> &[u8] {
+        &self.hd[nytmaki as usize].hrtime
     }
 
     #[allow(dead_code)]
@@ -663,4 +714,22 @@ fn valuestr(str0: &[u8], arvo: i32) -> u16 {
     }
 
     word1.wrapping_mul(((arvo % 7 + 1) + arvo) as u16)
+}
+
+pub fn loadgoal(num: i32) -> i32 {
+    let mut value: i32 = 0;
+
+    if num > 0 && num <= NUM_WC_HILLS {
+        let mut f2 = File::open("GOALS.SKI").unwrap();
+        let mut b = BufReader::new(f2).lines();
+        for _ in 1..=num {
+            let line = b.next().unwrap().unwrap();
+            value = line.parse().unwrap();
+        }
+    }
+    value
+}
+
+pub fn kword(ch1: u8, ch2: u8) -> u16 {
+    ((ch1 as u16) << 8) | ch2 as u16
 }

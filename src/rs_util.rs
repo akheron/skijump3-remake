@@ -24,11 +24,3 @@ where
 pub fn random(max: u32) -> u32 {
     (rand::random::<f64>() * (max as f64)) as u32
 }
-
-pub fn random_i32(max: i32) -> i32 {
-    random(max as u32) as i32
-}
-
-pub fn random_u16(max: u16) -> u16 {
-    random(max as u32) as u16
-}

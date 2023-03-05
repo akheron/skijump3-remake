@@ -1,4 +1,5 @@
-use crate::rs_util::{random_i32, random_u16};
+use crate::rs_util::random;
+use std::cell::RefMut;
 use std::f64::consts::PI;
 
 #[derive(Clone, Copy)]
@@ -60,14 +61,15 @@ impl LumiModule {
         }
         for i in 0..LUMI_MAX {
             let lumi = &mut self.lh[i as usize];
-            lumi.x = random_i32(320) << 10;
-            lumi.x = random_i32(320) << 10;
-            lumi.y = random_i32(200) << 10;
-            lumi.sin_pos = random_u16(SINE_LGT);
-            lumi.gravity = random_i32(G_VAIHTELU) + self.perus_g as i32 - self.g_vaihtelu as i32;
-            lumi.style = random_u16(2);
+            lumi.x = (random(320) as i32) << 10;
+            lumi.x = (random(320) as i32) << 10;
+            lumi.y = (random(200) as i32) << 10;
+            lumi.sin_pos = random(SINE_LGT as u32) as u16;
+            lumi.gravity =
+                random(G_VAIHTELU as u32) as i32 + self.perus_g as i32 - self.g_vaihtelu as i32;
+            lumi.style = random(2) as u16;
             if (self.sleet) && (lumi.style == 1) {
-                lumi.style = random_u16(2);
+                lumi.style = random(2) as u16;
             }
             lumi.c1 = get_color();
             lumi.c2 = get_color();
@@ -99,7 +101,7 @@ impl LumiModule {
 
     pub fn update(
         &mut self,
-        buffer: &mut [u8],
+        mut buffer: RefMut<[u8]>,
         delta_x: i32,
         delta_y: i32,
         tuuli: i32,
@@ -140,5 +142,5 @@ impl LumiModule {
 }
 
 fn get_color() -> u16 {
-    random_u16(4) + 232 + ((random_u16(4) + 232) << 8)
+    random(4) as u16 + 232 + ((random(4) as u16 + 232) << 8)
 }

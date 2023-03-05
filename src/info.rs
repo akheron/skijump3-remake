@@ -6,8 +6,8 @@ use crate::unit::{Hiscore, NUM_PL};
 pub struct Profile {
     name: Vec<u8>,
     realname: Vec<u8>,
-    suitcolor: u8,
-    skicolor: u8,
+    pub suitcolor: u8,
+    pub skicolor: u8,
     kothlevel: u8,
     replace: u8,
     bestwchill: u8,
@@ -67,8 +67,8 @@ pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
     pub jnimet: Vec<Vec<u8>>,
     pub pmaara: u8,
     num_profiles: u8, //{ piilota alas }
-    profileorder: [u8; 21],
-    profile: Vec<Profile>, //{ ehk� my�s }
+    pub profileorder: [u8; 21],
+    pub profile: Vec<Profile>, //{ ehk� my�s }
 }
 
 impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {

@@ -7,8 +7,8 @@ pub const SIVUJA: u32 = 16;
 pub const SIVU_KOKO: u32 = ALUE / SIVUJA;
 
 pub struct MakiModule {
-    pub linjan_pituus: [u16; Y_SIZE as usize],
-    pub profiili_y: [i16; 1301],
+    pub linjan_pituus: RefCell<[u16; Y_SIZE as usize]>,
+    pub profiili_y: RefCell<[i16; 1301]>,
 
     pub x: Cell<i32>,
     pub y: Cell<i32>,
@@ -22,8 +22,8 @@ pub struct MakiModule {
 impl MakiModule {
     pub fn new() -> Self {
         MakiModule {
-            linjan_pituus: [0; Y_SIZE as usize],
-            profiili_y: [0; 1301],
+            linjan_pituus: RefCell::new([0; Y_SIZE as usize]),
+            profiili_y: RefCell::new([0; 1301]),
 
             x: Cell::new(0),
             y: Cell::new(0),
@@ -35,11 +35,11 @@ impl MakiModule {
     }
 
     pub fn lue(&self, osoite: i32) -> u8 {
-        unimplemented!()
+        self.graffa.borrow()[osoite as usize]
     }
 
     pub fn kirjoita(&self, osoite: i32, arvo: u8) {
-        unimplemented!()
+        self.graffa.borrow_mut()[osoite as usize] = arvo;
     }
 
     pub fn paivita_kirjoitus_sivu(&self) {
@@ -64,14 +64,16 @@ impl MakiModule {
     }
 
     fn kopioi_maki(&self, osoite: i32, delta: i32) {
+        let linjan_pituus = self.linjan_pituus.borrow();
         let mut video = self.video.borrow_mut();
         let graffa = self.graffa.borrow();
 
         let mut output: usize = 0;
         let mut d: i32;
+
         for y_index in 0..200i32 {
             let mut input = osoite + y_index * X_SIZE as i32 + self.x.get();
-            let line = self.linjan_pituus[(y_index + self.y.get()) as usize];
+            let line = linjan_pituus[(y_index + self.y.get()) as usize];
 
             for x_index in 0..320 {
                 if x_index + self.x.get() >= line as i32 {
@@ -94,7 +96,63 @@ impl MakiModule {
     }
 
     pub fn laske_linjat(&self, keula_x: &mut i32, kr: i32, pk: f32) {
-        unimplemented!()
+        /*{ linjojen pituudet voisi ladata nopeammin levylt� ... }*/
+        *keula_x = 0;
+        let mut former_y: i32 = 0;
+
+        let mut linjan_pituus = self.linjan_pituus.borrow_mut();
+        for y in 0..Y_SIZE {
+            linjan_pituus[y as usize] = 0;
+            for x in 0..X_SIZE {
+                if self.lue((y * X_SIZE + x) as i32) != 0 {
+                    linjan_pituus[y as usize] = (x + 1) as u16;
+                }
+            }
+        }
+
+        let mut profiili_y = self.profiili_y.borrow_mut();
+        for x in 0..X_SIZE {
+            for y in 0..Y_SIZE {
+                profiili_y[x as usize] = y as i16;
+                if linjan_pituus[y as usize] > x as u16 {
+                    break;
+                }
+            }
+        }
+
+        for x in X_SIZE..1300 {
+            profiili_y[x as usize] = profiili_y[X_SIZE as usize - 1];
+        }
+
+        for x in 0..X_SIZE {
+            let mut y = profiili_y[x as usize];
+            if y as i32 - former_y > 3 {
+                *keula_x = x as i32; //{ etsit��n keulan paikka }
+            }
+            former_y = y as i32;
+        }
+
+        *keula_x -= 1; //{ se mennee yhden liian pitk�ksi }
+
+        for x in *keula_x..(X_SIZE - 10) as i32 {
+            let x2 = x - *keula_x; //{ suhteellinen keulan alap��h�n X }
+            let y2 = profiili_y[x as usize] as i32 - profiili_y[*keula_x as usize] as i32; //{ suhteellinen Y }
+            let hp = f64::round(f64::sqrt((x2 * x2 + y2 * y2) as f64 * pk as f64 * 0.5)) as i32 * 5; //{ +10? }
+            if hp >= (2 * kr / 3) * 10 && hp <= kr * 12 {
+                let mut c: u8;
+                if hp < kr * 10 {
+                    c = 238;
+                } else {
+                    c = 239;
+                }
+                for y in 0..=2 {
+                    self.kirjoita(
+                        (profiili_y[x as usize] as i32 + y + 1) * X_SIZE as i32 + x as i32,
+                        c,
+                    );
+                }
+            }
+        }
     }
     pub fn aseta_moodi(&self, m: u16) {
         unimplemented!()
@@ -102,7 +160,7 @@ impl MakiModule {
     pub fn profiili(&self, x: i32) -> i32 {
         let mut temp: i32 = 0;
         if (x > 0) && (x < 1300) {
-            temp = self.profiili_y[x as usize] as i32;
+            temp = self.profiili_y.borrow()[x as usize] as i32;
         }
         temp
     }
