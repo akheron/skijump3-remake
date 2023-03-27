@@ -61,8 +61,10 @@ impl LangModule {
         return self.plstr.get(&index).unwrap();
     }
 
-    pub fn lch(&self, index: u32, num: u32) -> char {
-        self.lstr(index)[num as usize] as char
+    pub fn lch(&self, index: u32, num: u32) -> u8 {
+        // In Pascal, strings are 1-indexed => subtract 1.
+        assert!(num >= 1);
+        self.lstr(index)[(num - 1) as usize]
     }
 
     pub fn lrstr(&self, start: u32, end: u32) -> &[u8] {

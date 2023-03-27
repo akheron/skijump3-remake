@@ -1,6 +1,6 @@
 use crate::maki::MakiModule;
 use crate::sdlport::SDLPortModule;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::io::Read;
 
@@ -9,8 +9,8 @@ pub struct GraphModule<'m, 's, 'si> {
     s: &'s SDLPortModule<'si>,
 
     anim: RefCell<Vec<Vec<u8>>>,
-    anim_p: [[u8; 2]; 200],
-    num_anim: u8,
+    anim_p: RefCell<[[u8; 2]; 200]>,
+    num_anim: Cell<u8>,
 }
 
 fn read_byte(file: &mut File) -> u8 {
@@ -25,8 +25,8 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
             m,
             s,
             anim: RefCell::new(vec![Vec::new(); 200]),
-            anim_p: [[0; 2]; 200],
-            num_anim: 0,
+            anim_p: RefCell::new([[0; 2]; 200]),
+            num_anim: Cell::new(0),
         }
     }
 
@@ -61,12 +61,14 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
 
     pub fn draw_anim(&self, x: i32, y: i32, num: u8) {
         let anim = self.anim.borrow();
+        let anim_p = self.anim_p.borrow();
+        let num_anim = self.num_anim.get();
 
-        let x = x - self.anim_p[num as usize][0] as i32;
-        let y = y - self.anim_p[num as usize][1] as i32;
+        let x = x - anim_p[num as usize][0] as i32;
+        let y = y - anim_p[num as usize][1] as i32;
         let mut ysize: i32 = 0;
 
-        if (num > 0) && (num <= self.num_anim) {
+        if (num > 0) && (num <= num_anim) {
             ysize = anim[num as usize][2] as i32 + ((anim[num as usize][3] as i32) << 8);
 
             if (x >= 0) && (y >= 0) && (x < 320) && (y < 200 - ysize) {
@@ -75,25 +77,26 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
         }
     }
 
-    pub fn load_anim(&mut self, filename: &str) {
+    pub fn load_anim(&self, filename: &str) {
         let mut anim = self.anim.borrow_mut();
+        let mut anim_p = self.anim_p.borrow_mut();
         let mut f1 = File::open(filename).unwrap();
 
-        self.num_anim = 0;
+        let mut num_anim = 0;
 
         let mut x = read_byte(&mut f1);
         let mut y = read_byte(&mut f1);
 
         loop {
             // TODO: it seems that anim[0] is unused
-            self.num_anim += 1;
+            num_anim += 1;
 
-            anim[self.num_anim as usize] = vec![0; x as usize * y as usize + 4];
+            anim[num_anim as usize] = vec![0; x as usize * y as usize + 4];
 
-            anim[self.num_anim as usize][0] = x;
-            anim[self.num_anim as usize][1] = 0; //x >> 8;
-            anim[self.num_anim as usize][2] = y;
-            anim[self.num_anim as usize][3] = 0; //y >> 8;
+            anim[num_anim as usize][0] = x;
+            anim[num_anim as usize][1] = 0; //x >> 8;
+            anim[num_anim as usize][2] = y;
+            anim[num_anim as usize][3] = 0; //y >> 8;
 
             for yy in 0..=(y - 1) {
                 for xx in 0..=(x - 1) {
@@ -101,38 +104,37 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
                     if tempb == 9 {
                         tempb = 15; // suksen keskityspiste (kai?)
                     }
-                    anim[self.num_anim as usize][yy as usize * x as usize + xx as usize + 4] =
-                        tempb;
+                    anim[num_anim as usize][yy as usize * x as usize + xx as usize + 4] = tempb;
                 }
             }
 
-            self.anim_p[self.num_anim as usize][0] = read_byte(&mut f1); // keskittämisplussa x
-            self.anim_p[self.num_anim as usize][1] = read_byte(&mut f1); // -"- y
+            anim_p[num_anim as usize][0] = read_byte(&mut f1); // keskittämisplussa x
+            anim_p[num_anim as usize][1] = read_byte(&mut f1); // -"- y
 
             x = read_byte(&mut f1);
             y = read_byte(&mut f1);
 
-            if self.num_anim == 83 {
+            if num_anim == 83 {
                 // invert skis!
                 for temp in 72..=83 {
-                    self.num_anim += 1;
+                    num_anim += 1;
                     let x2: u16 = (anim[temp][0] as u16) + ((anim[temp][1] as u16) << 8);
                     let y2: u16 = (anim[temp][2] as u16) + ((anim[temp][3] as u16) << 8);
 
-                    anim[self.num_anim as usize] = vec![0; (x2 * y2 + 4) as usize];
+                    anim[num_anim as usize] = vec![0; (x2 * y2 + 4) as usize];
 
-                    anim[self.num_anim as usize][0] = (x2 & 0xff) as u8;
-                    anim[self.num_anim as usize][1] = ((x2 >> 8) & 0xff) as u8;
-                    anim[self.num_anim as usize][2] = (y2 & 0xff) as u8;
-                    anim[self.num_anim as usize][3] = ((y2 >> 8) & 0xff) as u8;
+                    anim[num_anim as usize][0] = (x2 & 0xff) as u8;
+                    anim[num_anim as usize][1] = ((x2 >> 8) & 0xff) as u8;
+                    anim[num_anim as usize][2] = (y2 & 0xff) as u8;
+                    anim[num_anim as usize][3] = ((y2 >> 8) & 0xff) as u8;
 
                     for yy in 0..=(y2 - 1) {
                         for xx in 0..=(x2 - 1) {
-                            anim[self.num_anim as usize][(yy * x2 + xx + 4) as usize] =
+                            anim[num_anim as usize][(yy * x2 + xx + 4) as usize] =
                                 anim[temp][((y2 - yy - 1) * x2 + xx + 4) as usize];
-                            self.anim_p[self.num_anim as usize][0] = self.anim_p[temp][0];
-                            self.anim_p[self.num_anim as usize][1] =
-                                (y2 - 1 - (self.anim_p[temp][1] as u16)) as u8;
+                            anim_p[num_anim as usize][0] = anim_p[temp][0];
+                            anim_p[num_anim as usize][1] =
+                                (y2 - 1 - (anim_p[temp][1] as u16)) as u8;
                         }
                     }
                 }
@@ -142,6 +144,8 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
                 break;
             }
         }
+
+        self.num_anim.set(num_anim);
     }
 
     pub fn put_pixel(&self, x: i32, y: i32, c: u8) {
@@ -168,106 +172,44 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
     fn do_font(&self, xx: i32, yy: i32, s: &[u8], draw: bool) -> i32 {
         let mut p = 0; //{ siirtym� }
 
-        // for i in 1..=s.len() {
-        //     s[i] = upcase(s[i]);
-        // }
-
-        for i in 0..s.len() {
-            let mut t = 100;
-            let chh = s[i];
-
-            match chh {
+        for chh in s {
+            let mut t = match chh.to_ascii_uppercase() {
                 b' ' => {
                     p += 4; //{ vaan space! }
+                    100
                 }
                 b'$' => {
                     p += 5; //{ % numeron pituinen space }
+                    100
                 }
-                b'0' => {
-                    t = 29;
-                }
-                _ if (b'1'..=b'9').contains(&chh) => {
-                    t = chh - 19;
-                }
-                _ if (b'A'..=b'Z').contains(&chh) => {
-                    t = chh - 65;
-                }
-                _ if (b'a'..=b'z').contains(&chh) => {
-                    t = chh - 97;
-                }
-                0x86 | 0x8f => {
-                    t = 26;
-                }
-                0x84 | 0x8e => {
-                    t = 27;
-                }
-                0x94 | 0x99 => {
-                    t = 28;
-                }
-                b':' => {
-                    t = 39;
-                }
-                b'.' => {
-                    t = 40;
-                }
-                b'?' => {
-                    t = 41;
-                }
-                b'!' => {
-                    t = 42;
-                }
-                b'*' => {
-                    t = 43;
-                }
-                b'-' => {
-                    t = 44;
-                }
-                b'+' => {
-                    t = 45;
-                }
-                b',' => {
-                    t = 46;
-                }
-                b'(' => {
-                    t = 47;
-                }
-                b')' => {
-                    t = 48;
-                }
-                0xab => {
-                    t = 49; //{ pieni m }
-                }
-                b'"' => {
-                    t = 50; //{ tuplaheittomerkki }
-                }
-                b'\'' => {
-                    t = 51; //{ yksi heittomerkki }
-                }
-                b'#' => {
-                    t = 52;
-                }
-                0x9b | 0x9d => {
-                    t = 53; //{ norja � eli o ja viiva halki }
-                }
-                0x81 | 0x9a => {
-                    t = 54; //{ �ber y }
-                }
-                0xe1 => {
-                    t = 55; //{ stuit staffel }
-                }
-                b'/' => {
-                    t = 56;
-                }
-                0x92 | 0x91 => {
-                    t = 57; //{ AE:t }
-                }
-                b'%' => {
-                    t = 58;
-                }
-                _ => {
-                    println!("Unknown char: {}", chh);
-                }
-            }
+                b'0' => 29,
+                c @ b'1'..=b'9' => c - 19,
+                c @ b'A'..=b'Z' => c - 65,
+                0x86 | 0x8f => 26,
+                0x84 | 0x8e => 27,
+                0x94 | 0x99 => 28,
+                b':' => 39,
+                b'.' => 40,
+                b'?' => 41,
+                b'!' => 42,
+                b'*' => 43,
+                b'-' => 44,
+                b'+' => 45,
+                b',' => 46,
+                b'(' => 47,
+                b')' => 48,
+                0xab => 49,  //{ pieni m }
+                b'"' => 50,  //{ tuplaheittomerkki }
+                b'\'' => 51, //{ yksi heittomerkki }
+                b'#' => 52,
+                0x9b | 0x9d => 53, //{ norja � eli o ja viiva halki }
+                0x81 | 0x9a => 54, //{ �ber y }
+                0xe1 => 55,        //{ stuit staffel }
+                b'/' => 56,
+                0x92 | 0x91 => 57, //{ AE:t }
+                b'%' => 58,
+                _ => 100,
+            };
 
             if t != 100 {
                 t += 1;

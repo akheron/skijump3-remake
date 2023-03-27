@@ -1,15 +1,15 @@
 use crate::graph::GraphModule;
-use crate::help::{txtp, HelpModule};
+use crate::help::txtp;
+use crate::rs_util::random;
 use std::cell::Cell;
 use std::f32::consts::PI;
 
-pub struct TuuliModule<'g, 'h, 'm, 's, 'si> {
+pub struct TuuliModule<'g, 'm, 's, 'si> {
     pub voim: Cell<i32>,
     pub windy: Cell<i32>,
     pub value: Cell<i32>,
 
     g: &'g GraphModule<'m, 's, 'si>,
-    h: &'h HelpModule,
 
     tsuun: Cell<bool>,
     traja1: Cell<i32>,
@@ -20,15 +20,14 @@ pub struct TuuliModule<'g, 'h, 'm, 's, 'si> {
     tpaikka: Cell<u8>,
 }
 
-impl<'g, 'h, 'm, 's, 'si> TuuliModule<'g, 'h, 'm, 's, 'si> {
-    pub fn new(g: &'g GraphModule<'m, 's, 'si>, h: &'h HelpModule) -> Self {
+impl<'g, 'h, 'm, 's, 'si> TuuliModule<'g, 'm, 's, 'si> {
+    pub fn new(g: &'g GraphModule<'m, 's, 'si>) -> Self {
         Self {
             voim: Cell::new(0),
             windy: Cell::new(0),
             value: Cell::new(0),
 
             g,
-            h,
 
             tsuun: Cell::new(false),
             traja1: Cell::new(0),
@@ -41,7 +40,6 @@ impl<'g, 'h, 'm, 's, 'si> TuuliModule<'g, 'h, 'm, 's, 'si> {
     }
 
     pub fn piirra(&self) {
-        let mut s: Vec<u8> = Vec::new();
         self.g.fill_box(
             self.tuulix.get() as u16 + 4,
             self.tuuliy.get() as u16 + 1,
@@ -80,15 +78,9 @@ impl<'g, 'h, 'm, 's, 'si> TuuliModule<'g, 'h, 'm, 's, 'si> {
         let s = txtp(self.value.get().abs());
         if self.value.get() < 0 {
             self.g
-                .write_font(self.tuulix.get() + 10, self.tuuliy.get() + 5, &vec![b'-']);
+                .write_font(self.tuulix.get() + 10, self.tuuliy.get() + 5, b"-");
         }
 
-        /*
-        writefont(tuulix+15,tuuliy+5,s[1]);
-        writefont(tuulix+24,tuuliy+5,s[3]);
-
-        TODO:Does the previous 2 lines equal to the following 2 lines?
-        */
         self.g
             .write_font(self.tuulix.get() + 15, self.tuuliy.get() + 5, &[s[0]]);
         self.g
@@ -97,21 +89,22 @@ impl<'g, 'h, 'm, 's, 'si> TuuliModule<'g, 'h, 'm, 's, 'si> {
 
     pub fn hae(&self) {
         self.siirra();
-        self.value
-            .set(((PI * self.tkulma.get() / 180.0).cos().round() * self.voim.get() as f32) as i32);
+        self.value.set(
+            f32::round(f32::cos(PI * self.tkulma.get() / 180.0) * self.voim.get() as f32) as i32,
+        );
     }
 
     pub fn alusta(&self, place: u8) {
-        let temp1 = (rand::random::<f64>() * 180.0) as i32; // Tuulen rajoja
-        let temp2 = (rand::random::<f64>() * 120.0) as i32;
-        self.windy.set(temp2); // ns. tuulisuusindeksi
+        let temp1 = random(180) as i32; //{ Tuulen rajoja }
+        let temp2 = random(120) as i32;
+        self.windy.set(temp2); //{ ns. tuulisuusindeksi }
 
         self.traja1.set(temp1 - temp2);
         self.traja2.set(temp1 + temp2);
         self.tkulma
-            .set((rand::random::<f64>() * (temp2 * 2) as f64) as f32 + self.traja1.get() as f32);
-        self.voim.set((rand::random::<f64>() * 50 as f64) as i32);
-        if rand::random::<f64>() < 0.5 {
+            .set((random(temp2 as u32 * 2) as i32 + self.traja1.get()) as f32);
+        self.voim.set(random(50) as i32);
+        if random(2) == 0 {
             self.tsuun.set(true);
         } else {
             self.tsuun.set(false);
@@ -127,15 +120,15 @@ impl<'g, 'h, 'm, 's, 'si> TuuliModule<'g, 'h, 'm, 's, 'si> {
         if (self.tsuun.get() == false) && (self.tkulma.get() < self.traja1.get() as f32) {
             self.tsuun.set(true);
         }
-        if rand::random::<f64>() < 1.0 / 50.0 {
+        if random(50) == 0 {
             self.tsuun.set(!self.tsuun.get());
         }
         if self.tsuun.get() {
             self.tkulma
-                .set(self.tkulma.get() + (rand::random::<f64>() * 4.0 / 5.0) as f32);
+                .set(self.tkulma.get() + (random(4) as f32 / 5.0));
         } else {
             self.tkulma
-                .set(self.tkulma.get() - (rand::random::<f64>() * 4.0 / 5.0) as f32);
+                .set(self.tkulma.get() - (random(4) as f32 / 5.0));
         }
     }
 

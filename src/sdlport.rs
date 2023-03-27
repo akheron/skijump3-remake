@@ -9,7 +9,7 @@ use sdl2::timer::Timer;
 use sdl2::video::{Window, WindowContext};
 use sdl2::{EventPump, EventSubsystem, TimerSubsystem};
 use std::cell::{Cell, RefCell};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{process, thread};
 
 pub type TPalette = [[u8; 3]; 256];
@@ -33,15 +33,18 @@ pub struct SDLPortModule<'a> {
     aspect: f64,
 
     timer: Timer<'a, 'a>,
-    frame_count: u32,
-    last_frame_count: u32,
-    sub_frame_count: u32,
-    last_frame_tick: u32,
+    frame_count: Cell<u32>,
+    sub_frame_duration: Cell<Duration>,
+    last_frame_instant: Cell<Instant>,
 
     event_subsystem: RefCell<EventSubsystem>,
     event_pump: RefCell<EventPump>,
 
     sw_rendering: bool,
+
+    // Originally in SJ3HELP.PAS
+    pub ch: Cell<u8>,
+    pub ch2: Cell<u8>,
 }
 
 impl<'a> SDLPortModule<'a> {
@@ -91,14 +94,16 @@ impl<'a> SDLPortModule<'a> {
             aspect,
 
             timer,
-            frame_count: 0,
-            last_frame_count: 0,
-            sub_frame_count: 0,
-            last_frame_tick: timer_subsystem.ticks(),
+            frame_count: Cell::new(0),
+            sub_frame_duration: Cell::new(Duration::new(0, 0)),
+            last_frame_instant: Cell::new(Instant::now()),
 
             event_subsystem: RefCell::new(event_subsystem),
             event_pump: RefCell::new(event_pump),
             sw_rendering,
+
+            ch: Cell::new(1),
+            ch2: Cell::new(1),
         }
     }
 
@@ -167,7 +172,27 @@ impl<'a> SDLPortModule<'a> {
     }
 
     pub fn wait_raster(&self) {
-        // unimplemented!()
+        let frame_duration = Duration::from_nanos(1_000_000_000 / TARGET_FRAMES as u64);
+        let mut sub_frame_duration = self.sub_frame_duration.get();
+        let mut frame_count = self.frame_count.get();
+        let last_frame_instant = self.last_frame_instant.get();
+
+        let elapsed = last_frame_instant.elapsed();
+        if elapsed < frame_duration {
+            thread::sleep(frame_duration - elapsed);
+        }
+
+        let now = Instant::now();
+        sub_frame_duration += now - last_frame_instant;
+        assert!(sub_frame_duration >= frame_duration);
+        while sub_frame_duration >= frame_duration {
+            sub_frame_duration -= frame_duration;
+            frame_count += 1;
+        }
+
+        self.frame_count.set(frame_count);
+        self.sub_frame_duration.set(sub_frame_duration);
+        self.last_frame_instant.set(now);
     }
 
     pub fn key_pressed(&self) -> bool {
@@ -220,7 +245,7 @@ impl<'a> SDLPortModule<'a> {
         pressed
     }
 
-    pub fn wait_for_key_press(&self) -> (u8, u8) {
+    fn wait_for_key_press_internal(&self) -> (u8, u8) {
         /*
         procedure WaitForKeyPress(var ch1, ch2:char);
         var event : TSDL_Event;
@@ -524,8 +549,38 @@ impl<'a> SDLPortModule<'a> {
         }
     }
 
+    pub fn wait_for_key_press(&self) -> (u8, u8) {
+        let (ch, ch2) = self.wait_for_key_press_internal();
+        self.ch.set(ch);
+        self.ch2.set(ch2);
+        (ch, ch2)
+    }
+
     pub fn wait(&self, ms: u32) {
-        unimplemented!()
+        thread::sleep(Duration::from_millis(ms as u64));
+    }
+
+    // Originally in SJ3UNIT.PAS
+    pub fn kword(&self) -> u16 {
+        ((self.ch.get() as u16) << 8) + self.ch2.get() as u16
+    }
+
+    // Everything down from here originally in SJ3HELP.PAS
+    pub fn putsaa(&self) {
+        while self.key_pressed() {
+            self.wait_for_key_press();
+        }
+    }
+
+    pub fn clearchs(&self) {
+        self.ch.set(1);
+        self.ch2.set(1);
+    }
+
+    pub fn wait_for_key2(&self) -> bool {
+        self.putsaa();
+        let (ch, ch2) = self.wait_for_key_press();
+        ch == 0 && ch2 == 68
     }
 }
 

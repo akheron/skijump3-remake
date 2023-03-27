@@ -1,11 +1,12 @@
 use crate::graph::GraphModule;
-use crate::help::{txt, HelpModule};
+use crate::help::txt;
 use crate::lang::LangModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
-use crate::rs_util::{parse_line, read_line};
+use crate::rs_util::{parse_line, random, read_line};
 use crate::sdlport::SDLPortModule;
-use chrono::Timelike;
+use chrono::{Datelike, Timelike};
+use std::cell::{Cell, RefCell};
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -31,10 +32,10 @@ pub const WC_POINTS: [u8; 30] = [
 pub const TEAM_POINTS: [i32; 8] = [400, 350, 300, 250, 200, 150, 100, 50];
 
 pub struct Hiscore {
-    pub name: String,
+    pub name: Vec<u8>,
     pub pos: u8,
     pub score: i32,
-    pub time: String,
+    pub time: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -95,21 +96,23 @@ impl Time {
     }
 }
 
-pub struct UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
+pub struct UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     g: &'g GraphModule<'m, 's, 'si>,
-    h: &'h HelpModule,
     l: &'l LangModule,
     m: &'m MakiModule,
     p: &'p PcxModule<'m, 's, 'si>,
     s: &'s SDLPortModule<'si>,
 
-    hd: Vec<Hillinfo>,
+    pub num_hills: u8,
+    pub vcode: Cell<u8>,
+    pub num_extra_hills: u16,
+
+    hd: RefCell<Vec<Hillinfo>>,
 }
 
-impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
+impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     pub fn new(
         g: &'g GraphModule<'m, 's, 'si>,
-        h: &'h HelpModule,
         l: &'l LangModule,
         m: &'m MakiModule,
         p: &'p PcxModule<'m, 's, 'si>,
@@ -117,12 +120,16 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
     ) -> Self {
         UnitModule {
             g,
-            h,
             l,
             m,
             p,
             s,
-            hd: Vec::from_iter((0..NUM_WC_HILLS + MAX_EXTRA_HILLS).map(|_| Hillinfo::default())),
+            num_hills: 0,
+            vcode: Cell::new(0),
+            num_extra_hills: 0,
+            hd: RefCell::new(Vec::from_iter(
+                (0..NUM_WC_HILLS + MAX_EXTRA_HILLS).map(|_| Hillinfo::default()),
+            )),
         }
     }
 
@@ -258,7 +265,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
                     .fill_area(xx, yy, xx + length as u16, yy + height as u16, thing);
             }
 
-            self.h.clearchs();
+            self.s.clearchs();
             let oldindex = index;
 
             let (ch, ch2) = if self.s.key_pressed() {
@@ -297,11 +304,11 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
 
             match ch {
                 b'0'..=b'9' => {
-                    index = (ch as i32 - 48);
+                    index = ch as i32 - 48;
                 }
                 b'A'..=b'F' => {
                     if phase != 6 {
-                        index = (ch as i32 - 55); /*{ me halutaan ett� E on edit }*/
+                        index = ch as i32 - 55; /*{ me halutaan ett� E on edit }*/
                     }
                 }
                 b'a'..=b'f' => {
@@ -390,18 +397,149 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
             } //{ exit }
         }
 
-        self.h.clearchs();
+        self.s.clearchs();
         index
     }
 
-    pub fn hrname(&self, nytmaki: i32) -> &[u8] {
-        &self.hd[nytmaki as usize].hrname
+    pub fn do_coach_corner(&self, height: i32, kulmalaskuri: i32, grade: u8, ponn: u8, style: u8) {
+        unimplemented!();
+        /*
+        procedure DoCoachCorner(height,kulmalaskuri:integer;grade,ponn,style:byte);
+        var wstr : string;
+            cstr : array[0..5] of string;
+            temp, index, count,x,y : integer;
+        begin
+
+         for temp:=0 to 5 do cstr[temp]:='';
+
+         index:=360+style*40;
+
+         case kulmalaskuri of
+         0..49 : cstr[0]:=lstr(index+2);
+         50..61 : cstr[0]:=lstr(index+3);
+         62..200 : cstr[0]:=lstr(index+4);
+         end;
+
+         if (grade<10) then
+          begin
+           case grade of
+            1 : cstr[1]:=lstr(index+5);
+            2 : cstr[1]:=lstr(index+6);
+            3 : cstr[1]:=lstr(index+7);
+           end;
+          end else
+           begin
+            case grade div 10 of
+             1..5  : cstr[1]:=lstr(index+10);
+             6..8  : cstr[1]:=lstr(index+11);
+                9  : cstr[1]:=lstr(index+12);
+               10  : cstr[1]:=lstr(index+13);
+               11  : cstr[1]:=lstr(index+14);
+           12..20  : cstr[1]:=lstr(index+15);
+            end;
+           end;
+
+          case ponn of
+           0..5  : cstr[2]:=lstr(index+18);
+           6..9  : cstr[2]:=lstr(index+19);
+          10..12 : cstr[2]:=lstr(index+20);
+          13..15 : cstr[2]:=lstr(index+21);
+              16 : cstr[2]:=lstr(index+22);
+          17..19 : cstr[2]:=lstr(index+23);
+          20..23 : cstr[2]:=lstr(index+24);
+          24..50 : cstr[2]:=lstr(index+25);
+          end;
+
+          case height of
+          0..49  : cstr[3]:=lstr(index+28);
+         50..55  : cstr[3]:=lstr(index+29);
+         56..60  : cstr[3]:=lstr(index+30);
+         61..64  : cstr[3]:=lstr(index+31);
+         65..70  : cstr[3]:=lstr(index+32);
+         71..90  : cstr[3]:=lstr(index+33);
+         91..200 : cstr[3]:=lstr(index+34);
+         end;
+
+          if (grade<10) then cstr[0]:=cstr[1]; { jos kupat n�es }
+          if (grade=1) then cstr[3]:=lstr(index+35);
+
+          cstr[1]:=cstr[random(2)];
+          cstr[2]:=cstr[random(2)+2];
+
+          cstr[1]:=cstr[1]+'*'+cstr[2];
+
+          FontColor(252);
+
+          DrawAnim(3,150,65);
+           writefont(12,150,lstr(400));
+
+          index:=1;
+          x:=12; y:=160;
+
+           writefont(x,y,'"');
+
+          count:=30;
+          x:=18; y:=152;
+
+          wstr:='';
+
+          for temp:=1 to length(cstr[1]) do
+           begin
+
+            wstr:=wstr+cstr[1][temp];
+            if (wstr[index]='*') then wstr[index]:=' ';
+            inc(index);
+
+            if ((index > count) and (cstr[1][temp]=' ')) or ((cstr[1][temp]='*') and (index>count div 2)) then
+             begin
+              if (y<190) then inc(y,8);
+              x:=18;
+              if (cstr[1][temp]='*') then delete(wstr,length(wstr),1);
+
+              writefont(x,y,wstr);
+              x:=x+fontlen(wstr);
+
+              wstr:='';
+              index:=1;
+             end;
+
+
+
+           end;
+
+           if (index>1) then
+            if (length(wstr)<2) then writefont(x,y,wstr+'"')
+                                else
+                                 begin
+                                  x:=18;
+                                  if (y<192) then inc(y,8);
+                                  writefont(x,y,wstr+'"');
+                                 end;
+
+        end;
+                 */
+    }
+
+    pub fn hrname(&self, nytmaki: i32) -> Vec<u8> {
+        self.hd.borrow()[nytmaki as usize].hrname.to_vec()
     }
     pub fn hrlen(&self, nytmaki: i32) -> i32 {
-        self.hd[nytmaki as usize].hrlen
+        self.hd.borrow()[nytmaki as usize].hrlen
     }
-    pub fn hrtime(&self, nytmaki: i32) -> &[u8] {
-        &self.hd[nytmaki as usize].hrtime
+    pub fn hrtime(&self, nytmaki: i32) -> Vec<u8> {
+        self.hd.borrow()[nytmaki as usize].hrtime.to_vec()
+    }
+    pub fn set_hrinfo(
+        &self,
+        nytmaki: i32,
+        name: impl Into<Vec<u8>>,
+        len: i32,
+        time: impl Into<Vec<u8>>,
+    ) {
+        let mut hd = self.hd.borrow_mut();
+        hd[nytmaki as usize].hrname = name.into();
+        hd[nytmaki as usize].hrlen = len;
+        hd[nytmaki as usize].hrtime = time.into();
     }
 
     #[allow(dead_code)]
@@ -593,6 +731,41 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
         result
     }
 
+    pub fn hillfile(&self, _nyt: i32) -> Vec<u8> {
+        return b"HILLBASE.SKI".to_vec();
+        /*
+        function hillfile(nyt:integer):string;
+        var str1 : string;
+            temp : integer;
+            f2 : text;
+        begin
+
+         hillfile:='HILLBASE.SKI';
+
+         if (nyt<=NumExtraHills) then
+          begin
+           assign(f2,'MOREHILL.SKI');
+           {$I-}
+           reset(f2);
+           {$I+}
+           FileOK(IOResult,'MOREHILL.SKI');
+
+           str1:='ERROR.SJH';
+
+           readln(f2); { NumExtraHills pois }
+
+           for temp:=1 to nyt do
+            readln(f2,str1);
+
+           close(f2);
+
+           hillfile:=str1;
+
+          end;
+        end;
+         */
+    }
+
     pub fn load_info(&self, nytmaki: i32, hill: &mut Hill) {
         Self::default_hill(hill);
 
@@ -701,19 +874,101 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'h, 'l, 'm, 'p, 's, 'si> {
         */
     }
 
-    pub fn keyname(&self, _chw: u16) -> &'static [u8] {
-        unimplemented!();
+    pub fn check_extra_hills(&self) {
+        // TODO
+    }
+
+    pub fn load_hill_info(&self) {
+        // TODO
+    }
+
+    pub fn read_extras(&self) {
+        // TODO
+    }
+
+    pub fn keyname(&self, chw: u16) -> Vec<u8> {
+        let a = (chw >> 8) as u8;
+        let b = (chw & 0xff) as u8;
+        match a {
+            0 => match b {
+                59..=67 => [b"F" as &[u8], &txt(b as i32 - 58)].concat(),
+                71 => b"HOME".to_vec(),
+                72 => self.l.lstr(280).to_vec(),
+                73 => b"PAGE UP".to_vec(),
+                75 => self.l.lstr(281).to_vec(),
+                76 => b"NP 5".to_vec(),
+                77 => self.l.lstr(282).to_vec(),
+                79 => b"END".to_vec(),
+                80 => self.l.lstr(283).to_vec(),
+                81 => b"PAGE DOWN".to_vec(),
+                82 => b"INSERT".to_vec(),
+                83 => b"DELETE".to_vec(),
+                _ => b"NULL".to_vec(),
+            },
+            8 => b"BACKSPACE".to_vec(),
+            9 => b"TAB".to_vec(),
+            b' ' => b"SPACE".to_vec(),
+            b'.' => b".".to_vec(),
+            b',' => b",".to_vec(),
+            b'-' => b"-".to_vec(),
+            b'+' => b"+".to_vec(),
+            b'/' => b"/".to_vec(),
+            b'*' => b"*".to_vec(),
+            48..=57 => txt(a as i32 - 48),
+            65..=90 => vec![a],
+            97..=122 => vec![a.to_ascii_uppercase()],
+            _ => b"NULL".to_vec(),
+        }
     }
 }
 
-fn valuestr(str0: &[u8], arvo: i32) -> u16 {
+pub fn uncrypt(mut str0: Vec<u8>, jarj: i32) -> i32 {
+    // All the "- 1" are because the original code uses 1-based string indexing
+
+    let mut high = str0[5 - 1];
+    str0.remove(5 - 1);
+    let chk1 = str0[2 - 1];
+    str0.remove(2 - 1);
+    let chk2 = str0[2 - 1];
+    str0.remove(2 - 1);
+
+    let mut str1: Vec<u8> = Vec::new();
+
+    for index in (1..=5).rev() {
+        str1.push(str0[index - 1] - 21);
+    }
+
+    let mut luku1: i32 = from_utf8(&str1).unwrap().parse().unwrap();
+
+    if high > 74 {
+        //{ ei pelkk� satunnaiskirjain }
+        luku1 += 100000 * (high - 75) as i32;
+    }
+
+    str1[1 - 1] = 68 + 2 * ((luku1 % 7) ^ 1) as u8;
+    if str1[1 - 1] != chk1 {
+        luku1 = 0;
+    }
+    str1[1 - 1] = 65 + ((jarj ^ 33) % 19) as u8;
+    if str1[1 - 1] != chk2 {
+        luku1 = 0;
+    }
+
+    luku1
+}
+
+pub fn valuestr(str0: &[u8], arvo: i32) -> u16 {
     let mut word1: u16 = 0;
 
     for index in 1..=str0.len() {
-        word1 += (str0[index - 1] as i32).wrapping_mul(((index as i32) % 5) + 41) as u16;
+        word1 = word1.wrapping_add(
+            (str0[index - 1] as i32).wrapping_mul(((index as i32) % 5).wrapping_add(41)) as u16,
+        );
     }
 
-    word1.wrapping_mul(((arvo % 7 + 1) + arvo) as u16)
+    word1
+        .wrapping_mul((arvo % 7 + 1) as u16)
+        .wrapping_add(arvo as u16)
 }
 
 pub fn loadgoal(num: i32) -> i32 {
@@ -733,3 +988,82 @@ pub fn loadgoal(num: i32) -> i32 {
 pub fn kword(ch1: u8, ch2: u8) -> u16 {
     ((ch1 as u16) << 8) | ch2 as u16
 }
+
+pub fn defaultkeys(k: &mut [u16]) {
+    k[1] = 72;
+    k[2] = 77;
+    k[3] = 75;
+    k[4] = b'T' as u16 * 256 + 20;
+    k[5] = b'R' as u16 * 256 + 19;
+}
+
+pub fn injured() -> u8 {
+    match random(5) {
+        0 | 1 | 2 => 0,
+        3 => 1,
+        4 => random(4) as u8 + 1,
+        _ => unreachable!(),
+    }
+}
+
+pub fn dayandtime_now() -> Vec<u8> {
+    static DAYS: [&[u8]; 7] = [b"Sun", b"Mon", b"Tue", b"Wed", b"Thu", b"Fri", b"Sat"];
+    static MONTHS: [&[u8]; 12] = [
+        b"Jan", b"Feb", b"Mar", b"Apr", b"May", b"Jun", b"Jul", b"Aug", b"Sep", b"Oct", b"Nov",
+        b"Dec",
+    ];
+
+    let now = chrono::Local::now();
+    return [
+        DAYS[now.weekday().num_days_from_sunday() as usize],
+        b" ",
+        if now.day() < 10 {
+            b" " as &[u8]
+        } else {
+            b"" as &[u8]
+        },
+        &txt(now.day() as i32),
+        b" ",
+        MONTHS[now.month() as usize],
+        b" ",
+        &txt(now.year()),
+        b" ",
+        if now.hour() < 10 {
+            b" " as &[u8]
+        } else {
+            b"" as &[u8]
+        },
+        &txt(now.hour() as i32),
+        b":",
+        if now.minute() < 10 {
+            b"0" as &[u8]
+        } else {
+            b"" as &[u8]
+        },
+        &txt(now.minute() as i32),
+    ]
+    .concat();
+}
+/*
+function dayandtime(d1:Date;t1:Time):string;
+var str1,str2 : string;
+const days : array [0..6] of string[4] =
+ ( 'Sun','Mon','Tue','Wed','Thu','Fri','Sat' );
+      months : array[1..12] of string[5] =
+ ('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+
+ begin
+
+ str2:=txt(d1.Day);
+ if d1.Day<10 then str2:=' '+str2;
+
+  str1:=days[d1.DayofWeek]+' '+str2+' '+months[d1.Month]+' '+txt(d1.Year)+' ';
+  if t1.Hour<10 then str1:=str1+' ';
+   str1:=str1+txt(t1.Hour)+':';
+  if t1.Minute<10 then str1:=str1+'0';
+    str1:=str1+txt(t1.Minute);
+
+    dayandtime:=str1;
+ end;
+
+ */

@@ -57,10 +57,11 @@ impl MakiModule {
         self.kopioi_maki(a, b);
     }
     pub fn alusta(&self) -> bool {
-        unimplemented!()
+        // The original code just allocates some buffers and sets some function pointers.
+        true
     }
     pub fn lopeta(&self) {
-        unimplemented!()
+        // Empty in the original sources
     }
 
     fn kopioi_maki(&self, osoite: i32, delta: i32) {
@@ -71,7 +72,7 @@ impl MakiModule {
         let mut output: usize = 0;
         let mut d: i32;
 
-        for y_index in 0..200i32 {
+        for y_index in 0..200 {
             let mut input = osoite + y_index * X_SIZE as i32 + self.x.get();
             let line = linjan_pituus[(y_index + self.y.get()) as usize];
 
@@ -125,7 +126,7 @@ impl MakiModule {
         }
 
         for x in 0..X_SIZE {
-            let mut y = profiili_y[x as usize];
+            let y = profiili_y[x as usize];
             if y as i32 - former_y > 3 {
                 *keula_x = x as i32; //{ etsit��n keulan paikka }
             }
@@ -137,17 +138,12 @@ impl MakiModule {
         for x in *keula_x..(X_SIZE - 10) as i32 {
             let x2 = x - *keula_x; //{ suhteellinen keulan alap��h�n X }
             let y2 = profiili_y[x as usize] as i32 - profiili_y[*keula_x as usize] as i32; //{ suhteellinen Y }
-            let hp = f64::round(f64::sqrt((x2 * x2 + y2 * y2) as f64 * pk as f64 * 0.5)) as i32 * 5; //{ +10? }
+            let hp = f32::round(f32::sqrt((x2 * x2 + y2 * y2) as f32) * pk * 0.5) as i32 * 5; //{ +10? }
             if hp >= (2 * kr / 3) * 10 && hp <= kr * 12 {
-                let mut c: u8;
-                if hp < kr * 10 {
-                    c = 238;
-                } else {
-                    c = 239;
-                }
+                let c = if hp < kr * 10 { 238 } else { 239 };
                 for y in 0..=2 {
                     self.kirjoita(
-                        (profiili_y[x as usize] as i32 + y + 1) * X_SIZE as i32 + x as i32,
+                        (profiili_y[x as usize] as i32 + y + 1) * X_SIZE as i32 + x,
                         c,
                     );
                 }

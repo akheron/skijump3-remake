@@ -169,7 +169,7 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
         if phase > 0 {
             target = phase * 5;
         }
-        if col < 0 || col > (NUM_SKIS - 1) as u8 {
+        if col > (NUM_SKIS - 1) as u8 {
             col = 0;
         }
 
@@ -184,7 +184,7 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
         if phase > 0 {
             target = phase * 5;
         }
-        if col < 0 || col > (NUM_SUITS - 1) as u8 {
+        if col > (NUM_SUITS - 1) as u8 {
             col = 0;
         }
         let w1 = SUITS[col as usize][1];

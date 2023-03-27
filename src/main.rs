@@ -14,7 +14,6 @@ mod tuuli;
 mod unit;
 
 use crate::graph::GraphModule;
-use crate::help::HelpModule;
 use crate::info::InfoModule;
 use crate::lang::LangModule;
 use crate::lumi::LumiModule;
@@ -24,8 +23,6 @@ use crate::sdlport::{SDLPortModule, X_RES, Y_RES};
 use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::UnitModule;
-use sdl2::event::Event;
-use std::process;
 
 fn main() {
     let sdl = sdl2::init().unwrap();
@@ -57,22 +54,18 @@ fn main() {
         window_multiplier,
     );
 
-    let help_module = HelpModule::new();
     let maki_module = MakiModule::new();
-
     let pcx_module = PcxModule::new(&maki_module, &sdl_port_module);
-
-    let mut graph_module = GraphModule::new(&maki_module, &sdl_port_module);
-    graph_module.load_anim("ANIM.SKI");
+    let graph_module = GraphModule::new(&maki_module, &sdl_port_module);
 
     let mut lang_module = LangModule::new();
+    // Originally in SJ3Module::alku()
     lang_module.load_language(1);
 
     let info_module = InfoModule::new(&graph_module, &lang_module, &pcx_module);
-    let tuuli_module = TuuliModule::new(&graph_module, &help_module);
+    let tuuli_module = TuuliModule::new(&graph_module);
     let unit_module = UnitModule::new(
         &graph_module,
-        &help_module,
         &lang_module,
         &maki_module,
         &pcx_module,
@@ -82,7 +75,6 @@ fn main() {
     let lumi_module = LumiModule::init();
     let mut sj3_module = SJ3Module::new(
         &graph_module,
-        &help_module,
         &info_module,
         &lang_module,
         lumi_module,
@@ -92,6 +84,8 @@ fn main() {
         &tuuli_module,
         &unit_module,
     );
+
+    sj3_module.alku();
     sj3_module.main_menu();
 
     // loop {
