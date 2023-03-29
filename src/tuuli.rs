@@ -59,19 +59,19 @@ impl<'g, 'h, 'm, 's, 'si> TuuliModule<'g, 'm, 's, 'si> {
 
         if self.value.get() > 0 {
             self.g.fill_box(
-                self.tuulix.get() as u16 + 22,
-                self.tuuliy.get() as u16 + 1,
-                self.tuulix.get() as u16 + 22 + self.value.get() as u16 / 3,
-                self.tuuliy.get() as u16 + 2,
+                (self.tuulix.get() + 22) as u16,
+                (self.tuuliy.get() + 1) as u16,
+                (self.tuulix.get() + 22 + self.value.get() / 3) as u16,
+                (self.tuuliy.get() + 2) as u16,
                 236,
             );
         }
         if self.value.get() < 0 {
             self.g.fill_box(
-                self.tuulix.get() as u16 + 20 + self.value.get() as u16 / 3,
-                self.tuuliy.get() as u16 + 1,
-                self.tuulix.get() as u16 + 20,
-                self.tuuliy.get() as u16 + 2,
+                (self.tuulix.get() + 20 + self.value.get() / 3) as u16,
+                (self.tuuliy.get() + 1) as u16,
+                (self.tuulix.get() + 20) as u16,
+                (self.tuuliy.get() + 2) as u16,
                 237,
             );
         }
