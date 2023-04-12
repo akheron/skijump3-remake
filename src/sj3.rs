@@ -1346,7 +1346,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                                 if (random(250) as i32) < (temp * (temp / 10)) {
                                     clanding = 2;
                                 } else {
-                                    clanding = 1;
+                                    landing = 1;
                                 }
                             }
                         }
