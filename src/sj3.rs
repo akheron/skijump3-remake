@@ -1360,13 +1360,13 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[3] && kulma1 <= 600 {
-                        kulma1 += kulma1 / 4;
+                        kulma1 += f32::round(kulma1 as f32 / 4.0) as i32;
                     }
                     if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[2]
                         && landing == 0
                         && kulma1 > 0
                     {
-                        kulma1 -= kulma1 / 5;
+                        kulma1 -= f32::round(kulma1 as f32 / 5.0) as i32;
                     }
 
                     //{ ylirotaatio }
@@ -1729,7 +1729,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             height = f32::round(temp as f32 * 1.34 + kulma1 as f32 / 10.0) as i32;
 
             riski = jump_risk(temp);
-            if hp < 20 * kr / 3 {
+            if (hp as f32) < (20.0 / 3.0 * kr as f32) {
                 riski = 1; //{ lyhyiden hyppyjen riski? }
             }
 
@@ -1768,7 +1768,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 kupat = 3;
             }
 
-            for temp in 1..=((kr + (kr / 20) - (hp / 10)) / 6) {
+            for temp in
+                1..=f32::round((kr as f32 + (kr as f32 / 20.0) - (hp as f32 / 10.0)) / 6.0) as i32
+            {
                 tyylip[1] -= 5;
             }
 
@@ -1814,8 +1816,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             if kr != 0 {
                 //{ vanha tyyli }
-                score += f32::round(((hp / 10) - (kr * 2 / 3)) as f32 * (180.0 / kr as f32) * 10.0)
-                    as i32; //{ pituuspisteet }
+                score += f32::round(
+                    ((hp as f32 / 10.0) - (kr as f32 * 2.0 / 3.0)) * (180.0 / kr as f32) * 10.0,
+                ) as i32; //{ pituuspisteet }
             }
 
             /*(*
