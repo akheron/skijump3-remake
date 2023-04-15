@@ -4,12 +4,12 @@ use crate::rs_util::random;
 use std::cell::Cell;
 use std::f32::consts::PI;
 
-pub struct TuuliModule<'g, 'm, 's, 'si> {
+pub struct TuuliModule<'g, 'm, 'p, 's, 'si> {
     pub voim: Cell<i32>,
     pub windy: Cell<i32>,
     pub value: Cell<i32>,
 
-    g: &'g GraphModule<'m, 's, 'si>,
+    g: &'g GraphModule<'m, 'p, 's, 'si>,
 
     tsuun: Cell<bool>,
     traja1: Cell<i32>,
@@ -20,8 +20,8 @@ pub struct TuuliModule<'g, 'm, 's, 'si> {
     tpaikka: Cell<u8>,
 }
 
-impl<'g, 'h, 'm, 's, 'si> TuuliModule<'g, 'm, 's, 'si> {
-    pub fn new(g: &'g GraphModule<'m, 's, 'si>) -> Self {
+impl<'g, 'm, 'p, 's, 'si> TuuliModule<'g, 'm, 'p, 's, 'si> {
+    pub fn new(g: &'g GraphModule<'m, 'p, 's, 'si>) -> Self {
         Self {
             voim: Cell::new(0),
             windy: Cell::new(0),

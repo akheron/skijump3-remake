@@ -31,6 +31,7 @@ pub const WC_POINTS: [u8; 30] = [
 ];
 pub const TEAM_POINTS: [i32; 8] = [400, 350, 300, 250, 200, 150, 100, 50];
 
+#[derive(Clone, Default)]
 pub struct Hiscore {
     pub name: Vec<u8>,
     pub pos: u8,
@@ -97,7 +98,7 @@ impl Time {
 }
 
 pub struct UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
-    g: &'g GraphModule<'m, 's, 'si>,
+    g: &'g GraphModule<'m, 'p, 's, 'si>,
     l: &'l LangModule,
     m: &'m MakiModule,
     p: &'p PcxModule<'m, 's, 'si>,
@@ -112,7 +113,7 @@ pub struct UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
 impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     pub fn new(
-        g: &'g GraphModule<'m, 's, 'si>,
+        g: &'g GraphModule<'m, 'p, 's, 'si>,
         l: &'l LangModule,
         m: &'m MakiModule,
         p: &'p PcxModule<'m, 's, 'si>,
@@ -131,6 +132,10 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                 (0..NUM_WC_HILLS + MAX_EXTRA_HILLS).map(|_| Hillinfo::default()),
             )),
         }
+    }
+
+    fn getch(&self, xx: i32, yy: i32, bkcolor: u8, tempch: &mut u8, temch2: &mut u8) {
+        unimplemented!();
     }
 
     pub fn load_hill(&self, keula_x: &mut i32, nytmaki: i32, act_hill: &Hill) -> u8 {
@@ -402,122 +407,138 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     }
 
     pub fn do_coach_corner(&self, height: i32, kulmalaskuri: i32, grade: u8, ponn: u8, style: u8) {
-        unimplemented!();
-        /*
-        procedure DoCoachCorner(height,kulmalaskuri:integer;grade,ponn,style:byte);
-        var wstr : string;
-            cstr : array[0..5] of string;
-            temp, index, count,x,y : integer;
-        begin
+        let mut cstr = Vec::new();
+        let index: i32 = 360 + style as i32 * 40;
 
-         for temp:=0 to 5 do cstr[temp]:='';
+        cstr.push(self.l.lstr(
+            (index
+                + match kulmalaskuri {
+                    0..=49 => 2,
+                    50..=61 => 3,
+                    62..=200 => 4,
+                    _ => panic!("kulmalaskuri out of range"),
+                }) as u32,
+        ));
 
-         index:=360+style*40;
+        cstr.push(self.l.lstr(
+            (index
+                + if grade < 10 {
+                    match grade {
+                        1 => 5,
+                        2 => 6,
+                        3 => 7,
+                        _ => panic!("grade out of range"),
+                    }
+                } else {
+                    match grade / 10 {
+                        1..=5 => 10,
+                        6..=8 => 11,
+                        9 => 12,
+                        10 => 13,
+                        11 => 14,
+                        12..=20 => 15,
+                        _ => panic!("grade out of range"),
+                    }
+                }) as u32,
+        ));
 
-         case kulmalaskuri of
-         0..49 : cstr[0]:=lstr(index+2);
-         50..61 : cstr[0]:=lstr(index+3);
-         62..200 : cstr[0]:=lstr(index+4);
-         end;
+        cstr.push(self.l.lstr(
+            (index
+                + match ponn {
+                    0..=5 => 18,
+                    6..=9 => 19,
+                    10..=12 => 20,
+                    13..=15 => 21,
+                    16 => 22,
+                    17..=19 => 23,
+                    20..=23 => 24,
+                    24..=50 => 25,
+                    _ => panic!("ponn out of range"),
+                }) as u32,
+        ));
 
-         if (grade<10) then
-          begin
-           case grade of
-            1 : cstr[1]:=lstr(index+5);
-            2 : cstr[1]:=lstr(index+6);
-            3 : cstr[1]:=lstr(index+7);
-           end;
-          end else
-           begin
-            case grade div 10 of
-             1..5  : cstr[1]:=lstr(index+10);
-             6..8  : cstr[1]:=lstr(index+11);
-                9  : cstr[1]:=lstr(index+12);
-               10  : cstr[1]:=lstr(index+13);
-               11  : cstr[1]:=lstr(index+14);
-           12..20  : cstr[1]:=lstr(index+15);
-            end;
-           end;
+        cstr.push(self.l.lstr(
+            (index
+                + match height {
+                    0..=49 => 28,
+                    50..=55 => 29,
+                    56..=60 => 30,
+                    61..=64 => 31,
+                    65..=70 => 32,
+                    71..=90 => 33,
+                    91..=200 => 34,
+                    _ => panic!("height out of range"),
+                }) as u32,
+        ));
 
-          case ponn of
-           0..5  : cstr[2]:=lstr(index+18);
-           6..9  : cstr[2]:=lstr(index+19);
-          10..12 : cstr[2]:=lstr(index+20);
-          13..15 : cstr[2]:=lstr(index+21);
-              16 : cstr[2]:=lstr(index+22);
-          17..19 : cstr[2]:=lstr(index+23);
-          20..23 : cstr[2]:=lstr(index+24);
-          24..50 : cstr[2]:=lstr(index+25);
-          end;
+        //{ jos kupat n�es }
+        if grade < 10 {
+            cstr[0] = cstr[1];
+        }
+        if grade == 1 {
+            cstr[3] = self.l.lstr((index + 35) as u32);
+        }
 
-          case height of
-          0..49  : cstr[3]:=lstr(index+28);
-         50..55  : cstr[3]:=lstr(index+29);
-         56..60  : cstr[3]:=lstr(index+30);
-         61..64  : cstr[3]:=lstr(index+31);
-         65..70  : cstr[3]:=lstr(index+32);
-         71..90  : cstr[3]:=lstr(index+33);
-         91..200 : cstr[3]:=lstr(index+34);
-         end;
+        cstr[1] = cstr[random(2) as usize];
+        cstr[2] = cstr[random(2) as usize + 2];
 
-          if (grade<10) then cstr[0]:=cstr[1]; { jos kupat n�es }
-          if (grade=1) then cstr[3]:=lstr(index+35);
+        let joined = [cstr[1], b"*", cstr[2]].concat();
+        cstr[1] = &joined;
 
-          cstr[1]:=cstr[random(2)];
-          cstr[2]:=cstr[random(2)+2];
+        self.g.font_color(252);
 
-          cstr[1]:=cstr[1]+'*'+cstr[2];
+        self.g.draw_anim(3, 150, 65);
+        self.g.write_font(12, 150, self.l.lstr(400));
 
-          FontColor(252);
+        let mut index = 1;
+        let mut x = 12;
+        let mut y = 160;
 
-          DrawAnim(3,150,65);
-           writefont(12,150,lstr(400));
+        self.g.write_font(x, y, b"\"");
 
-          index:=1;
-          x:=12; y:=160;
+        let mut count = 30;
+        x = 18;
+        y = 152;
 
-           writefont(x,y,'"');
+        let mut wstr = Vec::new();
 
-          count:=30;
-          x:=18; y:=152;
+        for temp in 1..=cstr[1].len() {
+            wstr.push(cstr[1][temp - 1]);
+            if wstr[index - 1] == b'*' {
+                wstr[index - 1] = b' ';
+            }
+            index += 1;
 
-          wstr:='';
+            if (index > count && cstr[1][temp - 1] == b' ')
+                || (cstr[1][temp - 1] == b'*' && index > count / 2)
+            {
+                if y < 190 {
+                    y += 8;
+                }
+                x = 18;
+                if cstr[1][temp - 1] == b'*' {
+                    wstr.pop();
+                }
 
-          for temp:=1 to length(cstr[1]) do
-           begin
+                self.g.write_font(x, y, &wstr);
+                x += self.g.font_len(&wstr);
 
-            wstr:=wstr+cstr[1][temp];
-            if (wstr[index]='*') then wstr[index]:=' ';
-            inc(index);
+                wstr.clear();
+                index = 1;
+            }
+        }
 
-            if ((index > count) and (cstr[1][temp]=' ')) or ((cstr[1][temp]='*') and (index>count div 2)) then
-             begin
-              if (y<190) then inc(y,8);
-              x:=18;
-              if (cstr[1][temp]='*') then delete(wstr,length(wstr),1);
-
-              writefont(x,y,wstr);
-              x:=x+fontlen(wstr);
-
-              wstr:='';
-              index:=1;
-             end;
-
-
-
-           end;
-
-           if (index>1) then
-            if (length(wstr)<2) then writefont(x,y,wstr+'"')
-                                else
-                                 begin
-                                  x:=18;
-                                  if (y<192) then inc(y,8);
-                                  writefont(x,y,wstr+'"');
-                                 end;
-
-        end;
-                 */
+        if index > 1 {
+            if wstr.len() < 2 {
+                self.g.write_font(x, y, &[&wstr as &[u8], b"\""].concat());
+            } else {
+                x = 18;
+                if y < 192 {
+                    y += 8;
+                }
+                self.g.write_font(x, y, &[&wstr as &[u8], b"\""].concat());
+            }
+        }
     }
 
     pub fn hrname(&self, nytmaki: i32) -> Vec<u8> {
@@ -540,6 +561,22 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         hd[nytmaki as usize].hrname = name.into();
         hd[nytmaki as usize].hrlen = len;
         hd[nytmaki as usize].hrtime = time.into();
+    }
+    pub fn hillkr(&self, nytmaki: i32) -> i32 {
+        if nytmaki > 0 && nytmaki <= NUM_WC_HILLS + self.num_extra_hills as i32 {
+            self.hd.borrow()[nytmaki as usize].kr
+        } else {
+            0
+        }
+    }
+    pub fn hillname(&self, nytmaki: i32) -> Vec<u8> {
+        if (nytmaki < 0) || (nytmaki > NUM_WC_HILLS + self.num_extra_hills as i32) {
+            b"Unknown".to_vec()
+        } else if nytmaki == 0 {
+            self.l.lstr(155).to_vec()
+        } else {
+            self.hd.borrow()[nytmaki as usize].name.clone()
+        }
     }
 
     #[allow(dead_code)]
@@ -920,6 +957,55 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             _ => b"NULL".to_vec(),
         }
     }
+
+    //{ 0-main menu, 1-world cup }
+    pub fn quitting(&self, phase: u8) -> u8 {
+        let str1 = if phase == 1 {
+            self.l.lstr(245)
+        } else {
+            self.l.lrstr(251, 253)
+        };
+        let str2 = self.l.lrstr(256, 258);
+
+        self.g.alert_box();
+
+        let mut tempb = self.g.font_len(&str2) + 4;
+
+        self.g.font_color(241);
+        self.g.write_font(
+            70 + tempb,
+            110,
+            &[
+                b"(",
+                &self.l.lstr(6)[0..1],
+                b"/",
+                &self.l.lstr(7)[0..1],
+                b")",
+            ]
+            .concat(),
+        );
+
+        tempb += 25;
+
+        self.g.font_color(246);
+
+        self.g.write_font(70, 90, str1);
+        self.g.write_font(70, 110, str2);
+
+        let mut ch: u8 = 0;
+        let mut ch2: u8 = 0;
+        self.getch(70 + tempb, 110, 243, &mut ch, &mut ch2);
+        self.s.ch.set(ch);
+        self.s.ch2.set(ch2);
+
+        tempb = 1;
+        if self.s.ch.get().to_ascii_uppercase() == self.l.lstr(6)[0] {
+            tempb = 0;
+        }
+        self.s.clearchs();
+
+        tempb as u8
+    }
 }
 
 pub fn uncrypt(mut str0: Vec<u8>, jarj: i32) -> i32 {
@@ -1044,26 +1130,16 @@ pub fn dayandtime_now() -> Vec<u8> {
     ]
     .concat();
 }
-/*
-function dayandtime(d1:Date;t1:Time):string;
-var str1,str2 : string;
-const days : array [0..6] of string[4] =
- ( 'Sun','Mon','Tue','Wed','Thu','Fri','Sat' );
-      months : array[1..12] of string[5] =
- ('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
 
- begin
-
- str2:=txt(d1.Day);
- if d1.Day<10 then str2:=' '+str2;
-
-  str1:=days[d1.DayofWeek]+' '+str2+' '+months[d1.Month]+' '+txt(d1.Year)+' ';
-  if t1.Hour<10 then str1:=str1+' ';
-   str1:=str1+txt(t1.Hour)+':';
-  if t1.Minute<10 then str1:=str1+'0';
-    str1:=str1+txt(t1.Minute);
-
-    dayandtime:=str1;
- end;
-
- */
+pub fn makeletter(temp: i32) -> &'static [u8] {
+    match temp {
+        1 => b"E", // Early Takeoff
+        2 => b"L", // Slow Landing
+        3 => b"F", // Fall
+        4 => b"D", // Did not show
+        5 => b"H", // Hillrecord
+        6 => b"t", // Telemark-landing
+        7 => b"r", // Two Footed landing
+        _ => b" ",
+    }
+}

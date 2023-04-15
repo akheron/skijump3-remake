@@ -1,11 +1,13 @@
 use crate::maki::MakiModule;
+use crate::pcx::PcxModule;
 use crate::sdlport::SDLPortModule;
 use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::io::Read;
 
-pub struct GraphModule<'m, 's, 'si> {
+pub struct GraphModule<'m, 'p, 's, 'si> {
     m: &'m MakiModule,
+    p: &'p PcxModule<'m, 's, 'si>,
     s: &'s SDLPortModule<'si>,
 
     anim: RefCell<Vec<Vec<u8>>>,
@@ -19,10 +21,15 @@ fn read_byte(file: &mut File) -> u8 {
     buf[0]
 }
 
-impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
-    pub fn new(m: &'m MakiModule, s: &'s SDLPortModule<'si>) -> Self {
+impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
+    pub fn new(
+        m: &'m MakiModule,
+        p: &'p PcxModule<'m, 's, 'si>,
+        s: &'s SDLPortModule<'si>,
+    ) -> Self {
         GraphModule {
             m,
+            p,
             s,
             anim: RefCell::new(vec![Vec::new(); 200]),
             anim_p: RefCell::new([[0; 2]; 200]),
@@ -305,7 +312,108 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
     }
 
     pub fn new_screen(&self, style: u8, color: u8) {
-        unimplemented!()
+        self.fill_box(0, 0, 319, 199, 0);
+
+        match style {
+            1 => {
+                //{ highscores ym. }
+                self.fill_box(0, 0, 319, 18, 245);
+                self.fill_box(0, 20, 319, 199, 243);
+            }
+            2 => {
+                //{ valitsem�ki }
+                self.fill_box(0, 0, 10, 199, 245);
+                self.fill_box(12, 0, 307, 199, 243);
+                self.fill_box(309, 0, 319, 199, 245);
+            }
+            3 => {
+                //{ kingofthehill }
+                self.fill_box(0, 0, 168, 98, 245);
+                self.fill_box(0, 100, 168, 199, 244);
+                self.fill_box(170, 0, 319, 199, 243);
+            }
+            4 => {
+                //{ hiscore2 }
+                self.fill_box(0, 0, 319, 18, 245);
+                self.fill_box(0, 20, 319, 118, 243);
+                self.fill_box(0, 120, 319, 138, 245);
+                self.fill_box(0, 140, 319, 199, 243);
+            }
+            5 => {
+                self.fill_box(0, 0, 319, 199, 243);
+            }
+            6 => {
+                //{ welcomescreen }
+                self.fill_box(0, 0, 50, 199, 245);
+                self.fill_box(52, 0, 267, 199, 243);
+                self.fill_box(269, 0, 319, 199, 245);
+            }
+            7 => {
+                self.fill_box(0, 0, 158, 199, 243);
+                self.fill_box(160, 0, 319, 199, 244);
+            }
+            _ => {}
+        }
+
+        self.fill_area(0, 0, 319, 199, 63);
+
+        //{ LOGO }
+        match style {
+            0 => {
+                self.draw_anim(20, 14, 61);
+            }
+            1 => {
+                self.draw_anim(5, 2, 62);
+            }
+            2 => {
+                self.draw_anim(30, 8, 62);
+            }
+            4 => {
+                self.draw_anim(5, 2, 62);
+                self.draw_anim(5, 122, 62);
+            }
+            6 => {
+                self.draw_anim(80, 6, 61);
+            }
+            _ => {}
+        }
+
+        self.p.siirra_standardi_paletti();
+
+        match style {
+            0 => {
+                self.p.muuta_logo(0); //{ logo sinisen s�vyiksi }
+            }
+            1 | 2 | 4 => {
+                self.p.muuta_menu(3, 0); //{ menu3 harmaaksi }
+            }
+            6 => {
+                self.p.muuta_logo(0);
+            }
+            _ => {}
+        }
+
+        match color {
+            1 => {
+                self.p.muuta_menu(1, 2); //{ menu1 violetiksi }
+            }
+            2 => {
+                self.p.muuta_menu(1, 4); //{ menu1 ruskeaksi KOTH }
+            }
+            3 => {
+                self.p.muuta_menu(1, 5); //{ menu1 punaiseksi WCRES }
+            }
+            4 => {
+                self.p.muuta_menu(1, 1); //{ menu1 mustaksi 4HILLS }
+            }
+            5 => {
+                self.p.muuta_menu(1, 3); //{ menu1 turkoosiksi? STATS }
+            }
+            _ => {}
+        }
+
+        self.p.aseta_paletti();
+        self.draw_screen();
     }
 
     pub fn alert_box(&self) {
@@ -317,5 +425,41 @@ impl<'m, 's, 'si> GraphModule<'m, 's, 'si> {
         let graffa = self.m.graffa.borrow();
         let source = &graffa.as_ref()[0..64000];
         video.copy_from_slice(source);
+    }
+
+    // Originally in SJ3HELP.PAS
+    pub fn nsh(&self, str1: &[u8], maxpituus: i32) -> Vec<u8> {
+        let mut temp1: i32;
+        let mut temp2 = self.font_len(str1);
+        let mut temp3 = str1.len();
+
+        if temp2 > maxpituus {
+            let mut str2: Vec<u8> = Vec::new();
+            for temp1 in 1..temp3 - 1 {
+                if str1[temp1] == b' ' && str1[temp1 + 1] != b' ' {
+                    str2 = [&str1[0..1], b".", &str1[temp1..]].concat();
+                    if self.font_len(&str2) <= maxpituus {
+                        return str2;
+                    }
+                }
+            }
+
+            if str2.is_empty() {
+                str2 = str1.to_vec();
+            }
+
+            temp1 = self.font_len(&str2);
+            temp3 = str2.len();
+
+            if temp1 > maxpituus {
+                while self.font_len(&str2) > maxpituus {
+                    temp3 -= 1;
+                    str2 = [&str2[0..temp3], b"."].concat();
+                }
+            }
+            str2
+        } else {
+            str1.to_vec()
+        }
     }
 }

@@ -2,6 +2,7 @@ mod graph;
 mod help;
 mod info;
 mod lang;
+mod list;
 mod lumi;
 mod maki;
 mod pcx;
@@ -16,6 +17,7 @@ mod unit;
 use crate::graph::GraphModule;
 use crate::info::InfoModule;
 use crate::lang::LangModule;
+use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
@@ -56,13 +58,13 @@ fn main() {
 
     let maki_module = MakiModule::new();
     let pcx_module = PcxModule::new(&maki_module, &sdl_port_module);
-    let graph_module = GraphModule::new(&maki_module, &sdl_port_module);
+    let graph_module = GraphModule::new(&maki_module, &pcx_module, &sdl_port_module);
 
     let mut lang_module = LangModule::new();
     // Originally in SJ3Module::alku()
     lang_module.load_language(1);
 
-    let info_module = InfoModule::new(&graph_module, &lang_module, &pcx_module);
+    let info_module = InfoModule::new(&graph_module, &lang_module, &pcx_module, &sdl_port_module);
     let tuuli_module = TuuliModule::new(&graph_module);
     let unit_module = UnitModule::new(
         &graph_module,
@@ -73,11 +75,19 @@ fn main() {
     );
 
     let lumi_module = LumiModule::init();
+    let list_module = ListModule::new(
+        &graph_module,
+        &lang_module,
+        &pcx_module,
+        &sdl_port_module,
+        &unit_module,
+    );
     let mut sj3_module = SJ3Module::new(
         &graph_module,
         &info_module,
         &lang_module,
         lumi_module,
+        list_module,
         &maki_module,
         &pcx_module,
         &sdl_port_module,

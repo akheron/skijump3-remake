@@ -2,6 +2,7 @@ use crate::graph::GraphModule;
 use crate::help::{nsqrt, txt, txtp};
 use crate::info::InfoModule;
 use crate::lang::LangModule;
+use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
@@ -14,8 +15,8 @@ use crate::table::{
 };
 use crate::tuuli::TuuliModule;
 use crate::unit::{
-    dayandtime_now, defaultkeys, injured, kword, loadgoal, uncrypt, valuestr, Hill, Hiscore, Stat,
-    Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
+    dayandtime_now, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr, Hill,
+    Hiscore, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
 };
 use std::fs::File;
 use std::io::BufReader;
@@ -26,14 +27,15 @@ const VERSION: &[u8] = b"3.13-remake0";
 const VERSION_FULL: &[u8] = b"3.13-remake0";
 
 pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
-    g: &'g GraphModule<'m, 's, 'si>,
+    g: &'g GraphModule<'m, 'p, 's, 'si>,
     i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'si>,
     l: &'l LangModule,
+    ls: ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
     lumi: LumiModule,
     m: &'m MakiModule,
     p: &'p PcxModule<'m, 's, 'si>,
     s: &'s SDLPortModule<'si>,
-    tuuli: &'t TuuliModule<'g, 'm, 's, 'si>,
+    tuuli: &'t TuuliModule<'g, 'm, 'p, 's, 'si>,
     u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
 
     act_hill: Hill,
@@ -98,20 +100,22 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
 
 impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
     pub fn new(
-        g: &'g GraphModule<'m, 's, 'si>,
+        g: &'g GraphModule<'m, 'p, 's, 'si>,
         i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'si>,
         l: &'l LangModule,
         lumi: LumiModule,
+        ls: ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
         m: &'m MakiModule,
         p: &'p PcxModule<'m, 's, 'si>,
         s: &'s SDLPortModule<'si>,
-        tuuli: &'t TuuliModule<'g, 'm, 's, 'si>,
+        tuuli: &'t TuuliModule<'g, 'm, 'p, 's, 'si>,
         u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
     ) -> Self {
         SJ3Module {
             g,
             i,
             l,
+            ls,
             lumi,
             m,
             p,
@@ -2427,6 +2431,453 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                  */
     }
 
+    fn showstats(&mut self) {
+        let mut count: i32;
+        let mut temp: i32;
+        let mut yy: i32;
+        let mut xx: i32;
+        let mut kierros: i32;
+        let mut player: i32;
+        let mut team: i32;
+        let mut cup: i32;
+        let mut str1: Vec<u8>;
+        let mut col: [i32; 21] = [0; 21];
+
+        let ws = |cln: u8, clr: u8, str2: &[u8], yy: i32, col: &[i32]| {
+            let color = if clr == 0 { 240 + (cln % 2) * 6 } else { clr };
+            self.g.font_color(color);
+            if cln == 1 {
+                self.g.write_font(col[cln as usize], yy, str2);
+            } else {
+                self.g.e_write_font(col[cln as usize], yy, str2);
+            }
+        };
+
+        if self.jcup {
+            for team in 0..=self.jmaara - 1 {
+                self.g.new_screen(1, 5);
+
+                self.g.font_color(240);
+                self.g.write_font(
+                    30,
+                    6,
+                    &[
+                        &self.l.lstr(93) as &[u8],
+                        b" ",
+                        &self.i.jnimet.borrow()[(15 - team) as usize],
+                    ]
+                    .concat(),
+                );
+
+                count = 0;
+
+                col[0] = 11;
+                col[1] = 12;
+                col[2] = 62;
+                col[3] = 90;
+                col[4] = 103;
+
+                xx = 0;
+
+                for temp in 1..=3 {
+                    xx += 70;
+                    col[(temp * 3) + 2] = col[2] + xx;
+                    col[(temp * 3) + 3] = col[3] + xx;
+                    col[(temp * 3) + 4] = col[4] + xx;
+                }
+
+                yy = 23;
+
+                self.g.font_color(241);
+
+                self.g.write_font(col[1], yy, self.l.lstr(106));
+
+                for temp in 0..=3 {
+                    self.g.e_write_font(col[2 + temp * 3], yy, self.l.lstr(108));
+                    self.g.e_write_font(col[3 + temp * 3], yy, self.l.lstr(109));
+                    self.g.e_write_font(col[4 + temp * 3], yy, b"?");
+                }
+
+                self.g.font_color(247);
+                yy += 7;
+
+                for temp in 1..=4 {
+                    self.g.write_font(
+                        col[2 + (temp - 1) * 3] - 15,
+                        yy,
+                        &self.g.nsh(
+                            &self.i.nimet.borrow()[NUM_PL + 1 - (team * 4) as usize - temp],
+                            64,
+                        ),
+                    );
+                }
+
+                yy += 7;
+
+                for cup in 1..self.osakilpailu {
+                    ws(0, 240, &[&txt(cup) as &[u8], b"."].concat(), yy, &col);
+
+                    temp = self.hill_order[cup as usize];
+
+                    ws(
+                        1,
+                        246,
+                        &[
+                            &self.u.hillname(temp) as &[u8],
+                            b" ",
+                            &txt(self.u.hillkr(temp)),
+                        ]
+                        .concat(),
+                        yy,
+                        &col,
+                    );
+
+                    for player in 1..=4 {
+                        //{ b on player, a on cup, d on team }
+                        temp = (player + team * 4) as i32;
+                        xx = ((player - 1) * 3) as i32;
+
+                        yy = (cup - 1) * 21 + 37;
+
+                        for kierros in 1..=2 {
+                            ws(
+                                (2 + xx) as u8,
+                                246,
+                                &[
+                                    &txt(self.stats[temp as usize][cup as usize].round_len
+                                        [kierros as usize])
+                                        as &[u8],
+                                    b".",
+                                ]
+                                .concat(),
+                                yy,
+                                &col,
+                            );
+                            ws(
+                                (3 + xx) as u8,
+                                240,
+                                &txtp(
+                                    self.stats[temp as usize][cup as usize].round_pts
+                                        [kierros as usize],
+                                ),
+                                yy,
+                                &col,
+                            );
+                            ws(
+                                (4 + xx) as u8,
+                                247,
+                                makeletter(
+                                    self.stats[temp as usize][cup as usize].reason[kierros as usize]
+                                        as i32,
+                                ),
+                                yy,
+                                &col,
+                            );
+                            yy += 7;
+                        }
+                    }
+
+                    if self.stats[team as usize][cup as usize].comp_pos < 9 {
+                        count +=
+                            TEAM_POINTS[self.stats[team as usize][cup as usize].comp_pos as usize];
+                    }
+
+                    self.g.font_color(247);
+                    self.g.write_font(col[1], yy, self.l.lstr(107));
+                    self.g.e_write_font(82, yy, self.l.lstr(108));
+                    self.g.font_color(246);
+                    self.g.e_write_font(
+                        100,
+                        yy,
+                        &txt(self.stats[team as usize][cup as usize].comp_pos as i32),
+                    );
+
+                    self.g.font_color(247);
+                    self.g.e_write_font(122, yy, self.l.lstr(110));
+
+                    let str1 = if count > 0 {
+                        [
+                            &txt(self.stats[team as usize][cup as usize].wc_pos as i32) as &[u8],
+                            b".",
+                        ]
+                        .concat()
+                    } else {
+                        b"- ".to_vec()
+                    };
+
+                    self.g.font_color(246);
+                    self.g.e_write_font(140, yy, &str1);
+
+                    self.g.font_color(247);
+                    self.g.e_write_font(162, yy, self.l.lstr(109));
+                    self.g.font_color(246);
+                    self.g.e_write_font(186, yy, &txt(count));
+
+                    yy += 7;
+                }
+
+                self.g.draw_screen();
+                self.cupslut = self.s.wait_for_key2();
+            }
+        } else {
+            player = 1;
+
+            self.ls.reset_list(
+                self.i.pmaara.get() as i32,
+                NUM_PL as i32,
+                7,
+                self.l.lstr(89),
+                self.inv_back,
+            );
+
+            loop {
+                self.g.font_color(240);
+
+                self.g.write_font(
+                    36 + self.g.font_len(self.l.lstr(89)),
+                    6,
+                    &self
+                        .g
+                        .nsh(&self.i.nimet.borrow()[NUM_PL + 1 - player as usize], 110),
+                );
+
+                count = 0;
+
+                col[0..=12].copy_from_slice(&[
+                    15, 16, 70, 90, 110, 140, 170, //{ R1 }
+                    210, //{ m }
+                    230, //{ pos after R1 }
+                    240, 268, //{ R2 }
+                    308, //{ m }
+                    316,
+                ]);
+
+                yy = 23;
+
+                self.g.font_color(247);
+
+                self.g.write_font(col[1], yy, &self.l.lstr(106));
+                self.g.e_write_font(col[2], yy, &self.l.lstr(108));
+                self.g.e_write_font(col[3], yy, &self.l.lstr(109));
+                self.g.e_write_font(col[4], yy, &self.l.lstr(98));
+                self.g.e_write_font(col[5], yy, &self.l.lstr(97));
+                self.g.e_write_font(col[6], yy, b"R 1");
+                self.g.e_write_font(col[8], yy, &self.l.lstr(108));
+                self.g.e_write_font(col[9], yy, b"?");
+                self.g.e_write_font(col[10], yy, b"R 2");
+                self.g.e_write_font(col[12], yy, b"?");
+
+                self.g.font_color(246);
+
+                yy = 25;
+
+                for cup in 1..=self.osakilpailu {
+                    yy += 7;
+
+                    ws(0, 0, &[&txt(cup) as &[u8], b"."].concat(), yy, &col);
+
+                    ws(
+                        1,
+                        0,
+                        &[&self.u.hillname(cup)[0..=2], b" ", &txt(self.u.hillkr(cup))].concat(),
+                        yy,
+                        &col,
+                    );
+
+                    let mut str1 = b"dq".to_vec(); //{ didn't qualify }
+
+                    temp = self.stats[player as usize][cup as usize].comp_pos as i32;
+
+                    if temp > 0 && temp < 51 {
+                        str1 = [&txt(temp) as &[u8], b"."].concat();
+                    }
+
+                    ws(2, 0, &str1, yy, &col); //{ Kisa Pos }
+
+                    str1 = b"0".to_vec();
+                    if temp > 0 && temp < 31 {
+                        str1 = txt(WC_POINTS[temp as usize] as i32);
+                        count += WC_POINTS[temp as usize] as i32;
+                    }
+
+                    ws(3, 0, &str1, yy, &col); //{ Kisasta pisteit� }
+
+                    str1 = if count > 0 {
+                        [
+                            &txt(self.stats[player as usize][cup as usize].wc_pos as i32)
+                                as &[u8],
+                            b".",
+                        ]
+                        .concat()
+                    } else {
+                        b"-".to_vec()
+                    };
+
+                    ws(4, 0, &str1, yy, &col); //{ WC sija t�n skaban j�lkeen }
+
+                    if temp > 0 && temp < 51 {
+                        ws(
+                            5,
+                            0,
+                            &txtp(
+                                self.stats[player as usize][cup as usize].round_pts[1]
+                                    + self.stats[player as usize][cup as usize].round_pts[2],
+                            ),
+                            yy,
+                            &col,
+                        );
+                        ws(
+                            6,
+                            0,
+                            &txtp(self.stats[player as usize][cup as usize].round_pts[1]),
+                            yy,
+                            &col,
+                        );
+                        str1 = [
+                            b"(",
+                            &txt(self.stats[player as usize][cup as usize].round_len[1]) as &[u8],
+                            b"\xab)",
+                        ]
+                        .concat();
+                        ws(7, 0, &str1, yy, &col);
+
+                        ws(
+                            8,
+                            0,
+                            &[
+                                &txt(self.stats[player as usize][cup as usize].round1_pos as i32)
+                                    as &[u8],
+                                b".",
+                            ]
+                            .concat(),
+                            yy,
+                            &col,
+                        );
+                    }
+
+                    temp = self.stats[player as usize][cup as usize].round_pts[2] as i32;
+
+                    if temp > 0 {
+                        ws(10, 0, &txtp(temp), yy, &col);
+                        ws(
+                            11,
+                            247,
+                            &[
+                                b"(",
+                                &txt(self.stats[player as usize][cup as usize].round_len[2])
+                                    as &[u8],
+                                b"\xab)",
+                            ]
+                            .concat(),
+                            yy,
+                            &col,
+                        );
+                    }
+
+                    temp = self.stats[player as usize][cup as usize].reason[1] as i32;
+                    if temp > 0 {
+                        ws(9, 247, makeletter(temp), yy, &col);
+                    }
+
+                    if cup == 12 && self.osakilpailu != 12 {
+                        yy += 7;
+
+                        if !self.inv_back {
+                            self.g.fill_box(0, yy as u16, 319, (yy + 6) as u16, 245);
+                            self.g.fill_area(0, yy as u16, 319, (yy + 6) as u16, 63);
+                        }
+
+                        self.g.font_color(240);
+                        self.g.write_font(col[1], yy, &self.l.lstr(99));
+
+                        self.g.e_write_font(
+                            col[2],
+                            yy,
+                            &[
+                                &txt(self.stats[player as usize][0].comp_pos as i32) as &[u8],
+                                b".",
+                            ]
+                            .concat(),
+                        );
+
+                        self.g.e_write_font(
+                            col[5],
+                            yy,
+                            &txtp(self.stats[player as usize][0].round_pts[1]),
+                        );
+                    }
+                }
+
+                yy += 8;
+
+                self.g.fill_box(2, yy as u16, 316, yy as u16, 241);
+                self.g
+                    .fill_box(3, (yy + 1) as u16, 317, (yy + 1) as u16, 242);
+
+                yy += 3;
+
+                ws(1, 0, &self.l.lstr(100), yy, &col);
+
+                ws(3, 0, &txt(count), yy, &col);
+
+                if count > 0 {
+                    ws(
+                        4,
+                        0,
+                        &[
+                            &txt(self.stats[player as usize][self.osakilpailu /* was: cup (but it's not defined) */ as usize].wc_pos as i32)
+                                as &[u8],
+                            b".",
+                        ]
+                            .concat(),
+                        yy,
+                        &col,
+                    );
+                }
+
+                count = 0;
+                for cup in 1..=self.osakilpailu {
+                    count += self.stats[player as usize][cup as usize].round_pts[1]
+                        + self.stats[player as usize][cup as usize].round_pts[2];
+                }
+
+                self.g.font_color(251);
+                self.g
+                    .e_write_font(col[5], yy, &txtp(count / self.osakilpailu));
+
+                count = 0;
+                for cup in 1..=self.osakilpailu {
+                    count += self.stats[player as usize][cup as usize].round_pts[1];
+                }
+                self.g.font_color(241);
+                self.g
+                    .e_write_font(col[6], yy, &txtp(count / self.osakilpailu));
+
+                count = 0;
+                for cup in 1..=self.osakilpailu {
+                    count += self.stats[player as usize][cup as usize].round_pts[2];
+                }
+                self.g
+                    .e_write_font(col[10], yy, &txtp(count / self.osakilpailu));
+
+                let str1 = if player == self.i.pmaara.get() as i32 {
+                    b"L"
+                } else {
+                    b"X"
+                };
+                player = self.ls.entry(player, 0, 0, b"", 0, 0, 0, str1);
+
+                if player == -2 {
+                    self.cupslut = true;
+                }
+
+                if player < 0 || player > self.i.pmaara.get() as i32 {
+                    break;
+                }
+            }
+        }
+    }
+
     fn jarjestys(&mut self, fromarray: u8, toarray: u8, num: u8) {
         // { from: 0 - MCpist, 1 - fourpts, 2 - pisteet }
         // { to: 0 - mcluett, 1 - luett }
@@ -2522,6 +2973,385 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         }
     }
 
+    fn shouldishow(&self, player: i32, vaihe: u8, templuett: &[u8]) -> u8 {
+        let who2 = templuett[player as usize];
+
+        let pts = match vaihe {
+            0 | 1 | 2 => self.pisteet[who2 as usize],
+            3 => self.fourpts[who2 as usize],
+            4 => self.mcpisteet[who2 as usize],
+            _ => panic!("Invalid vaihe"),
+        };
+
+        if who2 as usize > NUM_PL - self.i.pmaara.get() as usize {
+            //{ oma j�tk� }
+            match vaihe {
+                0 => 1,
+                1 | 2 if self.qual[who2 as usize] > 0 => 1,
+                3 | 4 if pts > 0 => 1,
+                _ => 0,
+            }
+        } else {
+            0
+        }
+    }
+
+    // { oldvaiheet: 0 - WCquali  1 - WC, 2 - 4hills }
+    // { newvaiheet: 0 - WCquali, 1 - WCk1, 2 - WCk2, 3 - 4H, 4 - MClista }
+    // { monta :         kaikki,    qualit,    qualit,  >4pts     >MCpist }
+    fn lista(&mut self, vaihe: u8) {
+        let mut t1: i32 = 0;
+        let mut t2: i32 = 0;
+        let mut pts: i32;
+        let mut valiviiva: bool;
+        let mut leave: bool;
+        let mut who: i32;
+        let mut prev: i32;
+        let mut next: i32;
+        let mut temp: i32;
+        let mut temp2: i32;
+        let mut shown: i32;
+        let mut needtoshow: i32 = 0; //{ monta omaa j�tk�� on edes tarkoitus n�ytt�� }
+        let mut extra: Vec<u8>;
+        let mut oknow: bool;
+        let mut templuett: [u8; NUM_PL + 2] = [0; NUM_PL + 2];
+
+        for temp in 1..=NUM_PL {
+            //{ t��ll� k�ytet��n templuettia }
+            if vaihe == 4 {
+                templuett[temp] = self.mcluett[temp];
+            } else {
+                templuett[temp] = self.luett[temp];
+            }
+        }
+
+        for temp in 1..=NUM_PL {
+            needtoshow += self.shouldishow(temp as i32, vaihe, &templuett) as i32;
+        }
+
+        temp = match vaihe {
+            1 | 2 => 1,
+            3 => 2,
+            4 => 3,
+            _ => 0,
+        };
+
+        self.ls.reset_list(
+            self.i.pmaara.get() as i32,
+            NUM_PL as i32,
+            temp,
+            &self.donewheader(vaihe),
+            self.inv_back,
+        );
+        if self.compactlist {
+            self.compactsign();
+        }
+
+        leave = false;
+        valiviiva = false; //{ ei ole sit� piirretty viel� }
+
+        temp = 1;
+        shown = 0;
+
+        loop {
+            who = templuett[temp as usize] as i32;
+            prev = templuett[(temp - 1) as usize] as i32;
+            next = templuett[(temp + 1) as usize] as i32;
+
+            extra = b"X".to_vec(); //{ ett� extra[1] on jotain j�rkev�� }
+
+            temp2 = 0;
+
+            oknow = false;
+
+            if self.compactlist {
+                //{ compakti tuloslista. }
+                loop {
+                    who = templuett[temp as usize] as i32;
+                    prev = templuett[(temp - 1) as usize] as i32;
+                    next = templuett[(temp + 1) as usize] as i32;
+
+                    if self.shouldishow(temp, vaihe, &templuett) == 1 {
+                        //{ t�� mun pitikin n�ytt�� }
+                        shown += 1;
+                        oknow = true;
+                    } else {
+                        //{ muu j�tk�, mutta kympin sis�ll� on my�s ok }
+                        if !(self.sija[who as usize] > 10) {
+                            oknow = true;
+                        }
+                    }
+
+                    if shown == needtoshow && self.sija[next as usize] > 10 {
+                        //{ kaikki omat n�ytetty ja seuraava ei kuulu en�� t�nne }
+                        oknow = true;
+                        extra = b"L".to_vec();
+                    }
+
+                    if !oknow {
+                        temp += 1;
+                    }
+
+                    if oknow {
+                        break;
+                    }
+                }
+            }
+
+            if self.sija[who as usize] > 30
+                && !self.compactlist
+                && self.sija[prev as usize] <= 30
+                && vaihe == 1
+            {
+                //{ 1. kierron v�liviiva }
+                temp2 = self.ls.entry(0, 0, 2, b"- - -", 0, 0, 0, b"X");
+            }
+
+            if temp2 >= 0 {
+                match vaihe {
+                    0 | 1 | 2 => {
+                        t1 = self.pisteet[who as usize];
+                        t2 = self.pisteet[templuett[1] as usize];
+                    }
+                    3 => {
+                        t1 = self.fourpts[who as usize];
+                        t2 = self.fourpts[templuett[1] as usize];
+                    }
+                    4 => {
+                        t1 = self.mcpisteet[who as usize];
+                        t2 = self.mcpisteet[templuett[1] as usize];
+                    }
+                    _ => {}
+                }
+
+                pts = t1;
+
+                if self.diff && temp > 1 {
+                    pts = t1 - t2;
+                }
+
+                if vaihe == 0 && self.qual[who as usize] > 0 {
+                    extra.push(b'Q');
+                    if self.sija[who as usize] > 50 {
+                        extra.push(b'W');
+                    }
+                }
+
+                if vaihe < 2 && self.sija[who as usize] <= 30 {
+                    extra.push(b'Q');
+                }
+
+                if self.inj[who as usize] > 0 && vaihe < 3 {
+                    extra = [
+                        &extra as &[u8],
+                        b"I",
+                        &txt((self.inj[who as usize] - 1) as i32),
+                    ]
+                    .concat();
+                }
+
+                if vaihe < 3 && self.this_is_a_hill_record == (self.kierros * 1000) + who {
+                    extra.push(b'R');
+                }
+
+                match vaihe {
+                    //{ ett� tiedet��n loppuiko tulostettavat }
+                    0 => {
+                        if temp >= NUM_PL as i32 {
+                            extra.insert(0, b'L');
+                        }
+                    }
+                    1 | 2 => {
+                        if self.qual[next as usize] == 0 {
+                            extra.insert(0, b'L');
+                        }
+                    }
+                    3 => {
+                        if self.fourpts[next as usize] == 0 {
+                            extra.insert(0, b'L');
+                        }
+                    }
+                    4 => {
+                        if self.mcpisteet[next as usize] == 0 {
+                            extra.insert(0, b'L');
+                        }
+                    }
+                    _ => {}
+                }
+
+                if next == 0 || next > NUM_PL as i32 {
+                    extra.insert(0, b'L');
+                }
+
+                match vaihe {
+                    0 => {
+                        temp = self.ls.entry(
+                            temp,
+                            self.sija[who as usize] as i32,
+                            who,
+                            &self.i.nimet.borrow()[who as usize],
+                            pts,
+                            self.cstats[0][who as usize],
+                            0,
+                            &extra,
+                        );
+                    }
+                    1 | 2 => {
+                        temp = self.ls.entry(
+                            temp,
+                            self.sija[who as usize] as i32,
+                            who,
+                            &self.i.nimet.borrow()[who as usize],
+                            pts,
+                            self.cstats[1][who as usize],
+                            self.cstats[2][who as usize],
+                            &extra,
+                        );
+                    }
+                    3 => {
+                        temp = self.ls.entry(
+                            temp,
+                            self.sija[who as usize] as i32,
+                            who,
+                            &self.i.nimet.borrow()[who as usize],
+                            pts,
+                            0,
+                            0,
+                            &extra,
+                        );
+                    }
+                    4 => {
+                        if self.mcpisteet[who as usize] > 0 {
+                            temp = self.ls.entry(
+                                temp,
+                                self.sija[who as usize] as i32,
+                                who,
+                                &self.i.nimet.borrow()[who as usize],
+                                pts,
+                                0,
+                                0,
+                                &extra,
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+
+                if self.compactlist
+                    && !valiviiva
+                    && self.sija[next as usize] > 10
+                    && self.sija[who as usize] <= 10
+                {
+                    valiviiva = true;
+                    temp2 = self.ls.entry(0, 0, 2, b"...", 0, 0, 0, b"X"); //{ v�liviiva }
+                }
+            }
+
+            if temp < 0 || temp2 < 0 {
+                leave = true;
+            }
+
+            if leave {
+                break;
+            }
+        }
+
+        if temp == -2 {
+            self.cupslut = true;
+        }
+
+        //{$IFDEF REG}
+        if !self.cupslut
+            && self.cup_style == 0
+            && self.s.ch.get() != 27
+            && vaihe == 4
+            && (self.lct || self.osakilpailu == NUM_WC_HILLS)
+        {
+            self.showstats();
+        }
+        //{$ENDIF}
+    }
+
+    //{ 0-esittely, 1-tuloksien kanssa }
+    fn showpairs(&mut self, phase: u8) {
+        unimplemented!();
+        /*
+            procedure showpairs(phase:byte); { 0-esittely, 1-tuloksien kanssa }
+        var temp,temp2,who : integer;
+
+         procedure drawstuff(column,row,item:byte);
+          var xx,yy,plus:integer;
+              extra : string[5];
+          begin
+           xx:=145+(column*30);
+           yy:=17+(row*7);
+           plus:=fontlen(nsh(nimet[who],100))+5;
+           if (plus>105) then plus:=105;
+
+           extra:='';
+           if (qual[who]=1) then extra:='Q';
+           if (qual[who]=2) then extra:='LL';
+
+           case item of
+           0 : ewritefont(xx,yy,nsh(nimet[who],100));
+           1 : writefont(xx,yy,nsh(nimet[who],100));
+           2 : ewritefont(xx-plus,yy,'('+txt(qual[who])+')');
+           3 : writefont(xx+plus,yy,'('+txt(qual[who])+')');
+        {   4 : ewritefont(xx-plus,yy,txtp(pisteet[who]));
+           5 : writefont(xx+plus,yy,txtp(pisteet[who])); }
+           4 : ewritefont(40,yy,txtp(pisteet[who]));
+           5 : ewritefont(303,yy,txtp(pisteet[who]));
+
+           6 : ewritefont(12,yy,extra);
+           7 : writefont(308,yy,extra);
+
+           10 : writefont(154,yy,'vs.');
+
+           end;
+
+          end;
+
+        begin
+
+         newscreen(1,0);
+         fontcolor(240);
+          writefont(30,6,lstr(94));
+         fontcolor(241);
+
+         for temp:=25 downto 1 do
+           for temp2:=0 to 1 do
+            begin
+             who:=luett[51-temp];
+             if (temp2=1) then who:=luett[temp];
+
+             if (kierros=1) and (who>Numpl-pmaara) then Stats[NumPl+1-who,osakilpailu].Round1Pos:=sija[who];
+
+             fontcolor(241);
+             drawstuff(temp2,26-temp,10); { vs. }
+        {     if (who>Numpl-pmaara) then fontcolor(240); }
+             if (phase=1) then case qual[who] of
+             1 : fontcolor(251); { tummankeltainen }
+             2 : fontcolor(252);
+             end;
+
+             if (who>Numpl-pmaara) then fontcolor(240);
+
+             drawstuff(temp2,26-temp,temp2); { nimi ruutuun }
+             if (phase=1) then
+              begin
+        {       if (who>Numpl-pmaara) and (qual[who]>0) then fontcolor(246); }
+               drawstuff(temp2,26-temp,temp2+4);
+               drawstuff(temp2,26-temp,temp2+6);
+              end else drawstuff(temp2,26-temp,temp2+2); { qual }
+
+            end;
+
+         cupslut:=Waitforkey3(305,6,ch);
+
+        end;
+
+             */
+    }
     fn jumpalku(&mut self) {
         self.u.load_info(self.nytmaki, &mut self.act_hill);
 
@@ -2636,9 +3466,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             //{ TRAINING ROUNDS (kierros-1,-2,-3) }
 
-            // TODO: remove!!!
-            self.trainrounds = 1;
-
             if !self.cupslut && self.trainrounds > 0 {
                 for temp in 1..=self.trainrounds {
                     self.kierros = -(temp as i32);
@@ -2654,222 +3481,279 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
                 }
             }
-            /*
-                 if not (cupstyle=1) then  { v3.13 - customissa skipataan quali }
-                 begin
 
-                      kierros:=0;
+            if self.cup_style != 1 {
+                //{ v3.13 - customissa skipataan quali }
+                self.kierros = 0;
 
-                      { QUAL ROUND  kierros:=0; }
+                //{ QUAL ROUND  kierros:=0; }
 
-                      if (not CupSlut) then { NEW! }
-                         for index:=NumPl downto 1 do
-                             begin
-                             skip:=false;
-                             if (mcluett[index] > NumPl-pmaara) then
-                             begin
-                                  skipquali:=Profile[profileorder[Numpl+1-mcluett[index]]].skipquali;
-                                  if (skipquali=2) or ((not fourhills) and (skipquali=1)) then skip:=true;
-                             end;
+                if !self.cupslut {
+                    //{ NEW! }
+                    for index in (1..=NUM_PL).rev() {
+                        skip = false;
+                        if self.mcluett[index] as usize > NUM_PL - self.i.pmaara.get() as usize {
+                            skipquali = self.i.profile.borrow()[self.i.profileorder.borrow()
+                                [NUM_PL + 1 - self.mcluett[index] as usize]
+                                as usize]
+                                .skipquali;
+                            if skipquali == 2 || (!fourhills && skipquali == 1) {
+                                skip = true;
+                            }
+                        }
 
-                             if (inj[mcluett[index]]=0) and (not cupslut) then
-                             if not ((mcluett[index] > NumPl-pmaara) and (skip) and
-                                (qual[mcluett[index]] > 0)) then  { skipquali mahis }
-                             begin
-                               hyppy(index,mcluett[index],0);
-                               eka:=false;
-                             end;
-                    end;
+                        if self.inj[self.mcluett[index] as usize] == 0
+                            && !self.cupslut
+                            && !((self.mcluett[index] as usize
+                                > NUM_PL - self.i.pmaara.get() as usize)
+                                && skip
+                                && (self.qual[self.mcluett[index] as usize] > 0))
+                        {
+                            //{ skipquali mahis }
+                            self.hyppy(index as i32, self.mcluett[index] as i32, 0);
+                            self.eka = false;
+                        }
+                    }
+                }
 
-                    jarjestys(2,1,Numpl);
+                self.jarjestys(2, 1, NUM_PL as u8);
 
-                    if (not cupslut) and (osakilpailu>1) then { ei eka kisa }
-                    begin
-                         temp2:=1;
+                if !self.cupslut && self.osakilpailu > 1 {
+                    //{ ei eka kisa }
+                    temp2 = 1;
 
-                         for temp:=1 to 50-qual[0] do  { yleens� 30 }
-                         begin
-                             while ((qual[luett[temp2]]>0) or (inj[luett[temp2]]<>0)) and (temp2<NumPl) do inc(temp2);
-                             qual[luett[temp2]]:=1;
-                         end;
+                    for _ in 1..=50 - self.qual[0] {
+                        //{ yleens� 30 }
+                        while (self.qual[self.luett[temp2] as usize] > 0
+                            || self.inj[self.luett[temp2] as usize] != 0)
+                            && temp2 < NUM_PL
+                        {
+                            temp2 += 1;
+                        }
+                        self.qual[self.luett[temp2] as usize] = 1;
+                    }
 
-                         if (not dokosystem) then { ko systeemiss� tarvitaan tasan 50. }
-                            for temp:=51-qual[0] to NumPl do
-                                if (sija[luett[temp]]=sija[luett[temp2]]) and (inj[luett[temp]]=0) then qual[luett[temp]]:=1;
+                    if !dokosystem {
+                        //{ ko systeemiss� tarvitaan tasan 50. }
+                        for temp in 51 - self.qual[0] as usize..=NUM_PL {
+                            if self.sija[self.luett[temp] as usize]
+                                == self.sija[self.luett[temp2] as usize]
+                                && self.inj[self.luett[temp] as usize] == 0
+                            {
+                                self.qual[self.luett[temp] as usize] = 1;
+                            }
+                        }
+                    }
+                } else {
+                    //{ * eka kerta * }
+                    if dokosystem {
+                        for temp in 1..=50 {
+                            self.qual[self.luett[temp] as usize] = 3; //{ vain tasan 50 tarvitaan KO systeemiin }
+                        }
+                    } else {
+                        for temp in 1..=NUM_PL {
+                            //{ 50 parasta qualifieria, ei v�li� vaikka loukkaant. }
+                            if self.sija[temp] < 51 {
+                                self.qual[temp] = 1;
+                            }
+                        }
+                    }
+                }
 
-                    end else
-                    begin { * eka kerta * }
+                temp2 = 1;
 
-                          if (dokosystem) then
-                          begin
-                               for temp:=1 to 50 do
-                                   qual[luett[temp]]:=3; { vain tasan 50 tarvitaan KO systeemiin }
-                          end else
-                              for temp:=1 to NumPl do    { 50 parasta qualifieria, ei v�li� vaikka loukkaant. }
-                                  if (sija[temp]<51) then qual[temp]:=1;
+                if dokosystem {
+                    for temp in 1..=50 {
+                        //{ pit�isi tehd� parit }
+                        while self.qual[self.luett[temp2] as usize] == 0 && temp2 < NUM_PL {
+                            temp2 += 1;
+                        }
+                        self.qual[self.luett[temp2] as usize] = temp; //{ qualista tulikin l�ht�j�rjestysnumero }
+                        temp2 += 1;
+                    }
+                }
 
-                   end;
+                if !self.cupslut {
+                    //{ karsinnan tulokset }
+                    self.jarjestys(2, 1, NUM_PL as u8);
+                    self.lista(0);
+                }
 
-            {       for a:=50 to NumPl do
-                    if (sija[luett[a] }
+                if !self.cupslut && dokosystem {
+                    //{ tehd��n l�ht�j�rjestyslista }
+                    for temp in 1..=NUM_PL {
+                        self.luett[self.qual[temp] as usize] = temp as u8;
+                    }
+                    self.showpairs(0);
+                }
+            } else {
+                for temp in 1..=NUM_PL {
+                    self.qual[temp] = 1;
+                }
+            }
 
-            {      for a:=1 to NumPl do luett[a]:=0; }
+            for temp in 0..=NUM_PL {
+                self.pisteet[temp] = 0;
+            }
 
-                  temp2:=1;
+            for temp in 1..=NUM_PL {
+                if self.qual[temp] == 0 {
+                    self.pisteet[temp] = -5555; //{ pistet��n niille niin huonot pisteet ettei ne kummittele }
+                }
+            }
 
-                  if (dokosystem) then
-                   for temp:=1 to 50 do { pit�isi tehd� parit }
-                    begin
-                     while (qual[luett[temp2]]=0) and (temp2<NumPl) do inc(temp2);
-                     qual[luett[temp2]]:=temp; { qualista tulikin l�ht�j�rjestysnumero }
-                     inc(temp2);
-                    end;
+            self.kierros = 1;
 
-                  if (not cupslut) then { karsinnan tulokset }
-                   begin
-                    jarjestys(2,1,NumPl);
-                    lista(0);
-                   end;
+            //{ *** 1. KIERROS *** }
+            if dokosystem {
+                for temp in (1..=25).rev() {
+                    for temp2 in 0..=1 {
+                        index = 51 - temp;
+                        if temp2 == 1 {
+                            index = temp;
+                        }
 
-                  if (not cupslut) and (dokosystem) then
-                   begin
-                    for temp:=1 to NumPl do   { tehd��n l�ht�j�rjestyslista }
-                     luett[qual[temp]]:=temp;
-                    showpairs(0);
-                   end;
+                        if self.inj[self.luett[index] as usize] == 0 && !self.cupslut {
+                            self.hyppy(index as i32, self.luett[index] as i32, 0);
+                            self.eka = false;
+                        }
+                    }
+                }
+            } else {
+                for index in (1..=NUM_PL).rev() {
+                    if self.qual[self.mcluett[index] as usize] > 0
+                        && self.inj[self.mcluett[index] as usize] == 0
+                        && !self.cupslut
+                    {
+                        self.hyppy(index as i32, self.mcluett[index] as i32, 0);
+                        self.eka = false;
+                    }
+                }
+            }
 
+            if !dokosystem && !self.cupslut {
+                //{ 1. kierroksen tulokset }
+                self.jarjestys(2, 1, NUM_PL as u8);
+                self.updatestats(1);
+                self.lista(1);
+            }
 
-                 end { cupstyle <> 1 }
-                 else
-                 begin
-                      for temp:=1 to NumPl do qual[temp]:=1;
-                 end;
+            for temp in 0..=NUM_PL {
+                self.qual[temp] = 0;
+            }
 
-                 for temp:=0 to NumPl do
-                  pisteet[temp]:=0;
+            if !dokosystem {
+                //{ tavallinen }
+                for temp in 1..=NUM_PL {
+                    //{ n�m� ovat luettelon j�lkeen, ett� siell� tiedet��n koska hypp��j�t loppuu }
+                    if self.sija[temp] < 31 {
+                        self.qual[temp] = 1;
+                    }
+                }
+            } else {
+                //{ ko system }
+                for temp in (1..=25).rev() {
+                    if self.pisteet[self.luett[temp] as usize]
+                        >= self.pisteet[self.luett[51 - temp] as usize]
+                    {
+                        self.qual[self.luett[temp] as usize] = 1;
+                    } else {
+                        self.qual[self.luett[51 - temp] as usize] = 1;
+                    }
+                }
+                for temp in 1..=NUM_PL {
+                    self.mcluett[temp] = self.luett[temp]; //{ laitetaan talteen l�ht�j�rjestys }
+                }
 
-                 for temp:=1 to NumPl do
-                  if (qual[temp]=0) then pisteet[temp]:=-5555;  { pistet��n niille niin huonot pisteet ettei ne kummittele }
+                self.jarjestys(2, 1, NUM_PL as u8); //{ tehd��n pisteist� j�rkk� }
+                temp2 = 1;
+                for temp in 1..=5 {
+                    //{ 5 lucky loseria }
+                    while self.qual[self.luett[temp2] as usize] == 0 && temp2 < NUM_PL {
+                        temp2 += 1;
+                    }
+                    self.qual[self.luett[temp2] as usize] = 2;
+                }
 
-                  kierros:=1;
+                for temp in 1..=NUM_PL {
+                    self.luett[temp] = self.mcluett[temp]; //{ palautetaan l�ht�j�rjestys }
+                }
 
-                 if (dokosystem) then                  { *** 1. KIERROS *** }
-                  for temp:=25 downto 1 do
-                   for temp2:=0 to 1 do
-                    begin
-                     index:=51-temp;
-                     if (temp2=1) then index:=temp;
+                if !self.cupslut {
+                    self.showpairs(1);
+                }
 
-                     if (inj[luett[index]]=0) and (not cupslut) then
-                      begin
-                       hyppy(index,luett[index],0);
-                       eka:=false;
-                      end;
+                self.jarjestys(0, 0, NUM_PL as u8); //{ ett� mcliivi on oikealla miehell� }
+                self.jarjestys(2, 1, NUM_PL as u8); //{ taas pisteist� j�rkk� n�et toinen kierros normaali on }
+            }
 
-                   end else
-                  for index:=NumPl downto 1 do
-                   if (qual[mcluett[index]]>0) and (inj[mcluett[index]]=0) and (not cupslut) then
-                    begin
-                     hyppy(index,mcluett[index],0);
-                     eka:=false;
-                    end;
+            self.kierros = 2;
 
-                if (not dokosystem) and (not cupslut) then { 1. kierroksen tulokset }
-                 begin
-                  jarjestys(2,1,NumPl);
-                  updatestats(1);
-                  lista(1);
-                 end;
+            //{ *** 2. KIERROS *** }
+            if !self.cupslut {
+                for index in (1..=NUM_PL).rev() {
+                    if self.inj[self.luett[index] as usize] == 0
+                        && self.qual[self.luett[index] as usize] > 0
+                        && !self.cupslut
+                    {
+                        self.hyppy(index as i32, self.luett[index] as i32, 0);
+                        self.eka = false;
+                    }
+                }
+            }
 
-                 for temp:=0 to NumPl do qual[temp]:=0;
+            self.s.ch.set(1); //{ ett� hypyn keskeytt�minen sotke liikaa }
 
-                if (not dokosystem) then { tavallinen }
-                 begin
-                  for temp:=1 to NumPl do
-                  if (sija[temp]<31) then qual[temp]:=1; { n�m� ovat luettelon j�lkeen, ett� siell� tiedet��n koska hypp��j�t loppuu }
-                 end else
-                  begin                 { ko system }
-                   for temp:=25 downto 1 do
-                    if (pisteet[luett[temp]] >= pisteet[luett[51-temp]]) then
-                     qual[luett[temp]]:=1 else qual[luett[51-temp]]:=1;
-                   for temp:=1 to NumPl do
-                    mcluett[temp]:=luett[temp]; { laitetaan talteen l�ht�j�rjestys }
+            self.eka = true;
 
-                   jarjestys(2,1,NumPl); { tehd��n pisteist� j�rkk� }
-                   temp2:=1;
-                   for temp:=1 to 5 do     { 5 lucky loseria }
-                    begin
-                     while (qual[luett[temp2]]<>0) and (temp2<NumPl) do inc(temp2);
-                     qual[luett[temp2]]:=2;
-                    end;
+            if self.cup_style > 0 || fourhills {
+                for temp in 1..=NUM_PL {
+                    //{ custom tai fourhills }
+                    if self.pisteet[temp] != -5555 {
+                        self.fourpts[temp] += self.pisteet[temp];
+                    }
+                }
+            }
 
-                   for temp:=1 to NumPl do
-                    luett[temp]:=mcluett[temp]; { palautetaan l�ht�j�rjestys }
+            if !self.cupslut {
+                //{ 2.kierros tulokset }
+                self.jarjestys(2, 1, NUM_PL as u8);
+                self.updatestats(1);
+                self.lista(2);
+            }
 
-                   if (not cupslut) then showpairs(1);
+            if !self.cupslut && sortby == 0 {
+                //{ MC tulokset, jos niist� kisataan }
+                for temp in 1..=NUM_PL {
+                    if self.sija[temp] < 31 {
+                        self.mcpisteet[temp] += WC_POINTS[(self.sija[temp] - 1) as usize] as i32;
+                    }
+                }
 
-                   jarjestys(0,0,Numpl); { ett� mcliivi on oikealla miehell� }
-                   jarjestys(2,1,NumPl); { taas pisteist� j�rkk� n�et toinen kierros normaali on }
+                self.jarjestys(0, 0, NUM_PL as u8);
+                self.updatestats(0);
+                self.lista(4);
+            }
 
-                  end;
+            for temp in 0..=NUM_PL + 1 {
+                self.luett[temp] = 0;
+            }
 
-                 kierros:=2;
+            for temp in 1..=NUM_PL {
+                if self.pisteet[temp] == -5555 {
+                    self.pisteet[temp] = 0;
+                }
+            }
 
-                 if (not cupslut) then        { *** 2. KIERROS *** }
-                  for index:=NumPl downto 1 do
-                   if (inj[luett[index]]=0) and (qual[luett[index]]>0) and (not cupslut) then
-                    begin
-                     hyppy(index,luett[index],0);
-                     eka:=false;
-                    end;
+            if !self.cupslut && (sortby == 1 || fourhills) {
+                //{ ja yhteispiste tulokset }
+                self.jarjestys(1, 1, NUM_PL as u8);
+                self.updatestats(2);
+                self.lista(3);
+            }
 
-                  ch:=#1; { ettei hypyn keskeytt�minen sotke liikaa }
-            {
-                  for temp:=1 to pmaara do
-                   if (sija[NumPl+1-temp]>30) then stats[temp,osakilpailu].Reason[2]:=4;}  { Ei selvinnyt tokalle }
+            self.updaterecords(sortby); //{ enn�tystauluja jos tarvis }
 
-                     eka:=true;
-
-                if (cupstyle>0) or (fourhills) then
-                 for temp:=1 to NumPl do { custom tai fourhills }
-                  if (pisteet[temp]<>-5555) then inc(fourpts[temp],pisteet[temp]);
-
-                if (not cupslut) then { 2.kierros tulokset }
-                 begin
-                  jarjestys(2,1,NumPl);
-                  updatestats(1);
-                  lista(2);
-                 end;
-
-                if (not cupslut) and (sortby=0) then { MC tulokset, jos niist� kisataan }
-                 begin
-
-                  for temp:=1 to NumPl do
-                   if (sija[temp]<31) then inc(mcpisteet[temp],WCPoints[sija[temp]]);
-
-                  jarjestys(0,0,NumPl);
-                  updatestats(0);
-                  lista(4);
-
-                 end;
-
-            {     for temp:=1 to NumPl do
-                   if (inj[temp]>0) then dec(inj[temp]); }
-
-                for temp:=0 to NumPl+1 do luett[temp]:=0;
-
-                for temp:=1 to NumPl do if (pisteet[temp]=-5555) then pisteet[temp]:=0;
-
-                if (not cupslut) and ((sortby=1) or (fourhills)) then { ja yhteispiste tulokset }
-                 begin
-                  jarjestys(1,1,NumPl);
-                  updatestats(2);
-                  lista(3);
-                 end;
-
-                updaterecords(sortby); { enn�tystauluja jos tarvis }
-
-             */
             if (self.osakilpailu == self.cup_hills) || (self.s.ch.get() == 27) || (self.cupslut) {
                 break;
             }
@@ -3290,5 +4174,321 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 draw,
             );
         }
+    }
+
+    //{ vaiheet: 0 - WCquali  1 - WC   2 - 4hills }
+    fn donewheader(&self, vaihe: u8) -> Vec<u8> {
+        match vaihe {
+            4 => {
+                if self.osakilpailu == self.cup_hills {
+                    [
+                        self.l.lstr(90),
+                        b" ",
+                        self.l.lstr(27 + self.cup_style as u32),
+                    ]
+                    .concat()
+                } else {
+                    [
+                        self.l.lstr(27 + self.cup_style as u32),
+                        b" ",
+                        self.l.lstr(87),
+                        b" ",
+                        &txt(self.osakilpailu),
+                        b" ",
+                        self.l.lstr(8),
+                        b" ",
+                        &txt(self.cup_hills),
+                    ]
+                    .concat()
+                }
+            }
+
+            3 => {
+                match self.cup_style {
+                    0 | 2 => {
+                        if self.osakilpailu == 12 || self.osakilpailu == self.cup_hills {
+                            self.l.lstr(85).to_vec()
+                        } else {
+                            let mut temp3 = self.osakilpailu;
+                            if self.osakilpailu > 4 {
+                                temp3 = self.osakilpailu - 8; //{ joko yksin��n tai osana WC:t� }
+                            }
+                            [
+                                self.l.lstr(84),
+                                b" ",
+                                &txt(temp3),
+                                b" ",
+                                self.l.lstr(83),
+                                b" - ",
+                                &self.act_hill.name,
+                                b" K",
+                                &txt(self.act_hill.kr),
+                            ]
+                            .concat()
+                        }
+                    }
+                    1 => {
+                        if self.osakilpailu == self.cup_hills {
+                            [self.l.lstr(90), b" ", self.l.lstr(28)].concat()
+                        } else {
+                            [
+                                self.l.lstr(28),
+                                b" ",
+                                self.l.lstr(87),
+                                b" ",
+                                &txt(self.osakilpailu),
+                                b" ",
+                                self.l.lstr(8),
+                                b" ",
+                                &txt(self.cup_hills),
+                            ]
+                            .concat()
+                        }
+                    }
+                    _ => panic!("Invalid cup style: {}", self.cup_style),
+                }
+            }
+            0 | 1 | 2 => {
+                let str1 = if vaihe == 0 {
+                    self.l.lstr(81)
+                } else {
+                    self.l.lstr(82)
+                };
+                let mut str2 = if self.cup_style == 2 {
+                    [&txt(self.osakilpailu) as &[u8], b" ", self.l.lstr(83)].concat()
+                } else {
+                    [
+                        &txt(self.osakilpailu) as &[u8],
+                        b" ",
+                        self.l.lstr(8),
+                        b" ",
+                        &txt(self.cup_hills),
+                    ]
+                    .concat()
+                };
+                str2 = [
+                    &str2 as &[u8],
+                    b" - ",
+                    &self.act_hill.name,
+                    b" K",
+                    &txt(self.act_hill.kr),
+                ]
+                .concat();
+                if self.kierros > 0 {
+                    str2 = [&str2 as &[u8], b" - R ", &txt(self.kierros)].concat();
+                }
+                [&str1 as &[u8], b" ", &str2].concat()
+            }
+            _ => panic!("Invalid vaihe: {}", vaihe),
+        }
+    }
+
+    fn compactsign(&self) {
+        self.g.font_color(241);
+        self.g.write_font(30, 190, &self.l.lstr(86));
+    }
+
+    //{ what: 0 - WCStats, 1 - normal, 2 - 4H }
+    fn updatestats(&mut self, what: u8) {
+        let mut temp: i32;
+        let mut who: i32;
+        let mut victim: i32;
+        let mut str1: Vec<u8>;
+
+        for temp in 1..=NUM_PL {
+            who = if what == 0 {
+                self.mcluett[temp]
+            } else {
+                self.luett[temp]
+            } as i32;
+
+            if who > NUM_PL as i32 - self.i.pmaara.get() as i32 {
+                //{ oma j�tk� }
+                victim = NUM_PL as i32 + 1 - who;
+
+                match what {
+                    0 => {
+                        if self.cup_style == 0 {
+                            //{ WC pohjaisia statseja }
+                            self.stats[victim as usize][self.osakilpailu as usize].wc_pos =
+                                self.sija[who as usize];
+                            if self.osakilpailu == self.cup_hills {
+                                if self.sija[who as usize] == 1 {
+                                    self.i.profile.borrow_mut()
+                                        [self.i.profileorder.borrow()[victim as usize] as usize]
+                                        .wcswon += 1;
+                                }
+                                self.i.profile.borrow_mut()
+                                    [self.i.profileorder.borrow()[victim as usize] as usize]
+                                    .wcs += 1;
+                            }
+
+                            if self.mcpisteet[who as usize]
+                                >= self.i.profile.borrow()
+                                    [self.i.profileorder.borrow()[victim as usize] as usize]
+                                    .bestpoints as i32
+                            {
+                                self.i.profile.borrow_mut()
+                                    [self.i.profileorder.borrow()[victim as usize] as usize]
+                                    .bestpoints = self.mcpisteet[who as usize] as u16;
+                                str1 = if self.osakilpailu == self.cup_hills {
+                                    [&txt(self.sija[who as usize] as i32) as &[u8], b"."].concat()
+                                } else {
+                                    b"-".to_vec()
+                                };
+                                self.i.profile.borrow_mut()
+                                    [self.i.profileorder.borrow()[victim as usize] as usize]
+                                    .bestresult = [
+                                    &txt(self.mcpisteet[who as usize]) as &[u8],
+                                    b" (",
+                                    &str1,
+                                    b")",
+                                ]
+                                .concat();
+                            }
+                        }
+                    }
+                    1 => {
+                        //{ perus kisanaikaisia statseja }
+                        self.stats[victim as usize][self.osakilpailu as usize].comp_pos =
+                            self.sija[who as usize];
+                        if self.kierros == 1 {
+                            self.stats[victim as usize][self.osakilpailu as usize].round1_pos =
+                                self.sija[who as usize];
+                        }
+                        if self.cup_style == 0 && self.kierros == 2 && self.sija[who as usize] == 1
+                        {
+                            self.i.profile.borrow_mut()
+                                [self.i.profileorder.borrow()[victim as usize] as usize]
+                                .legswon += 1;
+                        }
+                    }
+
+                    2 => {
+                        //{ fourhills tulos talteen }
+                        self.stats[victim as usize][0].round_pts[1] = self.fourpts[who as usize];
+                        self.stats[victim as usize][0].comp_pos = self.sija[who as usize];
+                    }
+
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn updaterecords(&mut self, mut sortby: u8) {
+        let mut final_: bool = false;
+        let mut cscreen: bool = false;
+        let mut str1: Vec<u8>;
+        let mut t1: i32;
+        let mut who: i32;
+        let mut temp2: i32;
+        let mut oldhi = Hiscore::default();
+
+        if self.osakilpailu == self.cup_hills {
+            final_ = true;
+        }
+
+        for t1 in 1..=self.i.pmaara.get() as i32 {
+            who = NUM_PL as i32 + 1 - t1;
+
+            //{ pari profilesin parasta tulosta }
+
+            if ((self.cup_style == 0 && self.osakilpailu == 12) || (self.cup_style == 2 && final_))
+                && self.fourpts[who as usize]
+                    >= self.i.profile.borrow()[self.i.profileorder.borrow()[t1 as usize] as usize]
+                        .best4points as i32
+            {
+                self.i.profile.borrow_mut()[self.i.profileorder.borrow()[t1 as usize] as usize]
+                    .best4points = self.fourpts[who as usize] as u16;
+                self.i.profile.borrow_mut()[self.i.profileorder.borrow()[t1 as usize] as usize]
+                    .best4result = [
+                    &txtp(self.fourpts[who as usize]) as &[u8],
+                    b" (",
+                    &txt(self.sija[who as usize] as i32),
+                    b".)",
+                ]
+                .concat();
+            }
+
+            if self.cup_style == 0
+                && self.mcpisteet[who as usize]
+                    >= self.i.profile.borrow()
+                        [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
+                        .bestpoints as i32
+            {
+                self.i.profile.borrow_mut()
+                    [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
+                    .bestpoints = self.mcpisteet[who as usize] as u16;
+                str1 = if final_ {
+                    [&txt(self.sija[who as usize] as i32) as &[u8], b"."].concat()
+                } else {
+                    b"-".to_vec()
+                };
+                self.i.profile.borrow_mut()
+                    [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
+                    .bestresult = [
+                    &txt(self.mcpisteet[who as usize]) as &[u8],
+                    b" (",
+                    &str1,
+                    b")",
+                ]
+                .concat();
+            }
+
+            if self.cup_style == 1 && final_ {
+                self.i.load_custom(
+                    &self.setfile,
+                    &mut sortby,
+                    &mut self.hill_order,
+                    &mut self.cup_hills,
+                );
+                oldhi = self.i.top.borrow()[42].clone();
+                temp2 = self.sorthighs(4 + sortby) as i32;
+
+                if temp2 == 1 && self.setfile != b"TEMP" {
+                    cscreen = true;
+                }
+
+                if temp2 > 0 {
+                    self.i
+                        .write_custom(&self.setfile, sortby, &self.hill_order, self.cup_hills);
+                }
+            }
+        }
+
+        if !self.cupslut {
+            match self.cup_style {
+                0 => {
+                    if self.osakilpailu == 12 {
+                        self.sorthighs(2);
+                    }
+                    if final_ {
+                        self.sorthighs(0);
+                    }
+                }
+                1 => {
+                    if cscreen {
+                        self.i.newcrecordscreen(
+                            &self.setfile,
+                            &self.i.top.borrow()[42],
+                            &oldhi,
+                            sortby,
+                        );
+                    }
+                }
+                2 => {
+                    if final_ {
+                        self.sorthighs(2);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn sorthighs(&mut self, vaihe: u8) -> u8 {
+        // TODO
+        0
     }
 }

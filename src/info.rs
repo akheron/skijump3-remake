@@ -1,7 +1,9 @@
 use crate::graph::GraphModule;
+use crate::help::{txt, txtp};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
 use crate::rs_util::{parse_line, read_line};
+use crate::sdlport::SDLPortModule;
 use crate::unit::{valuestr, Hiscore, NUM_PL, NUM_TEAMS};
 use std::cell::{Cell, RefCell};
 use std::fs::File;
@@ -12,22 +14,22 @@ pub struct Profile {
     realname: Vec<u8>,
     pub suitcolor: u8,
     pub skicolor: u8,
-    kothlevel: u8,
-    replace: u8,
+    pub kothlevel: u8,
+    pub replace: u8,
     pub bestwchill: u8,
     pub besthill: u8,
     pub cstyle: u8, // coach style?
-    skipquali: u8,
+    pub skipquali: u8,
     pub bestwcjump: u16,
-    bestpoints: u16,
-    best4points: u16,
+    pub bestpoints: u16,
+    pub best4points: u16,
     pub bestjump: u16,
     pub besthillfile: Vec<u8>,
-    bestresult: Vec<u8>,
-    best4result: Vec<u8>,
-    wcs: i32,
-    legswon: i32,
-    wcswon: i32,
+    pub bestresult: Vec<u8>,
+    pub best4result: Vec<u8>,
+    pub wcs: i32,
+    pub legswon: i32,
+    pub wcswon: i32,
     pub totaljumps: i32,
 }
 
@@ -76,9 +78,10 @@ const MAX_PROFILES: u8 = 20;
 //{$ENDIF}
 
 pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
-    g: &'g GraphModule<'m, 's, 'si>,
+    g: &'g GraphModule<'m, 'p, 's, 'si>,
     l: &'l LangModule,
     p: &'p PcxModule<'m, 's, 'si>,
+    s: &'s SDLPortModule<'si>,
     pub top: RefCell<Vec<Hiscore>>,
     pub nimet: RefCell<Vec<Vec<u8>>>,
     pub jnimet: RefCell<Vec<Vec<u8>>>,
@@ -93,15 +96,17 @@ pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
 
 impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
     pub fn new(
-        g: &'g GraphModule<'m, 's, 'si>,
+        g: &'g GraphModule<'m, 'p, 's, 'si>,
         l: &'l LangModule,
         p: &'p PcxModule<'m, 's, 'si>,
+        s: &'s SDLPortModule<'si>,
     ) -> Self {
         let profiles = (0..=20).map(|_| Profile::new()).collect::<Vec<_>>();
         InfoModule {
             g,
             l,
             p,
+            s,
             top: RefCell::new(vec![]),
             nimet: RefCell::new((0..=NUM_PL + 1).map(|_| b"".to_vec()).collect()),
             jnimet: RefCell::new((0..=NUM_TEAMS).map(|_| b"".to_vec()).collect()),
@@ -325,6 +330,72 @@ impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
                 panic!("Error #92: Something wrong with the namefile. Shit.");
             }
         }
+    }
+
+    pub fn load_custom(
+        &self,
+        setfile: &[u8],
+        sortby: &mut u8,
+        hillorder: &mut [i32],
+        cuphills: &mut i32,
+    ) {
+        // TODO
+        todo!();
+    }
+
+    pub fn write_custom(
+        &self,
+        setfile: &[u8],
+        sortby: u8,
+        hillorder: &[i32],
+        cuphills: i32,
+    ) -> i32 {
+        // TODO
+        0
+    }
+
+    pub fn newcrecordscreen(&self, setfile: &[u8], newhi: &Hiscore, oldhi: &Hiscore, sortby: u8) {
+        let mut tempb = oldhi.score > 0;
+        let mut str1: Vec<u8>;
+
+        self.g.fill_box(54, 59, 276, 135, 248);
+        self.g.fill_box(55, 60, 275, 134, 243);
+
+        self.g.font_color(246);
+        self.g.write_font(75, 69, self.l.lstr(128));
+        str1 = if sortby == 1 {
+            txtp(newhi.score)
+        } else {
+            txt(newhi.score)
+        };
+
+        self.g.e_write_font(242, 80, &str1);
+
+        self.g.font_color(240);
+        self.g.write_font(85, 80, &self.g.nsh(&newhi.name, 90));
+        self.g
+            .e_write_font(200, 80, &[&txt(newhi.pos as i32) as &[u8], b"."].concat());
+
+        self.g.font_color(241);
+        self.g.write_font(95, 87, &newhi.time);
+        self.g.write_font(75, 100, self.l.lstr(129));
+
+        if tempb {
+            str1 = if sortby == 1 {
+                txtp(oldhi.score)
+            } else {
+                txt(oldhi.score)
+            };
+            self.g.write_font(85, 110, &self.g.nsh(&oldhi.name, 90));
+            self.g
+                .e_write_font(200, 110, &[&txt(oldhi.pos as i32) as &[u8], b"."].concat());
+            self.g.e_write_font(242, 110, &str1);
+            self.g.write_font(95, 117, &oldhi.time);
+        } else {
+            self.g.write_font(85, 110, b"-");
+        }
+        self.g.draw_screen();
+        self.s.wait_for_key();
     }
 }
 

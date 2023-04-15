@@ -262,287 +262,261 @@ impl<'a> SDLPortModule<'a> {
 
         loop {
             for event in self.event_pump.borrow_mut().poll_iter() {
-                match event {
-                    Event::KeyDown {
-                        //scancode,
-                        keycode,
-                        keymod,
-                        ..
-                    } => {
-                        /*
-                        // SDL version specific shortcuts
-                        if ((keyMod and KMOD_LALT) > 0) then
-                        begin
-                          Case scancode of
-                            SDL_SCANCODE_RETURN :
-                              begin
-                                toggleFullscreen;
-                                exit
-                              end;
-                            SDL_SCANCODE_R :
-                              begin
-                                ResetWindowSize;
-                                exit
-                              end;
-                            SDL_SCANCODE_KP_PLUS, SDL_SCANCODE_EQUALS :
-                              begin
-                                windowMultiplier := windowMultiplier + 1;
-                                ResetWindowSize;
-                                exit
-                              end;
-                            SDL_SCANCODE_KP_MINUS, SDL_SCANCODE_MINUS :
-                              begin
-                                if (windowMultiplier > 1) then
-                                begin
-                                  windowMultiplier := windowMultiplier - 1;
-                                  ResetWindowSize;
-                                  exit
-                                end;
-                              end;
-                            SDL_SCANCODE_A :
-                              begin
-                                if (aspect <> aspectRes) then
-                                  aspect := aspectRes
-                                else
-                                  aspect := 4 / 3;
-                                ResetWindowSize;
-                                exit;
-                              end;
-                          end;
-                        end;
-                                            */
-                        // Special cases for key combinations used throughout the game.
-                        // Check for Right Alt/AltGr first, since pressing it can make Left Ctrl look as pressed too.
-                        if keymod.contains(Mod::MODEMOD) || keymod.contains(Mod::RALTMOD) {
-                            return (0, 0);
-                        }
-                        if keymod.contains(Mod::LALTMOD) {
-                            return match keycode {
-                                // ALT-X
-                                Some(Keycode::X) => (0, 45),
-                                _ => (0, 0),
-                            };
-                        }
-                        if keymod.contains(Mod::LCTRLMOD) {
-                            return match keycode {
-                                // CTRL-C
-                                Some(Keycode::C) => (3, 0),
-                                _ => (0, 0),
-                            };
-                        }
-                        if keymod.contains(Mod::LGUIMOD) || keymod.contains(Mod::RGUIMOD) {
-                            return (0, 0);
-                        }
-
-                        /*
-                        // Handle conversion of letters to uppercase.
-                        // Convert only if Caps Lock is off and Shift is pressed or vice versa.
-                        if (
-                            ((keyMod and KMOD_SHIFT) > 0) xor ((keyMod and KMOD_CAPS) > 0)
-                        ) then
-                        begin
-                          Case keypressed of
-                            97..122, 224..246, 248..254: keyPressed:=TSDL_KeyCode(keyPressed - 32);
-                          end;
-                        end;
-
-                        // If modifier is Shift, convert the key pressed accordingly.
-                        // For special keys, standard US QWERTY layout is assumed.
-                        if ((keyMod and KMOD_SHIFT) > 0) then
-                        begin
-                          Case keyPressed of
-                            65..90, 97..122, 190..214, 216..222, 224..246, 248..254: ; // Already handled above
-                            SDLK_1 : keyPressed:=SDLK_EXCLAIM;
-                            SDLK_2 : keyPressed:=SDLK_AT;
-                            SDLK_3 : keyPressed:=SDLK_HASH;
-                            SDLK_4 : keyPressed:=SDLK_DOLLAR;
-                            SDLK_5 : keyPressed:=SDLK_PERCENT;
-                            SDLK_6 : keyPressed:=SDLK_CARET;
-                            SDLK_7 : keyPressed:=SDLK_AMPERSAND;
-                            SDLK_8 : keyPressed:=SDLK_ASTERISK;
-                            SDLK_9 : keyPressed:=SDLK_LEFTPAREN;
-                            SDLK_0 : keyPressed:=SDLK_RIGHTPAREN;
-                            SDLK_MINUS : keyPressed:=SDLK_UNDERSCORE;
-                            SDLK_EQUALS : keyPressed:=SDLK_PLUS;
-                            SDLK_LEFTBRACKET : keyPressed:=TSDL_KeyCode('{');
-                            SDLK_RIGHTBRACKET : keyPressed:=TSDL_KeyCode('}');
-                            SDLK_SEMICOLON : keyPressed:=SDLK_COLON;
-                            {SDLK_QUOTE} TSDL_KeyCode('''') : keyPressed:=SDLK_QUOTEDBL; // bug in ev1313/Pascal-SDL-2-Headers - wrong value of SDLK_QUOTE
-                            SDLK_BACKQUOTE : keyPressed:=TSDL_KeyCode('~');
-                            SDLK_BACKSLASH : keyPressed:=TSDL_KeyCode('|');
-                            SDLK_COMMA : keyPressed:=SDLK_LESS;
-                            SDLK_PERIOD : keyPressed:=SDLK_GREATER;
-                            SDLK_SLASH : keyPressed:=SDLK_QUESTION;
-                          else
+                if let Event::KeyDown {
+                    //scancode,
+                    keycode: Some(mut keycode),
+                    keymod,
+                    ..
+                } = event
+                {
+                    /*
+                    // SDL version specific shortcuts
+                    if ((keyMod and KMOD_LALT) > 0) then
+                    begin
+                      Case scancode of
+                        SDL_SCANCODE_RETURN :
+                          begin
+                            toggleFullscreen;
                             exit
                           end;
-                        end;
-
-                        // If NumLock modifier is not set, convert the charaters accordingly
-                        if ((keyMod and KMOD_NUM) = 0) then
-                        begin
-                          Case keyPressed of
-                            SDLK_KP_1 : keyPressed:=SDLK_END;
-                            SDLK_KP_2 : keyPressed:=SDLK_DOWN;
-                            SDLK_KP_3 : keyPressed:=SDLK_PAGEDOWN;
-                            SDLK_KP_4 : keyPressed:=SDLK_LEFT;
-                            SDLK_KP_5 : begin ch1:=#0; ch2:=#76; exit end;
-                            SDLK_KP_6 : keyPressed:=SDLK_RIGHT;
-                            SDLK_KP_7 : keyPressed:=SDLK_HOME;
-                            SDLK_KP_8 : keyPressed:=SDLK_UP;
-                            SDLK_KP_9 : keyPressed:=SDLK_PAGEUP;
-                            SDLK_KP_0 : keyPressed:=SDLK_INSERT;
-                            SDLK_KP_PERIOD : keyPressed:=SDLK_DELETE;
+                        SDL_SCANCODE_R :
+                          begin
+                            ResetWindowSize;
+                            exit
                           end;
-                        end;
-
-                        // Merge keypad characters with their regular counterparts.
-                        // It is not needed to differentiate between them, since the scancode isn't checked for normal characters.
-                        // Checks for Shift and Num Lock were already done, so they won't interfere with the merge.
-                        Case keyPressed of
-                          SDLK_KP_DIVIDE : keyPressed:=SDLK_SLASH;
-                          SDLK_KP_MULTIPLY : keyPressed:=SDLK_ASTERISK;
-                          SDLK_KP_MINUS : keyPressed:=SDLK_MINUS;
-                          SDLK_KP_PLUS : keyPressed:=SDLK_PLUS;
-                          SDLK_KP_ENTER : keyPressed:=SDLK_RETURN;
-                          SDLK_KP_1 : keyPressed:=SDLK_1;
-                          SDLK_KP_2 : keyPressed:=SDLK_2;
-                          SDLK_KP_3 : keyPressed:=SDLK_3;
-                          SDLK_KP_4 : keyPressed:=SDLK_4;
-                          SDLK_KP_5 : keyPressed:=SDLK_5;
-                          SDLK_KP_6 : keyPressed:=SDLK_6;
-                          SDLK_KP_7 : keyPressed:=SDLK_7;
-                          SDLK_KP_8 : keyPressed:=SDLK_8;
-                          SDLK_KP_9 : keyPressed:=SDLK_9;
-                          SDLK_KP_0 : keyPressed:=SDLK_0;
-                          SDLK_KP_PERIOD : keyPressed:=SDLK_PERIOD;
-                          SDLK_KP_EQUALS : keyPressed:=SDLK_EQUALS;
-                        end;
-                        */
-                        if let Some(keycode) = keycode {
-                            match keycode {
-                                Keycode::Return => ch1 = 13,
-                                Keycode::Escape => ch1 = 27,
-                                Keycode::Backspace => ch1 = 8,
-                                Keycode::Tab => ch1 = 9,
-                                _ => {}
-                            }
-
-                            match keycode {
-                                Keycode::F1 => ch2 = 59,
-                                Keycode::F2 => ch2 = 60,
-                                Keycode::F3 => ch2 = 61,
-                                Keycode::F4 => ch2 = 62,
-                                Keycode::F5 => ch2 = 63,
-                                Keycode::F6 => ch2 = 64,
-                                Keycode::F7 => ch2 = 65,
-                                Keycode::F8 => ch2 = 66,
-                                Keycode::F9 => ch2 = 67,
-                                Keycode::F10 => ch2 = 68,
-
-                                Keycode::Left => ch2 = 75,
-                                Keycode::Right => ch2 = 77,
-                                Keycode::Up => ch2 = 72,
-                                Keycode::Down => ch2 = 80,
-
-                                Keycode::Insert => ch2 = 82,
-                                Keycode::Delete => ch2 = 83,
-                                Keycode::Home => ch2 = 71,
-                                Keycode::End => ch2 = 79,
-                                Keycode::PageUp => ch2 = 73,
-                                Keycode::PageDown => ch2 = 81,
-
-                                _ => {}
-                            }
-                        }
-                        return (ch1, ch2);
-                        /*
-
-                        Case keyPressed of
-                          SDLK_RETURN : ch1:=#13;
-                          SDLK_ESCAPE : ch1:=#27;
-                          SDLK_BACKSPACE : ch1:=#8;
-                          SDLK_TAB : ch1:=#9;
-
-                          32..126 : ch1:=chr(keyPressed);
-
-                          // Special characters supported by the game, OEM 865 nordic encoding is used for ch1 values
-                          196 : begin ch1:=#142; exit end; // A with diaeresis
-                          197 : begin ch1:=#143; exit end; // A with ring above
-                          198 : begin ch1:=#146; exit end; // AE
-                          214 : begin ch1:=#153; exit end; // O with diaeresis
-                          216 : begin ch1:=#157; exit end; // O with stroke
-                          220 : begin ch1:=#154; exit end; // U with diaeresis
-                          223 : begin ch1:=#225; exit end; // sharp s
-
-                          228 : begin ch1:=#132; ch2:=#36; exit end; // a with diaeresis
-                          229 : begin ch1:=#134; ch2:=#26; exit end; // a with ring above
-                          230 : begin ch1:=#145; exit end; // ae
-                          246 : begin ch1:=#148; ch2:=#39; exit end; // o with diaeresis
-                          248 : begin ch1:=#158; exit end; // o with stroke
-                          252 : begin ch1:=#129; exit end; // u with diaeresis
-                        end;
-
-                        Case keyPressed of
-                          SDLK_F1 : ch2:=#59;
-                          SDLK_F2 : ch2:=#60;
-                          SDLK_F3 : ch2:=#61;
-                          SDLK_F4 : ch2:=#62;
-                          SDLK_F5 : ch2:=#63;
-                          SDLK_F6 : ch2:=#64;
-                          SDLK_F7 : ch2:=#65;
-                          SDLK_F8 : ch2:=#66;
-                          SDLK_F9 : ch2:=#67;
-                          SDLK_F10 : ch2:=#68;
-
-                          SDLK_LEFT : ch2:=#75;
-                          SDLK_RIGHT : ch2:=#77;
-                          SDLK_UP : ch2:=#72;
-                          SDLK_DOWN : ch2:=#80;
-
-                          SDLK_INSERT : ch2:=#82;
-                          SDLK_DELETE : ch2:=#83;
-                          SDLK_HOME : ch2:=#71;
-                          SDLK_END : ch2:=#79;
-                          SDLK_PAGEUP : ch2:=#73;
-                          SDLK_PAGEDOWN : ch2:=#81;
-
-                          SDLK_a : ch2:=#30;
-                          SDLK_b : ch2:=#48;
-                          SDLK_c : ch2:=#46;
-                          SDLK_d : ch2:=#32;
-                          SDLK_e : ch2:=#18;
-                          SDLK_f : ch2:=#33;
-                          SDLK_g : ch2:=#34;
-                          SDLK_h : ch2:=#35;
-                          SDLK_i : ch2:=#23;
-                          SDLK_j : ch2:=#36;
-                          SDLK_k : ch2:=#37;
-                          SDLK_l : ch2:=#38;
-                          SDLK_m : ch2:=#50;
-                          SDLK_n : ch2:=#49;
-                          SDLK_o : ch2:=#24;
-                          SDLK_p : ch2:=#25;
-                          SDLK_q : ch2:=#16;
-                          SDLK_r : ch2:=#19;
-                          SDLK_s : ch2:=#31;
-                          SDLK_t : ch2:=#20;
-                          SDLK_u : ch2:=#22;
-                          SDLK_v : ch2:=#47;
-                          SDLK_w : ch2:=#17;
-                          SDLK_x : ch2:=#45;
-                          SDLK_y : ch2:=#21;
-                          SDLK_z : ch2:=#44;
-                        end;
-                        exit;
-                        end;
-                        end;
-                        SDL_Delay(10);
-                        end;
-                        end;
-                                            */
+                        SDL_SCANCODE_KP_PLUS, SDL_SCANCODE_EQUALS :
+                          begin
+                            windowMultiplier := windowMultiplier + 1;
+                            ResetWindowSize;
+                            exit
+                          end;
+                        SDL_SCANCODE_KP_MINUS, SDL_SCANCODE_MINUS :
+                          begin
+                            if (windowMultiplier > 1) then
+                            begin
+                              windowMultiplier := windowMultiplier - 1;
+                              ResetWindowSize;
+                              exit
+                            end;
+                          end;
+                        SDL_SCANCODE_A :
+                          begin
+                            if (aspect <> aspectRes) then
+                              aspect := aspectRes
+                            else
+                              aspect := 4 / 3;
+                            ResetWindowSize;
+                            exit;
+                          end;
+                      end;
+                    end;
+                                        */
+                    // Special cases for key combinations used throughout the game.
+                    // Check for Right Alt/AltGr first, since pressing it can make Left Ctrl look as pressed too.
+                    if keymod.contains(Mod::MODEMOD | Mod::RALTMOD) {
+                        return (0, 0);
                     }
-                    _ => {}
+                    if keymod.contains(Mod::LALTMOD) {
+                        return match keycode {
+                            // ALT-X
+                            Keycode::X => (0, 45),
+                            _ => (0, 0),
+                        };
+                    }
+                    if keymod.contains(Mod::LCTRLMOD) {
+                        return match keycode {
+                            // CTRL-C
+                            Keycode::C => (3, 0),
+                            _ => (0, 0),
+                        };
+                    }
+                    if keymod.contains(Mod::LGUIMOD | Mod::RGUIMOD) {
+                        return (0, 0);
+                    }
+
+                    // Handle conversion of letters to uppercase.
+                    // Convert only if Caps Lock is off and Shift is pressed or vice versa.
+                    keycode = match keycode as i32 {
+                        97..=122 | 224..=246 | 248..=254
+                            if keymod.contains(Mod::LSHIFTMOD | Mod::RSHIFTMOD)
+                                ^ keymod.contains(Mod::CAPSMOD) =>
+                        {
+                            Keycode::from_i32(keycode as i32 - 32).unwrap()
+                        }
+                        _ => keycode,
+                    };
+                    /*
+                    // If modifier is Shift, convert the key pressed accordingly.
+                    // For special keys, standard US QWERTY layout is assumed.
+                    if ((keyMod and KMOD_SHIFT) > 0) then
+                    begin
+                      Case keyPressed of
+                        65..90, 97..122, 190..214, 216..222, 224..246, 248..254: ; // Already handled above
+                        SDLK_1 : keyPressed:=SDLK_EXCLAIM;
+                        SDLK_2 : keyPressed:=SDLK_AT;
+                        SDLK_3 : keyPressed:=SDLK_HASH;
+                        SDLK_4 : keyPressed:=SDLK_DOLLAR;
+                        SDLK_5 : keyPressed:=SDLK_PERCENT;
+                        SDLK_6 : keyPressed:=SDLK_CARET;
+                        SDLK_7 : keyPressed:=SDLK_AMPERSAND;
+                        SDLK_8 : keyPressed:=SDLK_ASTERISK;
+                        SDLK_9 : keyPressed:=SDLK_LEFTPAREN;
+                        SDLK_0 : keyPressed:=SDLK_RIGHTPAREN;
+                        SDLK_MINUS : keyPressed:=SDLK_UNDERSCORE;
+                        SDLK_EQUALS : keyPressed:=SDLK_PLUS;
+                        SDLK_LEFTBRACKET : keyPressed:=TSDL_KeyCode('{');
+                        SDLK_RIGHTBRACKET : keyPressed:=TSDL_KeyCode('}');
+                        SDLK_SEMICOLON : keyPressed:=SDLK_COLON;
+                        {SDLK_QUOTE} TSDL_KeyCode('''') : keyPressed:=SDLK_QUOTEDBL; // bug in ev1313/Pascal-SDL-2-Headers - wrong value of SDLK_QUOTE
+                        SDLK_BACKQUOTE : keyPressed:=TSDL_KeyCode('~');
+                        SDLK_BACKSLASH : keyPressed:=TSDL_KeyCode('|');
+                        SDLK_COMMA : keyPressed:=SDLK_LESS;
+                        SDLK_PERIOD : keyPressed:=SDLK_GREATER;
+                        SDLK_SLASH : keyPressed:=SDLK_QUESTION;
+                      else
+                        exit
+                      end;
+                    end;
+
+                    // If NumLock modifier is not set, convert the charaters accordingly
+                    if ((keyMod and KMOD_NUM) = 0) then
+                    begin
+                      Case keyPressed of
+                        SDLK_KP_1 : keyPressed:=SDLK_END;
+                        SDLK_KP_2 : keyPressed:=SDLK_DOWN;
+                        SDLK_KP_3 : keyPressed:=SDLK_PAGEDOWN;
+                        SDLK_KP_4 : keyPressed:=SDLK_LEFT;
+                        SDLK_KP_5 : begin ch1:=#0; ch2:=#76; exit end;
+                        SDLK_KP_6 : keyPressed:=SDLK_RIGHT;
+                        SDLK_KP_7 : keyPressed:=SDLK_HOME;
+                        SDLK_KP_8 : keyPressed:=SDLK_UP;
+                        SDLK_KP_9 : keyPressed:=SDLK_PAGEUP;
+                        SDLK_KP_0 : keyPressed:=SDLK_INSERT;
+                        SDLK_KP_PERIOD : keyPressed:=SDLK_DELETE;
+                      end;
+                    end;
+
+                    // Merge keypad characters with their regular counterparts.
+                    // It is not needed to differentiate between them, since the scancode isn't checked for normal characters.
+                    // Checks for Shift and Num Lock were already done, so they won't interfere with the merge.
+                    Case keyPressed of
+                      SDLK_KP_DIVIDE : keyPressed:=SDLK_SLASH;
+                      SDLK_KP_MULTIPLY : keyPressed:=SDLK_ASTERISK;
+                      SDLK_KP_MINUS : keyPressed:=SDLK_MINUS;
+                      SDLK_KP_PLUS : keyPressed:=SDLK_PLUS;
+                      SDLK_KP_ENTER : keyPressed:=SDLK_RETURN;
+                      SDLK_KP_1 : keyPressed:=SDLK_1;
+                      SDLK_KP_2 : keyPressed:=SDLK_2;
+                      SDLK_KP_3 : keyPressed:=SDLK_3;
+                      SDLK_KP_4 : keyPressed:=SDLK_4;
+                      SDLK_KP_5 : keyPressed:=SDLK_5;
+                      SDLK_KP_6 : keyPressed:=SDLK_6;
+                      SDLK_KP_7 : keyPressed:=SDLK_7;
+                      SDLK_KP_8 : keyPressed:=SDLK_8;
+                      SDLK_KP_9 : keyPressed:=SDLK_9;
+                      SDLK_KP_0 : keyPressed:=SDLK_0;
+                      SDLK_KP_PERIOD : keyPressed:=SDLK_PERIOD;
+                      SDLK_KP_EQUALS : keyPressed:=SDLK_EQUALS;
+                    end;
+                    */
+                    match keycode {
+                        Keycode::Return => ch1 = 13,
+                        Keycode::Escape => ch1 = 27,
+                        Keycode::Backspace => ch1 = 8,
+                        Keycode::Tab => ch1 = 9,
+                        _ => {}
+                    }
+                    match keycode as i32 {
+                        32..=126 => ch1 = (keycode as u8).to_ascii_uppercase(),
+
+                        // Special characters supported by the game, OEM 865 nordic encoding is used for ch1 values
+                        196 => ch1 = 142, // A with diaeresis
+                        197 => ch1 = 143, // A with ring above
+                        198 => ch1 = 146, // AE
+                        214 => ch1 = 153, // O with diaeresis
+                        216 => ch1 = 157, // O with stroke
+                        220 => ch1 = 154, // U with diaeresis
+                        223 => ch1 = 225, // sharp s
+
+                        // a with diaeresis
+                        228 => {
+                            ch1 = 132;
+                            ch2 = 36;
+                        }
+                        // a with ring above
+                        229 => {
+                            ch1 = 134;
+                            ch2 = 26;
+                        }
+                        230 => ch1 = 145, // ae
+                        // o with diaeresis
+                        246 => {
+                            ch1 = 148;
+                            ch2 = 36;
+                        }
+                        248 => ch1 = 156, // o with stroke
+                        // u with diaeresis
+                        252 => {
+                            ch1 = 153;
+                            ch2 = 36;
+                        }
+                        _ => {}
+                    }
+
+                    match keycode {
+                        Keycode::F1 => ch2 = 59,
+                        Keycode::F2 => ch2 = 60,
+                        Keycode::F3 => ch2 = 61,
+                        Keycode::F4 => ch2 = 62,
+                        Keycode::F5 => ch2 = 63,
+                        Keycode::F6 => ch2 = 64,
+                        Keycode::F7 => ch2 = 65,
+                        Keycode::F8 => ch2 = 66,
+                        Keycode::F9 => ch2 = 67,
+                        Keycode::F10 => ch2 = 68,
+
+                        Keycode::Left => ch2 = 75,
+                        Keycode::Right => ch2 = 77,
+                        Keycode::Up => ch2 = 72,
+                        Keycode::Down => ch2 = 80,
+
+                        Keycode::Insert => ch2 = 82,
+                        Keycode::Delete => ch2 = 83,
+                        Keycode::Home => ch2 = 71,
+                        Keycode::End => ch2 = 79,
+                        Keycode::PageUp => ch2 = 73,
+                        Keycode::PageDown => ch2 = 81,
+
+                        Keycode::A => ch2 = 30,
+                        Keycode::B => ch2 = 48,
+                        Keycode::C => ch2 = 46,
+                        Keycode::D => ch2 = 32,
+                        Keycode::E => ch2 = 18,
+                        Keycode::F => ch2 = 33,
+                        Keycode::G => ch2 = 34,
+                        Keycode::H => ch2 = 35,
+                        Keycode::I => ch2 = 23,
+                        Keycode::J => ch2 = 36,
+                        Keycode::K => ch2 = 37,
+                        Keycode::L => ch2 = 38,
+                        Keycode::M => ch2 = 50,
+                        Keycode::N => ch2 = 49,
+                        Keycode::O => ch2 = 24,
+                        Keycode::P => ch2 = 25,
+                        Keycode::Q => ch2 = 16,
+                        Keycode::R => ch2 = 19,
+                        Keycode::S => ch2 = 31,
+                        Keycode::T => ch2 = 20,
+                        Keycode::U => ch2 = 22,
+                        Keycode::V => ch2 = 47,
+                        Keycode::W => ch2 = 17,
+                        Keycode::X => ch2 = 45,
+                        Keycode::Y => ch2 = 21,
+                        Keycode::Z => ch2 = 44,
+                        _ => {}
+                    }
+
+                    return (ch1, ch2);
                 }
             }
             thread::sleep(Duration::from_millis(10));
@@ -575,6 +549,11 @@ impl<'a> SDLPortModule<'a> {
     pub fn clearchs(&self) {
         self.ch.set(1);
         self.ch2.set(1);
+    }
+
+    pub fn wait_for_key(&self) {
+        self.putsaa();
+        self.wait_for_key_press();
     }
 
     pub fn wait_for_key2(&self) -> bool {
