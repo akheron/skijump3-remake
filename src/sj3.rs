@@ -804,9 +804,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         14 + self.g.font_len(self.l.lstr(56)),
                         179,
                         &[
-                            &txt(self.pisteet[pel as usize]) as &[u8],
+                            &txtp(self.pisteet[pel as usize]) as &[u8],
                             b" (",
-                            &txt(self.cstats[1][pel as usize]),
+                            &txtp(self.cstats[1][pel as usize]),
                             b"\xab)",
                         ]
                         .concat(),
@@ -1100,12 +1100,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     self.tuuli.value.get(),
                     lmaara,
                     true,
-                );
-
-                self.g.write_font(
-                    x - self.m.x.get() + 15,
-                    y - self.m.y.get() - 15,
-                    &txt(statsvictim),
                 );
 
                 if cjumper {
@@ -4250,9 +4244,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
             0 | 1 | 2 => {
                 let str1 = if vaihe == 0 {
-                    self.l.lstr(81)
-                } else {
                     self.l.lstr(82)
+                } else {
+                    self.l.lstr(81)
                 };
                 let mut str2 = if self.cup_style == 2 {
                     [&txt(self.osakilpailu) as &[u8], b" ", self.l.lstr(83)].concat()
@@ -4277,7 +4271,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 if self.kierros > 0 {
                     str2 = [&str2 as &[u8], b" - R ", &txt(self.kierros)].concat();
                 }
-                [&str1 as &[u8], b" ", &str2].concat()
+                [str1 as &[u8], b" ", &str2].concat()
             }
             _ => panic!("Invalid vaihe: {}", vaihe),
         }
