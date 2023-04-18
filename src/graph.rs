@@ -417,7 +417,10 @@ impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
     }
 
     pub fn alert_box(&self) {
-        unimplemented!()
+        self.fill_box(59, 79, 261, 131, 242);
+        self.fill_box(60, 80, 260, 130, 244);
+
+        self.fill_area(60, 80, 260, 130, 63);
     }
 
     pub fn write_video(&self) {

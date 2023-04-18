@@ -3268,84 +3268,107 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
     //{ 0-esittely, 1-tuloksien kanssa }
     fn showpairs(&mut self, phase: u8) {
-        unimplemented!();
-        /*
-            procedure showpairs(phase:byte); { 0-esittely, 1-tuloksien kanssa }
-        var temp,temp2,who : integer;
+        let draw_stuff = |column: u8, row: u8, item: u8, who: i32| {
+            let xx = 145 + (column as i32 * 30);
+            let yy = 17 + (row as i32 * 7);
+            let mut plus = self
+                .g
+                .font_len(&self.g.nsh(&self.i.nimet.borrow()[who as usize], 100))
+                + 5;
+            if plus > 105 {
+                plus = 105;
+            }
 
-         procedure drawstuff(column,row,item:byte);
-          var xx,yy,plus:integer;
-              extra : string[5];
-          begin
-           xx:=145+(column*30);
-           yy:=17+(row*7);
-           plus:=fontlen(nsh(nimet[who],100))+5;
-           if (plus>105) then plus:=105;
+            let extra: &[u8] = if self.qual[who as usize] == 1 {
+                b"Q"
+            } else if self.qual[who as usize] == 2 {
+                b"LL"
+            } else {
+                b""
+            };
 
-           extra:='';
-           if (qual[who]=1) then extra:='Q';
-           if (qual[who]=2) then extra:='LL';
+            match item {
+                0 => self.g.e_write_font(
+                    xx,
+                    yy,
+                    &self.g.nsh(&self.i.nimet.borrow()[who as usize], 100),
+                ),
+                1 => self.g.write_font(
+                    xx,
+                    yy,
+                    &self.g.nsh(&self.i.nimet.borrow()[who as usize], 100),
+                ),
+                2 => self.g.e_write_font(
+                    xx - plus,
+                    yy,
+                    &[b"(" as &[u8], &txt(self.qual[who as usize] as i32), b")"].concat(),
+                ),
+                3 => self.g.write_font(
+                    xx + plus,
+                    yy,
+                    &[b"(" as &[u8], &txt(self.qual[who as usize] as i32), b")"].concat(),
+                ),
 
-           case item of
-           0 : ewritefont(xx,yy,nsh(nimet[who],100));
-           1 : writefont(xx,yy,nsh(nimet[who],100));
-           2 : ewritefont(xx-plus,yy,'('+txt(qual[who])+')');
-           3 : writefont(xx+plus,yy,'('+txt(qual[who])+')');
-        {   4 : ewritefont(xx-plus,yy,txtp(pisteet[who]));
-           5 : writefont(xx+plus,yy,txtp(pisteet[who])); }
-           4 : ewritefont(40,yy,txtp(pisteet[who]));
-           5 : ewritefont(303,yy,txtp(pisteet[who]));
+                4 => self
+                    .g
+                    .e_write_font(40, yy, &txtp(self.pisteet[who as usize])),
+                5 => self
+                    .g
+                    .e_write_font(303, yy, &txtp(self.pisteet[who as usize])),
 
-           6 : ewritefont(12,yy,extra);
-           7 : writefont(308,yy,extra);
+                6 => self.g.e_write_font(12, yy, extra),
+                7 => self.g.write_font(308, yy, extra),
 
-           10 : writefont(154,yy,'vs.');
+                10 => self.g.write_font(154, yy, b"vs."),
 
-           end;
+                _ => {}
+            }
+        };
+        self.g.new_screen(1, 0);
+        self.g.font_color(240);
+        self.g.write_font(30, 6, self.l.lstr(94));
+        self.g.font_color(241);
 
-          end;
+        for temp in (1..=25).rev() {
+            for temp2 in 0..=1 {
+                let who = if temp2 == 1 {
+                    self.luett[temp] as i32
+                } else {
+                    self.luett[51 - temp] as i32
+                };
 
-        begin
+                if self.kierros == 1 && who > NUM_PL as i32 - self.i.pmaara.get() as i32 {
+                    self.stats[NUM_PL + 1 - who as usize][self.osakilpailu as usize].round1_pos =
+                        self.sija[who as usize];
+                }
 
-         newscreen(1,0);
-         fontcolor(240);
-          writefont(30,6,lstr(94));
-         fontcolor(241);
+                self.g.font_color(241);
+                draw_stuff(temp2, (26 - temp) as u8, 10, who); //{ vs. }
 
-         for temp:=25 downto 1 do
-           for temp2:=0 to 1 do
-            begin
-             who:=luett[51-temp];
-             if (temp2=1) then who:=luett[temp];
+                if phase == 1 {
+                    match self.qual[who as usize] {
+                        1 => self.g.font_color(251),
+                        2 => self.g.font_color(252),
+                        _ => {}
+                    }
+                }
 
-             if (kierros=1) and (who>Numpl-pmaara) then Stats[NumPl+1-who,osakilpailu].Round1Pos:=sija[who];
+                if who > NUM_PL as i32 - self.i.pmaara.get() as i32 {
+                    self.g.font_color(240);
+                }
 
-             fontcolor(241);
-             drawstuff(temp2,26-temp,10); { vs. }
-        {     if (who>Numpl-pmaara) then fontcolor(240); }
-             if (phase=1) then case qual[who] of
-             1 : fontcolor(251); { tummankeltainen }
-             2 : fontcolor(252);
-             end;
-
-             if (who>Numpl-pmaara) then fontcolor(240);
-
-             drawstuff(temp2,26-temp,temp2); { nimi ruutuun }
-             if (phase=1) then
-              begin
-        {       if (who>Numpl-pmaara) and (qual[who]>0) then fontcolor(246); }
-               drawstuff(temp2,26-temp,temp2+4);
-               drawstuff(temp2,26-temp,temp2+6);
-              end else drawstuff(temp2,26-temp,temp2+2); { qual }
-
-            end;
-
-         cupslut:=Waitforkey3(305,6,ch);
-
-        end;
-
-             */
+                draw_stuff(temp2, (26 - temp) as u8, temp2, who); //{ nimi ruutuun }
+                if phase == 1 {
+                    draw_stuff(temp2, (26 - temp) as u8, temp2 + 4, who);
+                    draw_stuff(temp2, (26 - temp) as u8, temp2 + 6, who);
+                } else {
+                    draw_stuff(temp2, (26 - temp) as u8, temp2 + 2, who); //{ qual }
+                }
+            }
+        }
+        self.cupslut = self.u.wait_for_key3(305, 6);
     }
+
     fn jumpalku(&mut self) {
         self.u.load_info(self.nytmaki, &mut self.act_hill);
 
@@ -3663,7 +3686,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 temp2 = 1;
                 for temp in 1..=5 {
                     //{ 5 lucky loseria }
-                    while self.qual[self.luett[temp2] as usize] == 0 && temp2 < NUM_PL {
+                    while self.qual[self.luett[temp2] as usize] != 0 && temp2 < NUM_PL {
                         temp2 += 1;
                     }
                     self.qual[self.luett[temp2] as usize] = 2;

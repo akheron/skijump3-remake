@@ -134,8 +134,51 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
-    fn getch(&self, xx: i32, yy: i32, bkcolor: u8, tempch: &mut u8, temch2: &mut u8) {
-        unimplemented!();
+    fn givech(&self, xx: i32, yy: i32, bkcolor: u8) {
+        let mut run: i32 = 0;
+        loop {
+            run += 1;
+            if run > 20 {
+                run = 0;
+            }
+            let col: u8 = if run > 10 { bkcolor } else { 240 };
+            self.g.fill_box(
+                xx as u16,
+                (yy + 6) as u16,
+                (xx + 4) as u16,
+                (yy + 6) as u16,
+                col,
+            );
+            self.g.draw_screen();
+            if self.s.key_pressed() {
+                break;
+            }
+        }
+
+        self.s.wait_for_key_press();
+
+        self.g.fill_box(
+            xx as u16,
+            (yy + 6) as u16,
+            (xx + 4) as u16,
+            (yy + 6) as u16,
+            bkcolor,
+        );
+        self.g.write_font(xx, yy, &[self.s.ch2.get()]);
+    }
+
+    fn getch(&self, xx: i32, yy: i32, bkcolor: u8) {
+        self.g.fill_box(
+            (xx - 2) as u16,
+            (yy - 2) as u16,
+            (xx + 6) as u16,
+            (yy + 8) as u16,
+            bkcolor,
+        );
+
+        self.givech(xx, yy, bkcolor);
+
+        self.g.draw_screen();
     }
 
     pub fn load_hill(&self, keula_x: &mut i32, nytmaki: i32, act_hill: &Hill) -> u8 {
@@ -992,11 +1035,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.g.write_font(70, 90, str1);
         self.g.write_font(70, 110, str2);
 
-        let mut ch: u8 = 0;
-        let mut ch2: u8 = 0;
-        self.getch(70 + tempb, 110, 243, &mut ch, &mut ch2);
-        self.s.ch.set(ch);
-        self.s.ch2.set(ch2);
+        self.getch(70 + tempb, 110, 243);
 
         tempb = 1;
         if self.s.ch.get().to_ascii_uppercase() == self.l.lstr(6)[0] {
@@ -1005,6 +1044,25 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.s.clearchs();
 
         tempb as u8
+    }
+
+    pub fn wait_for_key3(&self, xx: i32, yy: i32) -> bool {
+        while self.s.key_pressed() {
+            self.s.wait_for_key_press();
+        }
+
+        self.g.font_color(240);
+
+        self.g.e_write_font(xx, yy, &self.l.lstr(15));
+
+        self.getch(xx + 1, yy, 243);
+
+        if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
+            self.s.ch.set(27);
+            true
+        } else {
+            false
+        }
     }
 }
 
