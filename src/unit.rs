@@ -104,9 +104,9 @@ pub struct UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     p: &'p PcxModule<'m, 's, 'si>,
     s: &'s SDLPortModule<'si>,
 
-    pub num_hills: u8,
+    pub num_hills: Cell<u8>,
     pub vcode: Cell<u8>,
-    pub num_extra_hills: u16,
+    pub num_extra_hills: Cell<u16>,
 
     hd: RefCell<Vec<Hillinfo>>,
 }
@@ -125,9 +125,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             m,
             p,
             s,
-            num_hills: 0,
+            num_hills: Cell::new(0),
             vcode: Cell::new(0),
-            num_extra_hills: 0,
+            num_extra_hills: Cell::new(0),
             hd: RefCell::new(Vec::from_iter(
                 (0..NUM_WC_HILLS + MAX_EXTRA_HILLS).map(|_| Hillinfo::default()),
             )),
@@ -606,14 +606,14 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         hd[nytmaki as usize].hrtime = time.into();
     }
     pub fn hillkr(&self, nytmaki: i32) -> i32 {
-        if nytmaki > 0 && nytmaki <= NUM_WC_HILLS + self.num_extra_hills as i32 {
+        if nytmaki > 0 && nytmaki <= NUM_WC_HILLS + self.num_extra_hills.get() as i32 {
             self.hd.borrow()[nytmaki as usize].kr
         } else {
             0
         }
     }
     pub fn hillname(&self, nytmaki: i32) -> Vec<u8> {
-        if (nytmaki < 0) || (nytmaki > NUM_WC_HILLS + self.num_extra_hills as i32) {
+        if (nytmaki < 0) || (nytmaki > NUM_WC_HILLS + self.num_extra_hills.get() as i32) {
             b"Unknown".to_vec()
         } else if nytmaki == 0 {
             self.l.lstr(155).to_vec()
@@ -958,8 +958,33 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         // TODO
     }
 
+    //{ t�ll� ladataan mnimet ja kri -taulut kuntoon }
     pub fn load_hill_info(&self) {
         // TODO
+        /*
+        procedure LoadHillInfo;  { t�ll� ladataan mnimet ja kri -taulut kuntoon }
+        var f1 : text;
+            temp : byte;
+            NowHill : hill_type;
+            filename : string;
+
+        begin
+        */
+        {
+            let mut f1 = BufReader::new(File::open("MOREHILL.SKI").unwrap());
+            self.num_extra_hills.set(parse_line(&mut f1).unwrap());
+        }
+
+        let mut hd = self.hd.borrow_mut();
+        for temp in 1..=NUM_WC_HILLS + self.num_extra_hills.get() as i32 {
+            let mut now_hill = Hill::default();
+            self.load_info(temp, &mut now_hill);
+            hd[temp as usize].name = now_hill.name.clone();
+            hd[temp as usize].kr = now_hill.kr;
+        }
+
+        self.num_hills
+            .set((NUM_WC_HILLS + self.num_extra_hills.get() as i32) as u8);
     }
 
     pub fn read_extras(&self) {

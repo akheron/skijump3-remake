@@ -2729,7 +2729,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         );
                         str1 = [
                             b"(",
-                            &txt(self.stats[player as usize][cup as usize].round_len[1]) as &[u8],
+                            &txtp(self.stats[player as usize][cup as usize].round_len[1])
+                                as &[u8],
                             b"\xab)",
                         ]
                         .concat();
@@ -2758,7 +2759,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                             247,
                             &[
                                 b"(",
-                                &txt(self.stats[player as usize][cup as usize].round_len[2])
+                                &txtp(self.stats[player as usize][cup as usize].round_len[2])
                                     as &[u8],
                                 b"\xab)",
                             ]
@@ -4172,7 +4173,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         self.u.load_hill_info(); //{ mnimet[],kri[] ja NumExtraHills kuntoon }
 
         print!(", Extra Hillrecords");
-        if self.u.num_extra_hills > 0 {
+        if self.u.num_extra_hills.get() > 0 {
             self.u.read_extras();
         }
         println!();
