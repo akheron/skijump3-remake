@@ -1,5 +1,5 @@
 use crate::graph::GraphModule;
-use crate::help::{nsqrt, txt, txtp};
+use crate::help::{nsqrt, pcomp, txt, txtp};
 use crate::info::InfoModule;
 use crate::lang::LangModule;
 use crate::list::ListModule;
@@ -3776,19 +3776,17 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 break;
             }
         }
+
+        self.mcpisteet[15] = 0; //{ ????? mik� 15? }
+
+        self.wcup = false;
         /*
-
-        mcpisteet[15]:=0;  { ????? mik� 15? }
-
-        wcup:=false;
-
         { testing alleolevia! }
 
         WriteProfiles;
         WriteRecords;
         MakeSendMe;
-
-           */
+        */
     }
 
     fn reset_stats(&mut self) {
@@ -4182,7 +4180,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
     }
 
     // originally in SJ3UNIT.PAS
-    pub fn draw_lumi(&mut self, delx: i32, dely: i32, wind: i32, lmaara: u16, draw: bool) {
+    fn draw_lumi(&mut self, delx: i32, dely: i32, wind: i32, lmaara: u16, draw: bool) {
         if lmaara > 0 {
             self.lumi.update(
                 self.m.video.borrow_mut(),
@@ -4192,6 +4190,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 draw,
             );
         }
+    }
+
+    //{ h0 = main menusta,muuten kertoo mik� highlightataan }
+    fn dolist(&self, high: u8, phase: u8) {
+        // TODO
     }
 
     //{ vaiheet: 0 - WCquali  1 - WC   2 - 4hills }
@@ -4505,8 +4508,127 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         }
     }
 
+    //{ vaihe: 0 - WC, 1 - TC, 2 - 4H, 3 - KOTH, 4 - CC_MC, 5 - CC_4P }
     fn sorthighs(&mut self, vaihe: u8) -> u8 {
-        // TODO
-        0
+        //{ highstart: 0 - WC, 20 - TC, 30 - 4H, 35 - KOTH, 41 - CC  }
+
+        let mut t1: i32;
+        let mut t2: i32;
+        let mut t3: i32;
+        let mut t4: i32;
+        let mut localnosamename: bool = self.nosamename;
+        let mut leave: bool = false;
+        let mut who: i32;
+        let mut players: i32 = self.i.pmaara.get() as i32;
+        let mut pts: i32;
+        let mut highstart: u8 = 0;
+        let mut highlength: u8 = 20;
+        let mut victimname: Vec<u8>;
+        let mut return_: u8 = 0;
+        let mut datestr: Vec<u8> = dayandtime_now();
+
+        match vaihe {
+            1 => {
+                players = self.jmaara as i32;
+                highstart = 20;
+                highlength = 10;
+            }
+            2 => {
+                highstart = 30;
+                highlength = 5;
+            }
+            4 | 5 => {
+                highstart = 41;
+                localnosamename = true; //{ ei milloinkaan useampia nimi� }
+            }
+            _ => {}
+        }
+
+        for t1 in 1..=players {
+            for t2 in 1..=highlength {
+                if vaihe == 1 {
+                    who = NUM_TEAMS as i32 + 1 - t1;
+                    victimname = self.i.jnimet.borrow()[who as usize].clone();
+                } else {
+                    who = NUM_PL as i32 + 1 - t1;
+                    victimname = self.i.nimet.borrow()[who as usize].clone();
+                }
+
+                pts = match vaihe {
+                    0 | 1 | 4 => self.mcpisteet[who as usize],
+                    2 | 5 => self.fourpts[who as usize],
+                    _ => 0,
+                };
+
+                if pcomp(pts, self.sija[who as usize] as i32)
+                    > pcomp(
+                        self.i.top.borrow()[(t2 + highstart) as usize].score,
+                        self.i.top.borrow()[(t2 + highstart) as usize].pos as i32,
+                    )
+                {
+                    leave = true; //{ tekeek� nimet vai ei }
+
+                    if localnosamename {
+                        for t3 in 1..=t2 - 1 {
+                            if self.i.top.borrow()[(t3 + highstart) as usize].name == victimname {
+                                leave = false;
+                            }
+                        }
+                        if leave {
+                            //{ ei ollut parempaa samaa nime� }
+                            let mut top = self.i.top.borrow_mut();
+                            for t3 in t2..=highlength {
+                                if top[(t3 + highstart) as usize].name == victimname {
+                                    for t4 in t3..=highlength - 1 {
+                                        top[(t4 + highstart) as usize] =
+                                            top[(t4 + highstart + 1) as usize].clone();
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if leave {
+                        if t2 < highlength {
+                            let mut top = self.i.top.borrow_mut();
+                            for t3 in ((t2 + 1)..=highlength).rev() {
+                                top[(t3 + highstart) as usize] =
+                                    top[(t3 + highstart - 1) as usize].clone();
+                            }
+                        }
+
+                        if vaihe > 2 && self.cup_hills == 1 {
+                            datestr = [
+                                b"(",
+                                &txtp(self.stats[t1 as usize][1].round_len[1]) as &[u8],
+                                b"m-",
+                                &txtp(self.stats[t1 as usize][1].round_len[2]),
+                                b"m)",
+                            ]
+                            .concat();
+                        }
+
+                        {
+                            let mut top = self.i.top.borrow_mut();
+                            top[(t2 + highstart) as usize].score = pts;
+                            top[(t2 + highstart) as usize].name = victimname;
+                            top[(t2 + highstart) as usize].pos = self.sija[who as usize];
+                            top[(t2 + highstart) as usize].time = datestr.clone();
+                        }
+
+                        return_ = t2; //{ pyrkii palauttamaan lis�tyn pelaajan sijan }
+
+                        if vaihe < 4 {
+                            self.g.new_screen(1, 0);
+                            self.dolist(t2, vaihe);
+                            self.u.wait_for_key3(305, 6);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        return_
     }
 }

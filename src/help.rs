@@ -23,3 +23,7 @@ pub fn txtp(mut jokuluku: i32) -> Vec<u8> {
 pub fn txt(mut jokuluku: i32) -> Vec<u8> {
     jokuluku.to_string().into_bytes()
 }
+
+pub fn pcomp(score: i32, sij: i32) -> i32 {
+    (score * 51) + 50 - sij
+}
