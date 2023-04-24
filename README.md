@@ -22,6 +22,13 @@ The remake will be written in Rust.
 - Also requires handling of global mutable state (there's lots of it), and porting I/O and other platform-specific
   code.
 
+**Phase 1.5: Verify**
+
+- Write supporting code to compare the original game's output to the remake's output. This will be used to verify that
+  the remake is correct.
+- The initial idea is to allow recording input and output (pixels + palette) from the original game, and then replaying
+  the input and comparing the outputs of the remake.
+
 **Phase 2: Refactor**
 
 - Refactor the code to be more idiomatic Rust.
@@ -35,7 +42,7 @@ The remake will be written in Rust.
 
 ## Status
 
-Phase 1 is ongoing. The original game contains about 10k lines of Pascal code, of which about 45 % has been converted to
+Phase 1 is ongoing. The original game contains about 10k lines of Pascal code, of which about 65 % has been converted to
 Rust.
 
 ## Development
