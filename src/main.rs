@@ -21,12 +21,15 @@ use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
+use crate::rs_util::randomize;
 use crate::sdlport::{SDLPortModule, X_RES, Y_RES};
 use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::UnitModule;
 
 fn main() {
+    randomize(11);
+
     let sdl = sdl2::init().unwrap();
     let video_subsystem = sdl.video().unwrap();
     let timer_subsystem = sdl.timer().unwrap();
