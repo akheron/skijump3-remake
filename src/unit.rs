@@ -60,8 +60,8 @@ pub struct Hill {
     pub bk_bright: u8,
     pub bk_mirror: u8,
     pub vx_final: u8,
-    pub pk: f32,
-    pub pl_save: f32,
+    pub pk: f64,
+    pub pl_save: f64,
     pub profile: i32,
     pub hr_name: Vec<u8>,
     pub hr_len: i32,
@@ -867,9 +867,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             hill.bk_mirror = parse_line(&mut f1).unwrap();
             hill.vx_final = parse_line(&mut f1).unwrap();
             let b: u8 = parse_line(&mut f1).unwrap();
-            hill.pk = (b as f32) / 100.0;
+            hill.pk = (b as f64) / 100.0;
             let a: i32 = parse_line(&mut f1).unwrap();
-            hill.pl_save = (a as f32) / 10000.0;
+            hill.pl_save = (a as f64) / 10000.0;
             hill.author = read_line(&mut f1).unwrap();
             let _l2: i32 = parse_line(&mut f1).unwrap(); //{ checksum }
             hill.profile = parse_line(&mut f1).unwrap();

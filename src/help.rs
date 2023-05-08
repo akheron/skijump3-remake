@@ -1,6 +1,6 @@
-pub fn nsqrt(x: f32) -> f32 {
-    let temp = f32::sqrt(f32::abs(x));
-    if x < 0f32 {
+pub fn nsqrt(x: f64) -> f64 {
+    let temp = f64::sqrt(f64::abs(x));
+    if x < 0.0 {
         -temp
     } else {
         temp

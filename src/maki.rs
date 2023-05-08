@@ -96,7 +96,7 @@ impl MakiModule {
         }
     }
 
-    pub fn laske_linjat(&self, keula_x: &mut i32, kr: i32, pk: f32) {
+    pub fn laske_linjat(&self, keula_x: &mut i32, kr: i32, pk: f64) {
         /*{ linjojen pituudet voisi ladata nopeammin levylt� ... }*/
         *keula_x = 0;
         let mut former_y: i32 = 0;
@@ -138,7 +138,7 @@ impl MakiModule {
         for x in *keula_x..(X_SIZE - 10) as i32 {
             let x2 = x - *keula_x; //{ suhteellinen keulan alap��h�n X }
             let y2 = profiili_y[x as usize] as i32 - profiili_y[*keula_x as usize] as i32; //{ suhteellinen Y }
-            let hp = f32::round(f32::sqrt((x2 * x2 + y2 * y2) as f32) * pk * 0.5) as i32 * 5; //{ +10? }
+            let hp = f64::round(f64::sqrt((x2 * x2 + y2 * y2) as f64) * pk * 0.5) as i32 * 5; //{ +10? }
             if hp >= (2 * kr / 3) * 10 && hp <= kr * 12 {
                 let c = if hp < kr * 10 { 238 } else { 239 };
                 for y in 0..=2 {

@@ -273,22 +273,22 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
         let mut kr: i32;
         let mut ponnistus: i32;
-        let mut qx: f32;
+        let mut qx: f64;
 
         let mut paras: i32;
 
-        let mut kor: f32;
-        let mut matka: f32;
-        let mut px: f32;
-        let mut pxk: f32;
-        let mut py: f32;
-        let mut t: f32;
-        let mut pl: f32;
-        let mut kkor: f32;
+        let mut kor: f64;
+        let mut matka: f64;
+        let mut px: f64;
+        let mut pxk: f64;
+        let mut py: f64;
+        let mut t: f64;
+        let mut pl: f64;
+        let mut kkor: f64;
 
-        let mut umatka: f32;
-        let mut ukor: f32;
-        let mut upx: f32;
+        let mut umatka: f64;
+        let mut ukor: f64;
+        let mut upx: f64;
         let mut ux: i32;
 
         let mut kulma1: i32;
@@ -541,12 +541,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         temp -= random(10 * pel as u32) as i32; //{ uusi }
         temp = 63 - temp; //{ 80,100,110,114,119,119  e.m. }
 
-        skill = 17 - f32::round(nsqrt(temp as f32) / 4f32) as u8;
+        skill = 17 - f64::round(nsqrt(temp as f64) / 4.0) as u8;
         if skill > 16 {
             skill = 16;
         }
 
-        reflex = f32::round((34 + pel + random(10) as i32) as f32 / 5f32) as u8;
+        reflex = f64::round((34 + pel + random(10) as i32) as f64 / 5.0) as u8;
         /*
         {  reflex:=round((33+pel+random(8))/4); }
         {  reflex:=round((45+pel+random(10))/5); }
@@ -580,7 +580,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         tyylip[6] = 200;
         tyylip[7] = 0; //{ tyylip[6] => pienin, [7] => suurin }
 
-        qx = self.keula_x as f32 + 0.5; //{ emme halua, ett� se toteaa keulalla matkan>0 }
+        qx = self.keula_x as f64 + 0.5; //{ emme halua, ett� se toteaa keulalla matkan>0 }
 
         wrx = 0;
         wry = 0;
@@ -598,21 +598,21 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             loop {
                 matka += 1.0;
 
-                x = f32::round(matka + qx) as i32;
-                kor = self.m.profiili(x) as f32;
-                kkor = kor - keula_y as f32;
-                hp = f32::round(nsqrt((matka * matka) + (kkor * kkor)) * self.act_hill.pk * 0.5)
+                x = f64::round(matka + qx) as i32;
+                kor = self.m.profiili(x) as f64;
+                kkor = kor - keula_y as f64;
+                hp = f64::round(nsqrt((matka * matka) + (kkor * kkor)) * self.act_hill.pk * 0.5)
                     as i32
                     * 5;
 
                 if hp >= self.u.hrlen(self.nytmaki) && self.u.hrlen(self.nytmaki) > 0 && wrx == 0 {
                     wrx = x;
-                    wry = f32::round(kor) as i32 - 9;
+                    wry = f64::round(kor) as i32 - 9;
                 }
 
                 if hp >= temp && temp != 0 && goalx == 0 {
                     goalx = x;
-                    goaly = f32::round(kor) as i32 - 7;
+                    goaly = f64::round(kor) as i32 - 7;
                 }
 
                 if x > 1024 {
@@ -624,14 +624,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         hp = 0;
         kkor = 0.0;
 
-        matka = -self.keula_x as f32 + 10.0;
-        qx = self.keula_x as f32 + 0.5; //{ emme halua, ett� se toteaa keulalla matkan>0 }
+        matka = -self.keula_x as f64 + 10.0;
+        qx = self.keula_x as f64 + 0.5; //{ emme halua, ett� se toteaa keulalla matkan>0 }
 
-        x = f32::round(matka + qx) as i32;
+        x = f64::round(matka + qx) as i32;
 
-        kor = self.m.profiili(x) as f32;
+        kor = self.m.profiili(x) as f64;
 
-        y = f32::round(kor) as i32;
+        y = f64::round(kor) as i32;
 
         ponnistus = 0;
         out = false;
@@ -1071,9 +1071,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     if temp == 1 {
                         px = 0.6;
                     }
-                    px += (self.tuuli.value.get() - 20) as f32 / 10000.0;
+                    px += (self.tuuli.value.get() - 20) as f64 / 10000.0;
 
-                    sx += f32::round(temp as f32 * px) as i32;
+                    sx += f64::round(temp as f64 * px) as i32;
                     sy += (temp * temp) / 160;
 
                     if sy < self.m.profiili(sx) {
@@ -1246,7 +1246,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
         if cjumper && !draw {
             //{ noputetaan v�h�n :) }
-            px = self.act_hill.vx_final as f32;
+            px = self.act_hill.vx_final as f64;
             matka = -45.0;
             for _ in 1..=100 {
                 self.tuuli.siirra(); //{ veivataan my�s tuulta v�h�n }
@@ -1265,7 +1265,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 fx = x; //{ former x & y }
                 fy = y;
 
-                x = f32::round(matka + qx) as i32;
+                x = f64::round(matka + qx) as i32;
 
                 if self.s.ch.get() != 27 {
                     self.s.ch.set(0); //{ en tied� muisteleeko se vanhoja }
@@ -1326,7 +1326,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         temp = find_landing(self.makikulma(x));
 
                         if clanding == 2 {
-                            temp = f32::round(temp as f32 * 0.6) as i32;
+                            temp = f64::round(temp as f64 * 0.6) as i32;
                         }
 
                         //{ kumpualalastulovarmistus! }
@@ -1358,30 +1358,31 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[3] && kulma1 <= 600 {
-                        kulma1 += f32::round(kulma1 as f32 / 4.0) as i32;
+                        kulma1 += f64::round(kulma1 as f64 / 4.0) as i32;
                     }
                     if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[2]
                         && landing == 0
                         && kulma1 > 0
                     {
-                        kulma1 -= f32::round(kulma1 as f32 / 5.0) as i32;
+                        kulma1 -= f64::round(kulma1 as f64 / 5.0) as i32;
                     }
 
                     //{ ylirotaatio }
                     if kulma1 < 50 {
-                        pl += 0.0001 - (kulma1 - 50) as f32 / 18000.0;
+                        pl = pl + 0.0001 - ((kulma1 - 50) as f64 / 18000.0);
                     }
 
                     if self.tuuli.value.get() > 0 {
-                        pl -= (1.0 - kulma1 as f32 / 900.0) / 1875.0
-                            + f32::sqrt(f32::sqrt(2.0 * self.tuuli.value.get() as f32)) / 65500.0;
+                        pl = pl - (1.0 - kulma1 as f64 / 900.0) / 1875.0
+                            + f64::sqrt(f64::sqrt(2.0 * self.tuuli.value.get() as f64)) / 65500.0;
                     } else {
-                        pl -= (1.0 - kulma1 as f32 / 900.0) / 1875.0
-                            - f32::sqrt(f32::sqrt(-2.0 * self.tuuli.value.get() as f32)) / 65500.0;
+                        pl = pl
+                            - (1.0 - kulma1 as f64 / 900.0) / 1875.0
+                            - f64::sqrt(f64::sqrt(-2.0 * self.tuuli.value.get() as f64)) / 65500.0;
                     }
 
-                    px -= kulma1 as f32 / 900.0 / 20.0
-                        + (nsqrt(4.0 * self.tuuli.value.get() as f32 + 245.0) - 16.0) / 400.0;
+                    px = px - ((kulma1 as f64 / 900.0) / 20.0)
+                        + (nsqrt(4.0 * self.tuuli.value.get() as f64 + 245.0) - 16.0) / 400.0;
 
                     t += 0.01;
 
@@ -1402,13 +1403,13 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         if temp > 0 {
                             //{ puuska tuo sukset yl�s }
                             ssuunta = 3;
-                            pl -= random(self.tuuli.voim.get() as u32 + 50) as f32 / 15000.0;
+                            pl = pl - random(self.tuuli.voim.get() as u32 + 50) as f64 / 15000.0;
                         }
 
                         if temp < 0 {
                             //{ puuska vie suksia alas }
                             ssuunta = 6;
-                            pl += random(self.tuuli.voim.get() as u32 + 50) as f32 / 15000.0;
+                            pl = pl + random(self.tuuli.voim.get() as u32 + 50) as f64 / 15000.0;
                         }
                     }
 
@@ -1416,7 +1417,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         pl = 0.105; //{ leijuntaesto :) }
                     }
 
-                    kor += (t * t * pl) - ((py - 8.0) / 100.0);
+                    kor = kor + (t * t * pl) - ((py - 8.0) / 100.0);
 
                     if ssuunta > 0 {
                         //{ SUKSIEN HEILUNTA - ponnistusfibat ja puuskat }
@@ -1521,7 +1522,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     temp = height;
-                    height = self.m.profiili(x) - f32::round(kor) as i32;
+                    height = self.m.profiili(x) - f64::round(kor) as i32;
 
                     if height < 0 {
                         height = 0;
@@ -1561,7 +1562,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     //{ Automaattiponnistus }
-                    if cjumper && matka > -(skill as f32 * px * 0.01) && ponnistus == 0 {
+                    if cjumper && matka > -(skill as f64 * px * 0.01) && ponnistus == 0 {
                         ponnistus += 1;
                     }
 
@@ -1583,12 +1584,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                     //{ pudotetaan �ij� }
 
-                    kor = self.m.profiili(x) as f32;
+                    kor = self.m.profiili(x) as f64;
 
                     px *= pxk; //{ Hanaa... }
 
-                    if px > maxspeed as f32 {
-                        px = maxspeed as f32;
+                    if px > maxspeed as f64 {
+                        px = maxspeed as f64;
                     }
 
                     if ponnistus > 0 {
@@ -1617,8 +1618,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
                 } //{ end matkariippuvaiset }
 
-                x = f32::round(matka + qx) as i32;
-                y = f32::round(kor) as i32;
+                x = f64::round(matka + qx) as i32;
+                y = f64::round(kor) as i32;
 
                 if draw {
                     delta_x = self.m.x.get();
@@ -1700,8 +1701,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
         }
 
-        kkor = kor - keula_y as f32;
-        hp = f32::round(nsqrt((matka * matka) + (kkor * kkor)) * self.act_hill.pk * 0.5) as i32 * 5;
+        kkor = kor - keula_y as f64;
+        hp = f64::round(nsqrt((matka * matka) + (kkor * kkor)) * self.act_hill.pk * 0.5) as i32 * 5;
 
         if self.s.ch.get() == 27 {
             //{ painoi ESCi� }
@@ -1724,15 +1725,15 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
 
             temp = self.makikulma(x);
-            height = f32::round(temp as f32 * 1.34 + kulma1 as f32 / 10.0) as i32;
+            height = f64::round(temp as f64 * 1.34 + kulma1 as f64 / 10.0) as i32;
 
             riski = jump_risk(temp);
-            if (hp as f32) < (20.0 / 3.0 * kr as f32) {
+            if (hp as f64) < (20.0 / 3.0 * kr as f64) {
                 riski = 1; //{ lyhyiden hyppyjen riski? }
             }
 
             if height < 63 {
-                riski = f32::round(riski as f32 * (1.0 + ((63 - height) as f32 * 0.075))) as i32;
+                riski = f64::round(riski as f64 * (1.0 + ((63 - height) as f64 * 0.075))) as i32;
             }
 
             if landing == 0 || height < 56 {
@@ -1767,7 +1768,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
 
             for temp in
-                1..=f32::round((kr as f32 + (kr as f32 / 20.0) - (hp as f32 / 10.0)) / 6.0) as i32
+                1..=f64::round((kr as f64 + (kr as f64 / 20.0) - (hp as f64 / 10.0)) / 6.0) as i32
             {
                 tyylip[1] -= 5;
             }
@@ -1814,8 +1815,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             if kr != 0 {
                 //{ vanha tyyli }
-                score += f32::round(
-                    ((hp as f32 / 10.0) - (kr as f32 * 2.0 / 3.0)) * (180.0 / kr as f32) * 10.0,
+                score += f64::round(
+                    ((hp as f64 / 10.0) - (kr as f64 * 2.0 / 3.0)) * (180.0 / kr as f64) * 10.0,
                 ) as i32; //{ pituuspisteet }
             }
 
@@ -1938,11 +1939,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     fx = x;
                     fy = y;
 
-                    x = f32::round(matka + qx) as i32;
-                    ux = f32::round(umatka + qx) as i32;
+                    x = f64::round(matka + qx) as i32;
+                    ux = f64::round(umatka + qx) as i32;
 
-                    kor = self.m.profiili(x) as f32;
-                    ukor = self.m.profiili(ux) as f32;
+                    kor = self.m.profiili(x) as f64;
+                    ukor = self.m.profiili(ux) as f64;
 
                     ski_anim = suksi_laskussa(self.makikulma(x));
 
@@ -2071,8 +2072,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     delta_x = self.m.x.get();
                     delta_y = self.m.y.get();
 
-                    x = f32::round(matka + qx) as i32;
-                    y = f32::round(kor) as i32;
+                    x = f64::round(matka + qx) as i32;
+                    y = f64::round(kor) as i32;
 
                     if x >= 160 && x < 864 {
                         sx += x - fx;
@@ -2114,7 +2115,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                     self.g.draw_anim(
                         ux - self.m.x.get(),
-                        f32::round(ukor) as i32 - self.m.y.get() - 2,
+                        f64::round(ukor) as i32 - self.m.y.get() - 2,
                         jumper_anim,
                     );
                     self.g
