@@ -62,11 +62,10 @@ impl LumiModule {
         for i in 0..LUMI_MAX {
             let lumi = &mut self.lh[i as usize];
             lumi.x = (random(320) as i32) << 10;
-            lumi.x = (random(320) as i32) << 10;
             lumi.y = (random(200) as i32) << 10;
             lumi.sin_pos = random(SINE_LGT as u32) as u16;
-            lumi.gravity =
-                random(G_VAIHTELU as u32) as i32 + self.perus_g as i32 - self.g_vaihtelu as i32;
+            lumi.gravity = random(self.g_vaihtelu as u32) as i32 + self.perus_g as i32
+                - self.g_vaihtelu as i32;
             lumi.style = random(2) as u16;
             if (self.sleet) && (lumi.style == 1) {
                 lumi.style = random(2) as u16;
@@ -121,7 +120,7 @@ impl LumiModule {
                 lumi.sin_pos &= SINE_LGT - 1;
                 lumi.y += lumi.gravity + (delta_y << 8);
             }
-            let mut offset = (lumi.x >> 10) + (lumi.y >> 10) * 320;
+            let offset: u16 = ((lumi.x >> 10) + (lumi.y >> 10) * 320) as u16;
             if (offset < 63679)
                 && (buffer[offset as usize] >= TAUSTA_MIN)
                 && (buffer[offset as usize + 1] >= TAUSTA_MIN)
