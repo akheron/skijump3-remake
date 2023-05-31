@@ -1,3 +1,4 @@
+use crate::trace::{trace, Payload};
 use std::cell::Cell;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -25,16 +26,23 @@ where
 // Linear Congruential Generator
 // m = 2^32, a = 134775813, c = 1
 
-thread_local!(static RAND_SEED: Cell<u32> = Cell::new(0));
+thread_local!(
+    static RAND_SEED: Cell<u32> = Cell::new(0);
+    static RAND_STEPS: Cell<u32> = Cell::new(0);
+);
 
 pub fn randomize(seed: u32) {
     RAND_SEED.with(|r| r.set(seed));
+    RAND_STEPS.with(|s| s.set(0));
 }
 
 pub fn random(max: u32) -> u32 {
+    RAND_STEPS.with(|s| s.set(s.get() + 1));
     let state = RAND_SEED.with(|r| {
         r.set(((r.get() as u64) * 134775813 + 1) as u32);
         r.get()
     });
-    ((state as u64 * max as u64) >> 32) as u32
+    let result = ((state as u64 * max as u64) >> 32) as u32;
+    trace().expect("Random", Payload::Random(max, result));
+    result
 }

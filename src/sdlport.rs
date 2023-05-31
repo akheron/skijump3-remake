@@ -1,3 +1,4 @@
+use crate::trace::trace;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
@@ -12,6 +13,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{process, thread};
 
@@ -36,9 +39,7 @@ pub struct SDLPortModule<'a> {
     aspect: f64,
 
     timer: Timer<'a, 'a>,
-    frame_count: Cell<u32>,
-    sub_frame_duration: Cell<Duration>,
-    last_frame_instant: Cell<Instant>,
+    frame_count: Arc<AtomicU32>,
 
     event_subsystem: RefCell<EventSubsystem>,
     event_pump: RefCell<EventPump>,
@@ -49,14 +50,14 @@ pub struct SDLPortModule<'a> {
     pub ch: Cell<u8>,
     pub ch2: Cell<u8>,
 
-    keylog: RefCell<VecDeque<Keypress>>,
+    key_pressed_calls: Cell<u32>,
+    wait_for_key_press_calls: Cell<u32>,
 }
 
 #[derive(Debug)]
-struct Keypress {
-    frame: u32,
-    ch1: u8,
-    ch2: u8,
+enum KeylogEntry {
+    IsPressed { calls: u32, state: bool },
+    KeyPress { calls: u32, ch1: u8, ch2: u8 },
 }
 
 impl<'a> SDLPortModule<'a> {
@@ -93,7 +94,13 @@ impl<'a> SDLPortModule<'a> {
 
         let render_dest_rect = get_render_rect(canvas, aspect);
 
-        event_subsystem.register_custom_event::<Keypress>().unwrap();
+        let frame_count = Arc::new(AtomicU32::new(0));
+        {
+            let frame_count = frame_count.clone();
+            thread::spawn(move || {
+                framecount_updater(&frame_count, TARGET_FRAMES);
+            });
+        }
 
         SDLPortModule {
             window_multiplier,
@@ -109,9 +116,7 @@ impl<'a> SDLPortModule<'a> {
             aspect,
 
             timer,
-            frame_count: Cell::new(0),
-            sub_frame_duration: Cell::new(Duration::new(0, 0)),
-            last_frame_instant: Cell::new(Instant::now()),
+            frame_count,
 
             event_subsystem: RefCell::new(event_subsystem),
             event_pump: RefCell::new(event_pump),
@@ -120,7 +125,8 @@ impl<'a> SDLPortModule<'a> {
             ch: Cell::new(1),
             ch2: Cell::new(1),
 
-            keylog: RefCell::new(load_keylog()),
+            key_pressed_calls: Cell::new(0),
+            wait_for_key_press_calls: Cell::new(0),
         }
     }
 
@@ -189,43 +195,36 @@ impl<'a> SDLPortModule<'a> {
     }
 
     pub fn wait_raster(&self) {
-        let frame_duration = Duration::from_nanos(1_000_000_000 / TARGET_FRAMES as u64);
-        let mut sub_frame_duration = self.sub_frame_duration.get();
-        let mut frame_count = self.frame_count.get();
-        let last_frame_instant = self.last_frame_instant.get();
-
-        let elapsed = last_frame_instant.elapsed();
-        if elapsed < frame_duration {
-            thread::sleep(frame_duration - elapsed);
+        let last_frame_count = self.frame_count.load(Ordering::Acquire);
+        let mut frame_count = last_frame_count;
+        while frame_count == last_frame_count {
+            thread::yield_now();
+            frame_count = self.frame_count.load(Ordering::Acquire);
         }
-
-        let now = Instant::now();
-        sub_frame_duration += now - last_frame_instant;
-        assert!(sub_frame_duration >= frame_duration);
-        while sub_frame_duration >= frame_duration {
-            sub_frame_duration -= frame_duration;
-            frame_count += 1;
-        }
-
-        {
-            let mut keylog = self.keylog.borrow_mut();
-            let event_subsystem = self.event_subsystem.borrow_mut();
-            while let Some(first) = keylog.front() {
-                if first.frame <= frame_count {
-                    let first = keylog.pop_front().unwrap();
-                    event_subsystem.push_custom_event(first).unwrap();
-                } else {
-                    break;
-                }
-            }
-        }
-
-        self.frame_count.set(frame_count);
-        self.sub_frame_duration.set(sub_frame_duration);
-        self.last_frame_instant.set(now);
     }
 
     pub fn key_pressed(&self) -> bool {
+        if let Some(state) = trace().key_pressed() {
+            for event in self.event_pump.borrow_mut().poll_iter() {
+                match event {
+                    Event::Window {
+                        win_event: WindowEvent::Resized(..),
+                        ..
+                    } => {
+                        self.window_resized.set(true);
+                    }
+                    Event::Quit { .. } => {
+                        process::exit(0);
+                        // if let Some(cb) = &self.close_callback {
+                        //     cb();
+                        // }
+                    }
+                    _ => {}
+                }
+            }
+            return state;
+        }
+
         let mut pressed = false;
 
         for event in self.event_pump.borrow_mut().poll_iter() {
@@ -269,15 +268,6 @@ impl<'a> SDLPortModule<'a> {
                         }
                     }
                 }
-                user_event @ Event::User { .. } => {
-                    if let Some(keypress) = user_event.as_user_event_type::<Keypress>() {
-                        pressed = true;
-                        self.event_subsystem
-                            .borrow_mut()
-                            .push_custom_event(keypress)
-                            .unwrap();
-                    }
-                }
                 _ => {}
             }
         }
@@ -285,14 +275,6 @@ impl<'a> SDLPortModule<'a> {
     }
 
     fn wait_for_key_press_internal(&self) -> (u8, u8) {
-        /*
-        procedure WaitForKeyPress(var ch1, ch2:char);
-        var event : TSDL_Event;
-            scancode: TSDL_ScanCode;
-            keyPressed: TSDL_KeyCode;
-            keyMod: UInt16;
-        begin
-        */
         // Setting ch2 to a correct scancode value for the key pressed can be largely ignored.
         // It is only checked by the game for special keys, where ch1 is checked or assumed to be 0.
         // This also means that the game cannot differentiate between different keys producing the same character.
@@ -557,14 +539,6 @@ impl<'a> SDLPortModule<'a> {
 
                         return (ch1, ch2);
                     }
-                    user_event @ Event::User { .. } => {
-                        println!("wait_for_key_press: user event: {:?}", user_event);
-                        if let Some(keypress) = user_event.as_user_event_type::<Keypress>() {
-                            ch1 = keypress.ch1;
-                            ch2 = keypress.ch2;
-                            return (ch1, ch2);
-                        }
-                    }
                     _ => {}
                 }
             }
@@ -573,7 +547,11 @@ impl<'a> SDLPortModule<'a> {
     }
 
     pub fn wait_for_key_press(&self) -> (u8, u8) {
-        let (ch, ch2) = self.wait_for_key_press_internal();
+        let (ch, ch2) = if let Some(key_press) = trace().wait_for_key_press() {
+            key_press
+        } else {
+            self.wait_for_key_press_internal()
+        };
         self.ch.set(ch);
         self.ch2.set(ch2);
         (ch, ch2)
@@ -623,16 +601,25 @@ fn get_render_rect(canvas: &Canvas<Window>, aspect: f64) -> Rect {
     }
 }
 
-fn load_keylog() -> VecDeque<Keypress> {
-    let mut f = BufReader::new(File::open("KeyLog.txt").unwrap());
-    let mut result = VecDeque::new();
-    for line in f.lines() {
-        let line = line.unwrap();
-        let mut parts = line.split(' ');
-        let frame = parts.next().unwrap().parse::<u32>().unwrap();
-        let ch1 = parts.next().unwrap().parse::<u8>().unwrap();
-        let ch2 = parts.next().unwrap().parse::<u8>().unwrap();
-        result.push_back(Keypress { frame, ch1, ch2 });
+fn framecount_updater(frame_count: &AtomicU32, target_fps: u32) {
+    let frame_duration = Duration::from_nanos(1_000_000_000 / target_fps as u64);
+    let mut sub_frame_duration = Duration::new(0, 0);
+    let mut last_frame_instant = Instant::now();
+    loop {
+        thread::sleep(Duration::from_millis(1));
+        let now = Instant::now();
+        let elapsed = now - last_frame_instant;
+        if elapsed >= frame_duration {
+            last_frame_instant = now;
+            sub_frame_duration += elapsed;
+
+            let mut frames_add = 0;
+            while sub_frame_duration >= frame_duration {
+                sub_frame_duration -= frame_duration;
+                frames_add += 1;
+            }
+            assert!(frames_add > 0);
+            frame_count.fetch_add(frames_add, Ordering::Release);
+        }
     }
-    result
 }

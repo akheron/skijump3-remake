@@ -13,6 +13,7 @@ use crate::table::{
     find_landing, jump_risk, lasku_anim, lasku_asento, lento_anim, parru_anim, ponn_anim,
     suksi_laskussa, suksi_lennossa,
 };
+use crate::trace::trace;
 use crate::tuuli::TuuliModule;
 use crate::unit::{
     dayandtime_now, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr, Hill,
@@ -265,6 +266,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
     }
 
     fn hyppy(&mut self, index: i32, pel: i32, team: i32) {
+        trace().start_frame_tracing();
+
         let mut tempb: u8 = 0;
         let mut temp: i32;
         let mut temp2: i32;
@@ -429,6 +432,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         */
 
         // IMPLEMENTATION
+        trace().expect("hyppy_alkaa", pel);
+        trace().expect("eka", self.eka);
+        trace().expect("lmaara", self.lmaara as i32);
 
         kr = self.act_hill.kr;
         self.s.ch.set(0);
@@ -444,14 +450,17 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
             //{   Lmaara:=1151; }
 
+            trace().expect("lmaara", self.lmaara as i32);
             self.lumi.vie_lmaara(self.lmaara);
 
             /*{   LStyle:=Random(2)*Random(2);
             LStyle:=1; }*/
 
+            trace().expect("gdetail", self.gdetail as i32);
             if self.gdetail == 1 {
                 self.lmaara = 0;
             }
+            trace().expect("lmaara", self.lmaara as i32);
 
             if self
                 .u
@@ -1261,12 +1270,16 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             loop {
                 self.tuuli.hae();
 
+                trace().trace("matka", matka);
                 matka += px * 0.01;
+                trace().expect("matka", matka);
 
                 fx = x; //{ former x & y }
                 fy = y;
 
+                trace().trace("x", x);
                 x = f64::round(matka + qx) as i32;
+                trace().expect("x", x);
 
                 if self.s.ch.get() != 27 {
                     self.s.ch.set(0); //{ en tied� muisteleeko se vanhoja }
@@ -1382,10 +1395,16 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                             - f64::sqrt(f64::sqrt(-2.0 * self.tuuli.value.get() as f64)) / 65500.0;
                     }
 
+                    trace().expect("px", px);
+                    trace().trace("kulma1", kulma1);
+                    trace().trace("tuuli_value", self.tuuli.value.get());
                     px = px - ((kulma1 as f64 / 900.0) / 20.0)
                         + (nsqrt(4.0 * self.tuuli.value.get() as f64 + 245.0) - 16.0) / 400.0;
+                    trace().expect("px", px);
 
+                    trace().trace("t", t);
                     t += 0.01;
+                    trace().trace("t", t);
 
                     //{ Satunnaispuuska }
                     if (random(30000) as i32) < self.tuuli.windy.get() + 10 + self.tuuli.voim.get()
@@ -1404,13 +1423,17 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         if temp > 0 {
                             //{ puuska tuo sukset yl�s }
                             ssuunta = 3;
+                            trace().trace("pl", pl);
                             pl = pl - random(self.tuuli.voim.get() as u32 + 50) as f64 / 15000.0;
+                            trace().expect("pl", pl);
                         }
 
                         if temp < 0 {
                             //{ puuska vie suksia alas }
                             ssuunta = 6;
+                            trace().trace("pl", pl);
                             pl = pl + random(self.tuuli.voim.get() as u32 + 50) as f64 / 15000.0;
+                            trace().expect("pl", pl);
                         }
                     }
 
@@ -1418,7 +1441,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         pl = 0.105; //{ leijuntaesto :) }
                     }
 
+                    trace().trace("t", t);
+                    trace().trace("pl", pl);
+                    trace().trace("py", py);
+                    trace().trace("kor", kor);
                     kor = kor + (t * t * pl) - ((py - 8.0) / 100.0);
+                    trace().expect("kor", kor);
 
                     if ssuunta > 0 {
                         //{ SUKSIEN HEILUNTA - ponnistusfibat ja puuskat }
@@ -1592,12 +1620,20 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     if px > maxspeed as f64 {
                         px = maxspeed as f64;
                     }
+                    trace().trace("kor", kor);
+                    trace().trace("px", px);
 
                     if ponnistus > 0 {
                         //{ ponnistuslis�ys }
+                        trace().trace("px", px);
                         px += 0.21;
+                        trace().expect("px", px);
+                        trace().trace("py", py);
                         py += 1.21;
+                        trace().expect("py", py);
+                        trace().trace("kulma1", kulma1);
                         kulma1 += 12;
+                        trace().expect("kulma1", kulma1);
 
                         if ponnistus > 16 {
                             //{ Ponnistus liian aikaisin }
@@ -1645,6 +1681,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                     self.m.tulosta();
 
+                    trace().expect("call_drawlumi", 2061);
                     self.draw_lumi(
                         delta_x - self.m.x.get(),
                         delta_y - self.m.y.get(),
@@ -1935,6 +1972,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     matka += px * 0.008;
                     umatka += upx * 0.008;
 
+                    trace().expect("matka", matka);
+                    trace().expect("umatka", umatka);
+
                     if ok {
                         matka = umatka;
                     }
@@ -2053,6 +2093,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                     self.s.ch.set(0);
 
+                    trace().expect("call_keypressed", 2483);
                     if self.s.key_pressed() {
                         let (ch, ch2) = self.s.wait_for_key_press();
                         self.s.ch.set(ch.to_ascii_uppercase());
@@ -2097,6 +2138,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                     self.m.tulosta();
 
+                    trace().expect("call_drawlumi", 2531);
                     self.draw_lumi(
                         delta_x - self.m.x.get(),
                         delta_y - self.m.y.get(),
@@ -2356,7 +2398,10 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 }
             }
 
+            trace().expect("draw", draw);
+            trace().expect("gdetail", self.gdetail as i32);
             if !draw && self.gdetail == 0 {
+                trace().expect("lmaara", self.lmaara as i32);
                 self.draw_lumi(
                     delta_x - self.m.x.get(),
                     delta_y - self.m.y.get(),
@@ -2390,6 +2435,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             self.g.draw_screen();
 
+            trace().expect("draw", draw);
             if draw {
                 self.s.putsaa();
                 self.cupslut = self.s.wait_for_key2();
@@ -3492,6 +3538,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             if !self.cupslut && self.trainrounds > 0 {
                 for temp in 1..=self.trainrounds {
+                    trace().expect("trainround", temp as i32);
+
                     self.kierros = -(temp as i32);
 
                     for index in (1..=NUM_PL).rev() {
@@ -3506,9 +3554,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 }
             }
 
+            trace().expect("cupstyle", self.cup_style as i32);
             if self.cup_style != 1 {
                 //{ v3.13 - customissa skipataan quali }
                 self.kierros = 0;
+                trace().expect("kierros", self.kierros);
 
                 //{ QUAL ROUND  kierros:=0; }
 
@@ -3534,6 +3584,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                                 && (self.qual[self.mcluett[index] as usize] > 0))
                         {
                             //{ skipquali mahis }
+                            trace().expect("hyppy_index", index as i32);
+                            trace().expect("hyppy_mcluett", self.mcluett[index] as i32);
                             self.hyppy(index as i32, self.mcluett[index] as i32, 0);
                             self.eka = false;
                         }
@@ -3627,6 +3679,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
 
             self.kierros = 1;
+            trace().expect("kierros", self.kierros);
+            trace().expect("dokosystem", dokosystem);
 
             //{ *** 1. KIERROS *** }
             if dokosystem {
@@ -3638,6 +3692,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         }
 
                         if self.inj[self.luett[index] as usize] == 0 && !self.cupslut {
+                            trace().expect("hyppy_index", index as i32);
+                            trace().expect("hyppy_mcluett", self.mcluett[index] as i32);
                             self.hyppy(index as i32, self.luett[index] as i32, 0);
                             self.eka = false;
                         }
@@ -3649,6 +3705,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         && self.inj[self.mcluett[index] as usize] == 0
                         && !self.cupslut
                     {
+                        trace().expect("hyppy_index", index as i32);
+                        trace().expect("hyppy_mcluett", self.mcluett[index] as i32);
                         self.hyppy(index as i32, self.mcluett[index] as i32, 0);
                         self.eka = false;
                     }

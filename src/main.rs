@@ -11,6 +11,7 @@ mod rs_util;
 mod sdlport;
 mod sj3;
 mod table;
+mod trace;
 mod tuuli;
 mod unit;
 
@@ -24,10 +25,13 @@ use crate::pcx::PcxModule;
 use crate::rs_util::randomize;
 use crate::sdlport::{SDLPortModule, X_RES, Y_RES};
 use crate::sj3::SJ3Module;
+use crate::trace::trace;
 use crate::tuuli::TuuliModule;
 use crate::unit::UnitModule;
 
 fn main() {
+    trace().load("Trace.txt");
+
     randomize(11);
 
     let sdl = sdl2::init().unwrap();
