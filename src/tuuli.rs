@@ -22,7 +22,7 @@ pub struct TuuliModule<'g, 'm, 'p, 's, 'si> {
 
 impl<'g, 'm, 'p, 's, 'si> TuuliModule<'g, 'm, 'p, 's, 'si> {
     pub fn new(g: &'g GraphModule<'m, 'p, 's, 'si>) -> Self {
-        Self {
+        let t = Self {
             voim: Cell::new(0),
             windy: Cell::new(0),
             value: Cell::new(0),
@@ -36,7 +36,9 @@ impl<'g, 'm, 'p, 's, 'si> TuuliModule<'g, 'm, 'p, 's, 'si> {
             tuulix: Cell::new(0),
             tuuliy: Cell::new(0),
             tpaikka: Cell::new(0),
-        }
+        };
+        t.alusta(0);
+        t
     }
 
     pub fn piirra(&self) {
