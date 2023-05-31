@@ -96,6 +96,8 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
                   juu, koska se lukee sen vain m�en latauksessa,
                   ja muuten se unohtuu... }*/
     this_is_a_hill_record: i32,
+
+    lmaara: u16,
 }
 
 impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
@@ -177,6 +179,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             teamlineup: [0; 61],
             keula_x: 0,
             this_is_a_hill_record: 0,
+            lmaara: 0,
         }
     }
 
@@ -327,8 +330,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         let mut laskuri: i32;
         let mut tyylip: [i32; 9] = [0; 9]; // 1-indexed in the original code
 
-        let mut lmaara: u16 = 0;
-
         let mut score: i32;
 
         let mut kulmalaskuri: i32;
@@ -434,22 +435,22 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         rturns = 0;
 
         if self.eka {
-            lmaara = random(2) as u16 * random(256) as u16;
-            if (lmaara > 0) && (lmaara < 40) {
-                lmaara = 41 + random(150) as u16;
+            self.lmaara = random(2) as u16 * random(256) as u16;
+            if (self.lmaara > 0) && (self.lmaara < 40) {
+                self.lmaara = 41 + random(150) as u16;
             }
-            if (lmaara > 0) && (random(4) == 0) {
-                lmaara += 1000; //{ r�nt� }
+            if (self.lmaara > 0) && (random(4) == 0) {
+                self.lmaara += 1000; //{ r�nt� }
             }
             //{   Lmaara:=1151; }
 
-            self.lumi.vie_lmaara(lmaara);
+            self.lumi.vie_lmaara(self.lmaara);
 
             /*{   LStyle:=Random(2)*Random(2);
             LStyle:=1; }*/
 
             if self.gdetail == 1 {
-                lmaara = 0;
+                self.lmaara = 0;
             }
 
             if self
@@ -470,7 +471,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
         self.p.siirra_standardi_paletti();
 
-        if lmaara > 1000 {
+        if self.lmaara > 1000 {
             self.p.tumma_lumi();
         }
         if self.eka {
@@ -763,7 +764,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     delta_x - self.m.x.get(),
                     delta_y - self.m.y.get(),
                     self.tuuli.value.get(),
-                    lmaara,
+                    self.lmaara,
                     true,
                 );
 
@@ -1098,7 +1099,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     delta_x - self.m.x.get(),
                     delta_y - self.m.y.get(),
                     self.tuuli.value.get(),
-                    lmaara,
+                    self.lmaara,
                     true,
                 );
 
@@ -1648,7 +1649,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         delta_x - self.m.x.get(),
                         delta_y - self.m.y.get(),
                         self.tuuli.value.get(),
-                        lmaara,
+                        self.lmaara,
                         true,
                     );
 
@@ -2098,7 +2099,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         delta_x - self.m.x.get(),
                         delta_y - self.m.y.get(),
                         self.tuuli.value.get(),
-                        lmaara,
+                        self.lmaara,
                         true,
                     );
 
@@ -2356,7 +2357,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     delta_x - self.m.x.get(),
                     delta_y - self.m.y.get(),
                     self.tuuli.value.get(),
-                    lmaara,
+                    self.lmaara,
                     false,
                 ); //{ pakko piirt�� }
             }
