@@ -1,7 +1,8 @@
-use std::cell::RefCell;
+use sdl2::pixels::Color;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
@@ -50,7 +51,9 @@ struct Entry {
 }
 
 pub struct Trace {
-    entries: Rc<RefCell<Option<VecDeque<Entry>>>>,
+    entries: RefCell<Option<VecDeque<Entry>>>,
+    frame_tracing_enabled: Cell<bool>,
+    traced_frame_num: Cell<i32>,
 }
 
 impl Trace {
@@ -172,13 +175,54 @@ impl Trace {
             }
         }
     }
+
+    pub fn start_frame_tracing(&self) {
+        self.frame_tracing_enabled.set(true);
+    }
+
+    pub fn expect_frame(&self, buffer: &[u8], palette: &[Color]) {
+        if !self.frame_tracing_enabled.get() {
+            return;
+        }
+        let framecount = self.traced_frame_num.get() + 1;
+        self.traced_frame_num.set(framecount);
+
+        let filename = format!("frames/{:0>6}.dat", framecount);
+        let mut f = File::open(filename).unwrap();
+
+        let mut expected_buffer = vec![0; buffer.len()];
+        f.read_exact(&mut expected_buffer).unwrap();
+
+        let mut expected_palette: Vec<Color> = Vec::new();
+        for _ in 0..palette.len() {
+            let mut color = [0; 4];
+            f.read_exact(&mut color).unwrap();
+            expected_palette.push(Color::RGBA(color[0], color[1], color[2], color[3]));
+        }
+
+        assert_eq!(
+            buffer,
+            &expected_buffer[..],
+            "Frame {}: buffer not equal",
+            framecount
+        );
+        assert_eq!(
+            palette,
+            &expected_palette[..],
+            "Frame {}: palette not equal",
+            framecount
+        );
+    }
 }
 
 thread_local! {
-    static TRACE: Rc<RefCell<Option<VecDeque<Entry >>>> = Rc::new(RefCell::new(None));
+    static TRACE: Rc<Trace> = Rc::new(Trace {
+        entries: RefCell::new(None),
+        frame_tracing_enabled: Cell::new(false),
+        traced_frame_num: Cell::new(-1),
+    });
 }
 
-pub fn trace() -> Trace {
-    let entries = TRACE.with(|t| t.clone());
-    Trace { entries }
+pub fn trace() -> Rc<Trace> {
+    TRACE.with(|t| t.clone())
 }

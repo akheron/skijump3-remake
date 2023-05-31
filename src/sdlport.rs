@@ -156,6 +156,8 @@ impl<'a> SDLPortModule<'a> {
                 .set(get_render_rect(&self.canvas.borrow(), self.aspect));
         }
 
+        trace().expect_frame(buffer, &self.palette);
+
         let mut canvas = self.canvas.borrow_mut();
         canvas.clear();
 
