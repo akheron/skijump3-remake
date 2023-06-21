@@ -115,8 +115,8 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
         }
     }
     pub fn savyta_paletti(&self, alue: u8, bkbright: u8) {
-        let mut start: i32 = 0;
-        let mut fin: i32 = 239;
+        let mut start: usize = 0;
+        let mut fin: usize = 239;
 
         if alue == 1 {
             start = 64;
@@ -127,11 +127,10 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
 
         let mut paletti = self.paletti.borrow_mut();
         for temp1 in start..=fin {
-            for temp2 in 0..=2 {
-                paletti[temp1 as usize][temp2 as usize] =
-                    (paletti[temp1 as usize][temp2 as usize] as f32 * r1) as u8;
-                if paletti[temp1 as usize][temp2 as usize] > 63 {
-                    paletti[temp1 as usize][temp2 as usize] = 63;
+            for temp2 in 0usize..=2 {
+                paletti[temp1][temp2] = f32::round(paletti[temp1][temp2] as f32 * r1) as u8;
+                if paletti[temp1][temp2] > 63 {
+                    paletti[temp1][temp2] = 63;
                 }
             }
         }
