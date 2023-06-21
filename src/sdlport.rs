@@ -31,7 +31,7 @@ pub struct SDLPortModule<'a> {
     texture_creator: &'a TextureCreator<WindowContext>,
     original_surface: RefCell<Surface<'static>>,
     display_texture: RefCell<Texture<'a>>,
-    palette: [Color; 256],
+    palette: RefCell<[u8; 768]>,
     render_dest_rect: Cell<Rect>,
 
     window_resized: Cell<bool>,
@@ -108,7 +108,7 @@ impl<'a> SDLPortModule<'a> {
             texture_creator,
             original_surface: RefCell::new(original_surface),
             display_texture: RefCell::new(display_texture),
-            palette: [Color::RGB(0, 0, 0); 256],
+            palette: RefCell::new([0; 768]),
             render_dest_rect: Cell::new(render_dest_rect),
 
             window_resized: Cell::new(false),
@@ -148,6 +148,13 @@ impl<'a> SDLPortModule<'a> {
             .borrow_mut()
             .set_palette(&palette)
             .unwrap();
+
+        let mut p = self.palette.borrow_mut();
+        for i in 0..256 {
+            p[i * 3] = input[i][0];
+            p[i * 3 + 1] = input[i][1];
+            p[i * 3 + 2] = input[i][2];
+        }
     }
 
     pub fn render(&self, buffer: &[u8]) {
@@ -156,7 +163,7 @@ impl<'a> SDLPortModule<'a> {
                 .set(get_render_rect(&self.canvas.borrow(), self.aspect));
         }
 
-        trace().expect_frame(buffer, &self.palette);
+        trace().expect_frame(buffer, &self.palette.borrow());
 
         let mut canvas = self.canvas.borrow_mut();
         canvas.clear();

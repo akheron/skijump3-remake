@@ -1,3 +1,5 @@
+use crate::sdlport::TPalette;
+use image::{Rgb, RgbImage};
 use sdl2::pixels::Color;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -180,7 +182,7 @@ impl Trace {
         self.frame_tracing_enabled.set(true);
     }
 
-    pub fn expect_frame(&self, buffer: &[u8], palette: &[Color]) {
+    pub fn expect_frame(&self, buffer: &[u8], palette: &[u8; 768]) {
         if !self.frame_tracing_enabled.get() {
             return;
         }
@@ -193,26 +195,48 @@ impl Trace {
         let mut expected_buffer = vec![0; buffer.len()];
         f.read_exact(&mut expected_buffer).unwrap();
 
-        let mut expected_palette: Vec<Color> = Vec::new();
-        for _ in 0..palette.len() {
-            let mut color = [0; 4];
-            f.read_exact(&mut color).unwrap();
-            expected_palette.push(Color::RGBA(color[0], color[1], color[2], color[3]));
-        }
+        let mut expected_palette = [0; 768];
+        f.read_exact(&mut expected_palette).unwrap();
 
-        assert_eq!(
-            buffer,
-            &expected_buffer[..],
-            "Frame {}: buffer not equal",
-            framecount
-        );
-        assert_eq!(
-            palette,
-            &expected_palette[..],
-            "Frame {}: palette not equal",
-            framecount
-        );
+        let buffer_eq = buffer == &expected_buffer[..];
+        let palette_eq = palette == &expected_palette[..];
+        if !buffer_eq || !palette_eq {
+            let expected_filename = "expected.png";
+            let actual_filename = "actual.png";
+            write_image(expected_filename, &expected_buffer, &expected_palette);
+            write_image(actual_filename, buffer, palette);
+            eprintln!("Frame {}:", framecount);
+            eprintln!("Buffer {} equal", if buffer_eq { "IS" } else { "IS NOT" });
+            eprintln!("Palette {} equal", if palette_eq { "IS" } else { "IS NOT" });
+            if !palette_eq {
+                eprintln!("Palette diff:");
+                for i in 0..256 {
+                    let expected = &expected_palette[i * 3..i * 3 + 3];
+                    let actual = &palette[i * 3..i * 3 + 3];
+                    if expected != actual {
+                        eprintln!("  {:3}: {:?} != {:?}", i, expected, actual);
+                    }
+                }
+            }
+            eprintln!("Expected screen: {expected_filename}");
+            eprintln!("Actual screen: {actual_filename}");
+            panic!("Frame equality check failed");
+        }
     }
+}
+
+fn write_image(filename: &str, buffer: &[u8], palette: &[u8; 768]) {
+    let mut img = RgbImage::new(320, 200);
+    for y in 0..200 {
+        for x in 0..320 {
+            let i = buffer[y * 320 + x] as usize;
+            let r = palette[i * 3] * 4;
+            let g = palette[i * 3 + 1] * 4;
+            let b = palette[i * 3 + 2] * 4;
+            img.put_pixel(x as u32, y as u32, Rgb([r, g, b]));
+        }
+    }
+    img.save(filename).unwrap();
 }
 
 thread_local! {
