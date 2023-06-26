@@ -207,9 +207,21 @@ impl Trace {
             write_image(actual_filename, buffer, palette);
             eprintln!("Frame {}:", framecount);
             eprintln!("Buffer {} equal", if buffer_eq { "IS" } else { "IS NOT" });
+            if !buffer_eq {
+                eprintln!("Buffer diff [(x, y): expected != actual]");
+                for y in 0..200 {
+                    for x in 0..320 {
+                        let expected = expected_buffer[y * 320 + x];
+                        let actual = buffer[y * 320 + x];
+                        if expected != actual {
+                            eprintln!("  ({}, {}): {} != {}", x, y, expected, actual);
+                        }
+                    }
+                }
+            }
             eprintln!("Palette {} equal", if palette_eq { "IS" } else { "IS NOT" });
             if !palette_eq {
-                eprintln!("Palette diff:");
+                eprintln!("Palette diff [index: expected != actual]:");
                 for i in 0..256 {
                     let expected = &expected_palette[i * 3..i * 3 + 3];
                     let actual = &palette[i * 3..i * 3 + 3];
