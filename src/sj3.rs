@@ -2337,18 +2337,20 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 if self.inj[pel as usize] > 0 && self.wcup {
                     self.g.font_color(239);
-                    str1 = [
-                        &txt(self.inj[pel as usize] as i32) as &[u8],
-                        b" ",
-                        self.l.lstr(76),
-                    ]
-                    .concat();
 
-                    match self.inj[pel as usize] {
-                        1 => str1 = self.l.lstr(77).to_vec(),
-                        2 => str1 = self.l.lstr(78).to_vec(),
-                        _ => (),
-                    }
+                    str1 = match self.inj[pel as usize] {
+                        1 => self.l.lstr(77).to_vec(),
+                        2 => self.l.lstr(78).to_vec(),
+                        _ => [
+                            &txt(self.inj[pel as usize] as i32) as &[u8],
+                            b" ",
+                            self.l.lstr(76),
+                        ]
+                        .concat(),
+                    };
+
+                    self.g
+                        .e_write_font(311, 64, &[self.l.lstr(75), b" ", &str1].concat());
                 }
             }
 
