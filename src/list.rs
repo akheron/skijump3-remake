@@ -116,9 +116,8 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
             5 => {
                 //{ Team Cup Standings }
                 self.columns = 1;
-                self.plus = 8;
-                color = 2;
-                self.setcol3 = 246; //{ ei turkoosia t�nne }
+                self.plus = 10;
+                color = 1;
             }
             6 => {
                 //{ Team Cup WC standings }

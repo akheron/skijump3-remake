@@ -100,7 +100,7 @@ impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
             paletti[(242 + index) as usize][temp] = REPLACE_MENU[((col * 2) * 3) as usize + temp];
         }
 
-        for temp in 0..2 {
+        for temp in 0..=2 {
             paletti[(247 + index) as usize][temp] =
                 REPLACE_MENU[(((col * 2) + 1) * 3) as usize + temp];
         }
