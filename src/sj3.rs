@@ -1917,6 +1917,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             ukor = kor;
             upx = px;
 
+            self.g.font_color(247);
+
             out = false;
 
             if kupat > 0 {
