@@ -1722,7 +1722,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             grade = 0;
             if kr != 0 {
-                grade = (hp / kr * 10) as u8;
+                grade = (f64::round(hp as f64 / kr as f64) * 10.0) as u8;
             }
 
             temp = self.makikulma(x);
