@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 pub struct LangModule {
-    pub lnames: Vec<String>,
+    pub lnames: Vec<Vec<u8>>,
     pub plstr: HashMap<u32, Vec<u8>>,
 }
 
@@ -79,7 +79,7 @@ impl LangModule {
             let Some(Ok(mut line)) = lines.next() else { return };
             if line.starts_with(b"*") {
                 line = lines.next().unwrap().unwrap();
-                self.lnames.push(String::from_utf8(line).unwrap());
+                self.lnames.push(line);
             }
         }
     }

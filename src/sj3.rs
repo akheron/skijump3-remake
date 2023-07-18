@@ -15,11 +15,11 @@ use crate::table::{
 };
 use crate::tuuli::TuuliModule;
 use crate::unit::{
-    dayandtime_now, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr, Hill,
-    Hiscore, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
+    crypt, dayandtime_now, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr,
+    Hill, Hiscore, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
 };
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 use std::str::from_utf8;
 
@@ -28,7 +28,7 @@ const VERSION_FULL: &[u8] = b"3.13-remake0";
 
 pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
     g: &'g GraphModule<'m, 'p, 's, 'si>,
-    i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'si>,
+    i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
     l: &'l LangModule,
     ls: ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
     lumi: LumiModule,
@@ -87,7 +87,7 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
     kothrounds: u8,
     kothmaki: i32,
     kothpel: [u8; 21],
-    namenumber: i8,
+    namenumber: char,
     languagenumber: u8,
     gdetail: u8,
     seecomps: u8,
@@ -103,7 +103,7 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
 impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
     pub fn new(
         g: &'g GraphModule<'m, 'p, 's, 'si>,
-        i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'si>,
+        i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
         l: &'l LangModule,
         lumi: LumiModule,
         ls: ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
@@ -172,7 +172,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             kothrounds: 0,
             kothmaki: 0,
             kothpel: [0; 21],
-            namenumber: 0,
+            namenumber: '0',
             languagenumber: 0,
             gdetail: 0,
             seecomps: 0,
@@ -181,10 +181,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             this_is_a_hill_record: 0,
             lmaara: 0,
         }
-    }
-
-    fn setupmenu(&self) {
-        unimplemented!();
     }
 
     fn makikulma(&self, x: i32) -> i32 {
@@ -356,8 +352,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         let mut rflstart: i32;
         let mut rflstop: i32;
         let mut rd: [[u8; 1001]; 5] = [[0; 1001]; 5];
-
-        let mut f1: File;
 
         let mut top5: [u8; 7] = [0; 7];
 
@@ -988,7 +982,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     if self.s.ch.get().to_ascii_uppercase() == self.l.lch(60, 1) {
-                        self.setupmenu();
+                        self.setup_menu();
                         self.s.ch.set(1);
                         self.p
                             .load_suit(self.i.profile.borrow()[actprofile as usize].suitcolor, 0);
@@ -1768,7 +1762,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 kupat = 3;
             }
 
-            for temp in
+            for _ in
                 1..=f64::round((kr as f64 + (kr as f64 / 20.0) - (hp as f64 / 10.0)) / 6.0) as i32
             {
                 tyylip[1] -= 5;
@@ -2436,11 +2430,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         let mut temp: i32;
         let mut yy: i32;
         let mut xx: i32;
-        let mut kierros: i32;
         let mut player: i32;
-        let mut team: i32;
-        let mut cup: i32;
-        let mut str1: Vec<u8>;
         let mut col: [i32; 21] = [0; 21];
 
         let ws = |cln: u8, clr: u8, str2: &[u8], yy: i32, col: &[i32]| {
@@ -3392,7 +3382,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
     //{ cupstyle: 0 - SJ3 WC, 1 - Custom WC, 2 - Just 4Hills }
     fn cup(&mut self) {
-        let mut temp = 0;
         let mut temp2 = 0;
         let mut index = 0;
         let mut sortby = 0u8; //{ sortby: 0 - WC, 1 - t_points }
@@ -3691,7 +3680,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 self.jarjestys(2, 1, NUM_PL as u8); //{ tehd��n pisteist� j�rkk� }
                 temp2 = 1;
-                for temp in 1..=5 {
+                for _ in 1..=5 {
                     //{ 5 lucky loseria }
                     while self.qual[self.luett[temp2] as usize] != 0 && temp2 < NUM_PL {
                         temp2 += 1;
@@ -3891,7 +3880,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     // LoadNames(namenumber,jmaara,TeamLineup,true);
                 }
                 3 => {
-                    //setupmenu;
+                    self.setup_menu();
                 }
                 4 => {
                     //showtops(0);
@@ -3919,6 +3908,188 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
     fn check_param(&self) {
         // TODO
+    }
+
+    fn write_records(&self) {
+        let mut l1: i32 = 0;
+        let mut l2: i32 = 0;
+
+        let mut f1 = File::create("HISCORE.SKI").unwrap();
+        writeln!(f1, "HISCORE.SKI - !!! DO NOT ATTEMPT TO EDIT THIS FILE !!!").unwrap();
+
+        //{ 20 world cupia, 10 teamia, 5 4hillsia ja 6 kothia }
+        {
+            let top = self.i.top.borrow();
+            for temp in 1..=41i32 {
+                f1.write_all(&top[temp as usize].name).unwrap();
+                writeln!(f1).unwrap();
+                l1 += valuestr(&top[temp as usize].name, temp) as i32;
+                let str1 = crypt(top[temp as usize].pos as i32, temp);
+                f1.write_all(&str1).unwrap();
+                writeln!(f1).unwrap();
+                l2 += valuestr(&str1, temp) as i32;
+                let str1 = crypt(top[temp as usize].score, temp);
+                f1.write_all(&str1).unwrap();
+                writeln!(f1).unwrap();
+                l2 += valuestr(&str1, temp) as i32;
+            }
+        }
+
+        for temp in 1..=NUM_WC_HILLS {
+            let hrname = self.u.hrname(temp);
+            f1.write_all(&hrname).unwrap();
+            l1 += valuestr(&hrname, temp) as i32;
+            let str1 = crypt(hrname.len() as i32, temp);
+            f1.write_all(&str1).unwrap();
+            l2 += valuestr(&str1, temp) as i32;
+        }
+
+        l1 = l1 ^ 734697;
+
+        writeln!(f1, "{}", l1).unwrap();
+        writeln!(f1, "{}", l2).unwrap();
+
+        let str1 = format!("{}", l1 + l2 + 53).into_bytes();
+        writeln!(f1, "{}", valuestr(&str1, 22)).unwrap();
+
+        {
+            let top = self.i.top.borrow();
+            for temp in 1..=41 {
+                f1.write_all(&top[temp].time).unwrap();
+                writeln!(f1).unwrap();
+            }
+        }
+
+        for temp in 1..=NUM_WC_HILLS {
+            f1.write_all(&self.u.hrtime(temp)).unwrap();
+            writeln!(f1).unwrap();
+        }
+
+        self.u.makevcode(VERSION, true);
+        writeln!(f1, "{}", self.u.vcode.get()).unwrap();
+    }
+
+    fn write_config(&mut self) {
+        let reg = true; // { registered wai no }
+
+        let mut f2 = BufWriter::new(File::create("CONFIG.SKI").unwrap());
+        writeln!(f2, "{}", reg as i32).unwrap();
+        writeln!(f2, "{}", self.comphrs as i32).unwrap();
+        writeln!(f2, "{}", self.lct as i32).unwrap();
+        writeln!(f2, "{}", self.diff as i32).unwrap();
+        writeln!(f2, "{}", self.compactlist as i32).unwrap();
+        writeln!(f2, "{}", self.inv_back as i32).unwrap();
+        writeln!(f2, "{}", self.automatichrr as i32).unwrap();
+        writeln!(f2, "{}", self.beeppi as i32).unwrap();
+        writeln!(f2, "{}", self.nosamename as i32).unwrap();
+        writeln!(f2, "{}", self.goals as i32).unwrap();
+        writeln!(f2, "{}", self.diffwc as i32).unwrap();
+        writeln!(f2, "{}", self.kosystem as i32).unwrap();
+
+        writeln!(f2, "{}", self.languagenumber).unwrap();
+        writeln!(f2, "{}", self.trainrounds).unwrap();
+        writeln!(f2, "{}", self.namenumber).unwrap();
+        f2.write_all(&self.setfile).unwrap();
+        writeln!(f2).unwrap();
+
+        writeln!(f2, "{}", self.gdetail).unwrap();
+        writeln!(f2, "{}", self.seecomps).unwrap();
+        writeln!(f2, "0").unwrap();
+        writeln!(f2, "0").unwrap();
+        writeln!(f2, "0").unwrap();
+
+        writeln!(f2, "{}", self.jmaara).unwrap();
+        let jnimet = self.i.jnimet.borrow();
+        for temp in 1..=self.jmaara {
+            f2.write_all(&jnimet[16 - temp as usize]).unwrap();
+            writeln!(f2).unwrap();
+        }
+
+        let pmaara = self.i.pmaara.get();
+        writeln!(f2, "{}", pmaara).unwrap();
+        let profileorder = self.i.profileorder.borrow();
+        for temp in 1..=pmaara {
+            writeln!(f2, "{}", profileorder[temp as usize]).unwrap();
+        }
+
+        writeln!(f2, "{}", self.kothwind as i32).unwrap();
+        writeln!(f2, "{}", self.kothrounds).unwrap();
+
+        writeln!(f2, "{}", self.kothpack).unwrap();
+        writeln!(f2, "{}", self.kothmaki).unwrap();
+
+        writeln!(f2, "{}", self.kothmaara).unwrap();
+        for temp in 1..=self.kothmaara {
+            writeln!(f2, "{}", self.kothpel[temp as usize]).unwrap();
+        }
+
+        //{ n�ppiskomennot }
+        for temp in 1..=5 {
+            writeln!(f2, "{}", self.k[temp as usize]).unwrap();
+        }
+
+        writeln!(f2, "{}", self.windplace).unwrap();
+
+        writeln!(f2, "0").unwrap();
+        writeln!(f2, "0").unwrap();
+    }
+
+    fn reset_hiscore(&mut self, kerroin: u8) {
+        self.i.reset_tops(kerroin);
+        self.write_records();
+    }
+
+    fn reset_config(&mut self) {
+        self.kothmaara = 1;
+        for temp in 1..=20 {
+            self.kothpel[temp as usize] = temp;
+        }
+
+        self.i.pmaara.set(1);
+        {
+            let mut profileorder = self.i.profileorder.borrow_mut();
+            for temp in 1..=20 {
+                profileorder[temp as usize] = 0;
+            }
+        }
+
+        self.jmaara = 1;
+
+        //{ configien nollaus ocks� }
+        self.languagenumber = 255; //{ se kysyy sitten alussa }
+
+        self.beeppi = false;
+        self.gdetail = 0;
+
+        self.namenumber = '0';
+
+        self.trainrounds = 0;
+
+        //{$IFDEF REG}
+        self.lct = true;
+        //{$ELSE}
+        //self.lct = false;
+        //{$ENDIF}
+
+        self.diff = false;
+        self.diffwc = false;
+        self.compactlist = false;
+        self.inv_back = false;
+        self.automatichrr = true;
+
+        self.goals = true;
+        self.kosystem = true;
+        self.seecomps = 1;
+
+        self.comphrs = true;
+        self.nosamename = false;
+
+        defaultkeys(&mut self.k);
+        self.windplace = 1;
+
+        self.setfile = b"TEMP".to_vec();
+
+        self.write_config();
     }
 
     fn read_records(&mut self) {
@@ -3994,12 +4165,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
     }
 
     fn read_config(&mut self) {
-        /*
-        var f2 : text;
-            str1 : string;
-            temp : integer;
-        begin
-        */
         let mut temp: i32 = 0;
 
         let mut f2 = BufReader::new(File::open("CONFIG.SKI").unwrap());
@@ -4125,6 +4290,249 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         }
 
         self.windplace = parse_line(&mut f2).unwrap();
+    }
+
+    fn setup_menu(&mut self) {
+        let mut index = [1, 1, 1, 1, 1];
+        let mut screen: u8 = 0;
+        let mut out = false;
+
+        loop {
+            self.g.new_screen(1, 0);
+
+            self.g.font_color(240);
+
+            let (str1, entries, length) = match screen {
+                0 => (self.l.lstr(175), 6, 221),
+                1 => (self.l.lstr(176), 4, 221),
+                2 => (self.l.lstr(177), 11, 221),
+                3 => (self.l.lstr(178), 5, 221),
+                _ => unreachable!(),
+            };
+
+            self.g.write_font(30, 6, str1);
+
+            for temp in 0..=entries {
+                let str1 = match screen {
+                    1 => match temp {
+                        1 => {
+                            if self.languagenumber < 255 {
+                                self.l.lnames[self.languagenumber as usize].clone()
+                            } else {
+                                b"Undecided".to_vec()
+                            }
+                        }
+                        2 => {
+                            if self.beeppi {
+                                self.l.lstr(6).to_vec()
+                            } else {
+                                self.l.lstr(7).to_vec()
+                            }
+                        }
+                        3 => self.l.lstr(13 + self.gdetail as u32).to_vec(),
+                        4 => {
+                            let mut f3 = BufReader::new(
+                                File::open(format!("NAMES{}.SKI", self.namenumber)).unwrap(),
+                            );
+                            let mut str2 = String::new();
+                            f3.read_line(&mut str2).unwrap();
+                            self.g.font_color(241);
+                            self.g.write_font(40, 78, &str2.into_bytes());
+
+                            let mut s = vec![0; self.namenumber.len_utf8()];
+                            self.namenumber.encode_utf8(&mut s);
+                            s
+                        }
+                        _ => b"".to_vec(),
+                    },
+
+                    2 => match temp {
+                        1 => self
+                            .l
+                            .lstr(if self.trainrounds == 0 {
+                                9
+                            } else {
+                                self.trainrounds as u32
+                            })
+                            .to_vec(),
+                        2 => self.l.lstr(if self.lct { 180 } else { 185 }).to_vec(),
+                        3 => self.l.lstr(if self.diff { 181 } else { 186 }).to_vec(),
+                        4 => self.l.lstr(if self.diffwc { 181 } else { 186 }).to_vec(),
+                        5 => self
+                            .l
+                            .lstr(if self.compactlist { 182 } else { 187 })
+                            .to_vec(),
+                        6 => self.l.lstr(if self.inv_back { 183 } else { 188 }).to_vec(),
+                        7 => self
+                            .l
+                            .lstr(if self.automatichrr { 182 } else { 185 })
+                            .to_vec(),
+                        8 => self.l.lstr(if self.goals { 180 } else { 186 }).to_vec(),
+                        9 => {
+                            if self.seecomps > NUM_PL as u8 {
+                                self.l.lstr(self.seecomps as u32).to_vec()
+                            } else {
+                                [b"#" as &[u8], &txt(self.seecomps as i32)].concat()
+                            }
+                        }
+                        11 => self.l.lstr(if self.kosystem { 182 } else { 185 }).to_vec(),
+                        _ => b"".to_vec(),
+                    },
+
+                    3 => match temp {
+                        1 => self.l.lstr(if self.comphrs { 183 } else { 187 }).to_vec(),
+                        2 => self
+                            .l
+                            .lstr(if self.nosamename { 185 } else { 180 })
+                            .to_vec(),
+                        _ => b"".to_vec(),
+                    },
+
+                    _ => b"".to_vec(),
+                };
+
+                self.u.setup_item(temp, screen, entries, &str1);
+            }
+
+            // {$IFNDEF REG}
+            //   if (screen<3) then
+            //    begin
+            //     fontcolor(241);
+            //     writefont(10,185,lstr(208)+' '+lstr(209));
+            //     fontcolor(240);
+            //    end;
+            // {$ENDIF}
+
+            self.g.draw_screen();
+
+            index[screen as usize] = self.u.make_menu(
+                35,
+                40,
+                length,
+                10,
+                entries as i32,
+                index[screen as usize],
+                243,
+                0,
+                0,
+            );
+
+            match screen {
+                0 => match index[screen as usize] {
+                    1 | 2 | 3 => screen = index[screen as usize] as u8,
+                    4 => self.u.configure_keys(&mut self.k),
+                    5 => self.u.set_goals(),
+                    6 => {
+                        self.u.write_extras();
+                        self.u.hill_maker(0);
+                        self.u.read_extras();
+                    }
+                    0 => out = true,
+                    _ => unreachable!(),
+                },
+
+                1 => match index[screen as usize] {
+                    1 => self.i.welcome_screen(&mut self.languagenumber),
+                    2 => self.beeppi = !self.beeppi,
+                    3 => {
+                        self.gdetail += 1;
+                        if self.gdetail > 1 {
+                            self.gdetail = 0;
+                        }
+                    }
+                    4 => {
+                        let mut n: char;
+                        let mut ch = 0;
+                        loop {
+                            self.u.getch(255, 70, 245);
+                            ch = self.s.ch.get();
+                            if let Some(chr) = char::from_u32(ch as u32) {
+                                n = chr;
+                                if ch != 27 && Path::new(&format!("NAMES{}.SKI", n)).exists() {
+                                    break;
+                                }
+                            }
+                        }
+                        if ch != 27 {
+                            self.namenumber = n;
+                            self.i.load_names(
+                                self.namenumber,
+                                self.jmaara,
+                                &mut self.teamlineup,
+                                true,
+                            );
+                        }
+                    }
+                    0 => screen = 0,
+                    _ => unreachable!(),
+                },
+
+                2 => match index[screen as usize] {
+                    1 => {
+                        self.trainrounds += 1;
+                        if self.trainrounds > 3 {
+                            self.trainrounds = 0;
+                        }
+                    }
+                    2 => self.lct = !self.lct,
+                    3 => self.diff = !self.diff,
+                    4 => self.diffwc = !self.diffwc,
+                    5 => self.compactlist = !self.compactlist,
+                    6 => self.inv_back = !self.inv_back,
+                    7 => self.automatichrr = !self.automatichrr,
+                    8 => self.goals = !self.goals,
+                    9 => {
+                        self.i.choose_seecomps(&mut self.seecomps);
+                    }
+                    10 => {
+                        self.u.choose_wind_place(&mut self.windplace);
+                    }
+                    11 => self.kosystem = !self.kosystem,
+                    0 => screen = 0,
+                    _ => unreachable!(),
+                },
+
+                3 => match index[screen as usize] {
+                    1 => self.comphrs = !self.comphrs,
+                    2 => self.nosamename = !self.nosamename,
+                    3 | 4 => {
+                        self.g.fill_box(69, 79, 251, 131, 242);
+                        self.g.fill_box(70, 80, 250, 130, 244);
+                        self.g.fill_area(70, 80, 250, 130, 63);
+                        let mut str1 = self.l.lstr(if index[screen as usize] == 4 {
+                            191
+                        } else {
+                            190
+                        });
+                        self.g
+                            .write_font(80, 90, &[str1, self.l.lstr(192)].concat());
+                        self.g.write_font(80, 110, self.l.lstr(193));
+
+                        self.u
+                            .getch(88 + self.g.font_len(self.l.lstr(193)), 110, 243);
+
+                        if self.s.ch.get().to_ascii_uppercase() == self.l.lch(6, 1) {
+                            self.reset_hiscore(4 - index[screen as usize] as u8);
+                        }
+                    }
+
+                    5 => {
+                        self.reset_config();
+                    }
+
+                    0 => screen = 0,
+                    _ => unreachable!(),
+                },
+
+                _ => unreachable!(),
+            }
+
+            if out {
+                break;
+            }
+        }
+
+        self.write_config(); //{ pistet��n muutokset levylle }
     }
 
     pub fn alku(&mut self) {
@@ -4317,7 +4725,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
     //{ what: 0 - WCStats, 1 - normal, 2 - 4H }
     fn updatestats(&mut self, what: u8) {
-        let mut temp: i32;
         let mut who: i32;
         let mut victim: i32;
         let mut str1: Vec<u8>;
@@ -4407,7 +4814,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         let mut final_: bool = false;
         let mut cscreen: bool = false;
         let mut str1: Vec<u8>;
-        let mut t1: i32;
         let mut who: i32;
         let mut temp2: i32;
         let mut oldhi = Hiscore::default();
@@ -4518,10 +4924,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
     fn sorthighs(&mut self, vaihe: u8) -> u8 {
         //{ highstart: 0 - WC, 20 - TC, 30 - 4H, 35 - KOTH, 41 - CC  }
 
-        let mut t1: i32;
-        let mut t2: i32;
-        let mut t3: i32;
-        let mut t4: i32;
         let mut localnosamename: bool = self.nosamename;
         let mut leave: bool = false;
         let mut who: i32;

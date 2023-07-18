@@ -2,9 +2,9 @@ use crate::graph::GraphModule;
 use crate::help::{txt, txtp};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
-use crate::rs_util::{parse_line, read_line};
+use crate::rs_util::{parse_line, random, read_line};
 use crate::sdlport::SDLPortModule;
-use crate::unit::{valuestr, Hiscore, NUM_PL, NUM_TEAMS};
+use crate::unit::{dayandtime_now, valuestr, Hiscore, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS};
 use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::io::BufReader;
@@ -77,11 +77,12 @@ const MAX_PROFILES: u8 = 20;
 //const MAX_PROFILES: u8 = 4;
 //{$ENDIF}
 
-pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
+pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
     g: &'g GraphModule<'m, 'p, 's, 'si>,
     l: &'l LangModule,
     p: &'p PcxModule<'m, 's, 'si>,
     s: &'s SDLPortModule<'si>,
+    u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
     pub top: RefCell<Vec<Hiscore>>,
     pub nimet: RefCell<Vec<Vec<u8>>>,
     pub jnimet: RefCell<Vec<Vec<u8>>>,
@@ -94,12 +95,13 @@ pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
     maxpmaara: i32,
 }
 
-impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
+impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
     pub fn new(
         g: &'g GraphModule<'m, 'p, 's, 'si>,
         l: &'l LangModule,
         p: &'p PcxModule<'m, 's, 'si>,
         s: &'s SDLPortModule<'si>,
+        u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
     ) -> Self {
         let profiles = (0..=20).map(|_| Profile::new()).collect::<Vec<_>>();
         InfoModule {
@@ -107,6 +109,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
             l,
             p,
             s,
+            u,
             top: RefCell::new(vec![]),
             nimet: RefCell::new((0..=NUM_PL + 1).map(|_| b"".to_vec()).collect()),
             jnimet: RefCell::new((0..=NUM_TEAMS).map(|_| b"".to_vec()).collect()),
@@ -160,16 +163,100 @@ impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
         // { Fillbox(160,120,319,199,245); }
     }
 
+    pub fn reset_tops(&self, kerroin: u8) {
+        let scores1 = [
+            [1515, 1],
+            [1343, 1],
+            [1212, 2],
+            [1101, 3],
+            [999, 4],
+            [888, 5],
+            [777, 6],
+            [665, 7],
+            [555, 8],
+            [494, 10],
+            [444, 12],
+            [383, 14],
+            [333, 16],
+            [272, 18],
+            [222, 20],
+            [161, 22],
+            [111, 25],
+            [77, 30],
+            [33, 35],
+            [11, 40],
+        ];
+
+        let mut top = self.top.borrow_mut();
+        let nimet = self.nimet.borrow();
+        let jnimet = self.jnimet.borrow();
+
+        for (i, t) in scores1.iter().enumerate() {
+            top[i].score = t[0];
+            top[i].pos = t[1] as u8;
+        }
+
+        for temp in 1..=20 {
+            top[temp].name = [&nimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
+            top[temp].time = dayandtime_now();
+        }
+
+        for temp in 1..=NUM_WC_HILLS {
+            let name = [
+                &nimet[1 + random(6 + random(10)) as usize] as &[u8],
+                b"\xff",
+            ]
+            .concat();
+            let len = (self.u.hillkr(temp) as f64 / 0.94) as i32 * 10 * kerroin as i32;
+            let time = dayandtime_now();
+            self.u.set_hrinfo(temp, name, len, time);
+        }
+
+        if self.u.num_extra_hills.get() > 0 {
+            for temp in 1..=self.u.num_extra_hills.get() as i32 {
+                let name = [
+                    &nimet[1 + random(6 + random(10)) as usize] as &[u8],
+                    b"\xff",
+                ]
+                .concat();
+                let len =
+                    (self.u.hillkr(temp + NUM_WC_HILLS) as f64 / 0.94) as i32 * 10 * kerroin as i32;
+                let time = dayandtime_now();
+                self.u.set_hrinfo(temp + NUM_WC_HILLS, name, len, time);
+            }
+        }
+
+        let scores2 = [42, 35, 28, 21, 17, 11, 8, 5, 3, 1];
+        for temp in 21..=30 {
+            top[temp].pos = (temp - 20) as u8;
+            top[temp].name = [&jnimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
+            top[temp].time = dayandtime_now();
+            top[temp].score = scores2[temp - 21];
+        }
+
+        let scores3 = [[10111, 1], [9876, 3], [9449, 6], [9010, 10], [8321, 15]];
+        for temp in 31..=35 {
+            top[temp].score = scores3[temp - 31][0];
+            top[temp].pos = scores3[temp - 31][1] as u8;
+            top[temp].name = [&nimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
+            top[temp].time = dayandtime_now();
+        }
+
+        for temp in 1..=35 {
+            //{ katsos jos nollaa ne scoret! }
+            top[temp].pos = top[temp].pos * kerroin;
+            top[temp].score = top[temp].score * kerroin as i32;
+        }
+
+        for temp in 36..=41 {
+            top[temp].name = b"Not Completed".to_vec();
+            top[temp].pos = 0;
+            top[temp].score = 0;
+            top[temp].time = dayandtime_now();
+        }
+    }
+
     fn default_profile(&self, index: i32, phase: u8) {
-        /*
-        procedure defaultprofile(index:integer;phase:byte);
-        var temp : integer;
-            count, count2 : byte;
-            ok : boolean;
-
-        begin
-        */
-
         let mut profiles = self.profile.borrow_mut();
         profiles[index as usize] = Profile::new();
 
@@ -265,7 +352,13 @@ impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
-    pub fn load_names(&self, whatset: i8, teamdiscount: u8, teamlineup: &mut [u8], replaces: bool) {
+    pub fn load_names(
+        &self,
+        whatset: char,
+        teamdiscount: u8,
+        teamlineup: &mut [u8],
+        replaces: bool,
+    ) {
         let mut l1: i32 = 0;
         let mut s = b"".to_vec();
 
@@ -323,7 +416,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
             }
         }
 
-        if whatset == 0 {
+        if whatset == '0' {
             let l2: i32 = parse_line(&mut f4).unwrap(); //{ haetaan se names:n checksum }
             l1 += 5661;
             if l1 != l2 {
@@ -396,6 +489,85 @@ impl<'g, 'l, 'm, 'p, 's, 'si> InfoModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
         self.g.draw_screen();
         self.s.wait_for_key();
+    }
+
+    pub fn welcome_screen(&self, languagenumber: &mut u8) {
+        unimplemented!();
+    }
+
+    pub fn choose_seecomps(&self, seecomps: &mut u8) {
+        self.g.font_color(240);
+
+        self.g.fill_box(74, 79, 246, 133, 248);
+        self.g.fill_box(75, 80, 245, 132, 243);
+
+        self.g.write_font(85, 85, self.l.lstr(219));
+        self.g.font_color(241);
+        self.g.write_font(85, 95, self.l.lstr(150));
+
+        let mut index = *seecomps;
+        let mut sch1: u8 = 0;
+        let mut sch2: u8 = 0;
+
+        loop {
+            let (str1, color) = if index as usize > NUM_PL {
+                (self.l.lstr(index as u32).to_vec(), 240)
+            } else {
+                (
+                    [
+                        b"#" as &[u8],
+                        &txt(index as i32),
+                        b" ",
+                        &self.g.nsh(&self.nimet.borrow()[index as usize], 115),
+                    ]
+                    .concat(),
+                    246,
+                )
+            };
+
+            self.g.font_color(color);
+            self.g.fill_box(85, 105, 235, 125, 245);
+            self.g.write_font(95, 112, &str1);
+
+            self.g.draw_screen();
+            (sch1, sch2) = self.s.wait_for_key_press();
+
+            if sch1 == b'+' || sch2 == 77 || sch2 == 80 {
+                index += 1;
+                if index as usize > NUM_PL - 11 && index < 235 {
+                    index = 235;
+                }
+                if index > 240 {
+                    index = 1;
+                }
+            }
+
+            if sch1 == b'-' || sch2 == 75 || sch2 == 72 {
+                index -= 1;
+                if index < 235 && index as usize > NUM_PL {
+                    index = (NUM_PL - 11) as u8;
+                }
+                if index < 1 {
+                    index = 240;
+                }
+            }
+
+            if sch2 == 71 {
+                index = 1;
+            }
+
+            if sch2 == 79 {
+                index = 240;
+            }
+
+            if sch1 == 27 || sch2 == 68 || sch1 == 13 {
+                break;
+            }
+        }
+
+        if sch1 == 13 {
+            *seecomps = index;
+        }
     }
 }
 

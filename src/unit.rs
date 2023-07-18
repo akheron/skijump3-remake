@@ -1,5 +1,5 @@
 use crate::graph::GraphModule;
-use crate::help::txt;
+use crate::help::{num, txt, txtp};
 use crate::lang::LangModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
@@ -8,8 +8,9 @@ use crate::sdlport::SDLPortModule;
 use chrono::{Datelike, Timelike};
 use std::cell::{Cell, RefCell};
 use std::ffi::OsString;
+use std::fs;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::os::unix::prelude::OsStringExt;
 use std::path::Path;
 use std::str::from_utf8;
@@ -21,8 +22,8 @@ pub const NUM_WC_HILLS: i32 = 20; //{ montako m�ke� world cupissa }
 pub const MAX_EXTRA_HILLS: i32 = 1000; //{ montako extra m�ke� voi olla. check!!! }
 pub const MAX_CUSTOMS: i32 = 200; //{ montako custom hill filea .sjc voi olla }
 
-pub const HEX_CH: [u8; 16] = [
-    b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'A', b'B', b'C', b'D', b'E', b'F',
+pub const HEX_CH: [&[u8]; 16] = [
+    b"0", b"1", b"2", b"3", b"4", b"5", b"6", b"7", b"8", b"9", b"A", b"B", b"C", b"D", b"E", b"F",
 ];
 
 pub const WC_POINTS: [u8; 30] = [
@@ -134,6 +135,17 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
+    pub fn makevcode(&self, version: &[u8], reg: bool) {
+        let mut pos: u8 = 2; //{ v3.11 !!! }
+        if reg {
+            pos = 4;
+        }
+
+        if self.vcode.get() & pos == 0 {
+            self.vcode.set(self.vcode.get() | pos);
+        }
+    }
+
     fn givech(&self, xx: i32, yy: i32, bkcolor: u8) {
         let mut run: i32 = 0;
         loop {
@@ -164,10 +176,13 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             (yy + 6) as u16,
             bkcolor,
         );
-        self.g.write_font(xx, yy, &[self.s.ch2.get()]);
+
+        if let Some(chr) = char::from_u32(self.s.ch.get() as u32) {
+            self.g.write_font(xx, yy, format!("{}", chr).as_bytes());
+        }
     }
 
-    fn getch(&self, xx: i32, yy: i32, bkcolor: u8) {
+    pub fn getch(&self, xx: i32, yy: i32, bkcolor: u8) {
         self.g.fill_box(
             (xx - 2) as u16,
             (yy - 2) as u16,
@@ -584,6 +599,55 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
+    pub fn setup_item(&self, index: u8, screen: u8, entries: u8, str1: &[u8]) {
+        let mut xx = 25;
+        let mut yy = (index as i32 * 10) + 30;
+
+        // {$IFNDEF REG}
+        //   case screen of
+        //    0 : if (index>4) then good:=false;
+        //    1 : if (index=4) then good:=false;
+        //    2 : case index of
+        //        1,2,6,8,10 : good:=false;
+        //        end;
+        //   end;
+        //
+        //  if (not good) then fontcolor(241); { harmaaksi, jos ei ole reg option }
+        //
+        //  if (good) then fontcolor(246);
+        // {$ELSE}
+        self.g.font_color(246);
+        // {$ENDIF}
+
+        if index == 0 {
+            yy = (entries as i32 * 10) + 50;
+        }
+
+        let istr = [HEX_CH[index as usize], b"."].concat();
+        self.g.e_write_font(xx, yy, &istr);
+
+        self.g.font_color(240);
+
+        xx = 35;
+
+        self.g.write_font(
+            xx,
+            yy,
+            match screen {
+                0 => self.l.lstr(195 + index as u32),
+                1 => self.l.lstr(203 + index as u32),
+                2 => self.l.lstr(211 + index as u32),
+                3 => self.l.lstr(225 + index as u32),
+                _ => unreachable!(),
+            },
+        );
+
+        self.g.font_color(246);
+
+        xx = 255;
+        self.g.write_font(xx, yy, str1);
+    }
+
     pub fn hrname(&self, nytmaki: i32) -> Vec<u8> {
         self.hd.borrow()[nytmaki as usize].hrname.to_vec()
     }
@@ -728,7 +792,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.g.draw_screen();
     }
 
-    fn check_file(&self, phase: i32, hill: &mut Hill, str1: &str) {
+    fn check_file(&self, phase: i32, hill: &mut Hill, str1: &[u8]) {
         let str2: Vec<u8> = if phase == 1 {
             [b"BACK", hill.bk_index.as_slice(), b".PCX"].concat()
         } else {
@@ -741,7 +805,10 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                 "Error #345A: File {} does not exist,",
                 String::from_utf8_lossy(&str2)
             );
-            println!("even though it's mentioned in the {str1} file.");
+            println!(
+                "even though it's mentioned in the {} file.",
+                String::from_utf8_lossy(str1)
+            );
             println!("Using FRONT1.PCX and BACK1.PCX.");
             println!();
             println!("Press a key...");
@@ -750,24 +817,6 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             hill.fr_index = b"1".to_vec();
 
             self.s.wait_for_key_press();
-            /*
-               AsetaMoodi($3);
-               writeln('Error #345A: File '+filename+' does not exist,');
-               writeln('even though it''s mentioned in the ',str1,' file.');
-               writeln('Using FRONT1.PCX and BACK1.PCX.');
-               writeln;
-               writeln('Press a key...');
-
-               hill.bkindex:='1';
-               hill.frindex:='1';
-
-               waitforkey;
-
-               AsetaMoodi($13);
-              end;
-             end;
-
-            */
         }
     }
 
@@ -811,53 +860,32 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         result
     }
 
-    pub fn hillfile(&self, _nyt: i32) -> Vec<u8> {
-        return b"HILLBASE.SKI".to_vec();
-        /*
-        function hillfile(nyt:integer):string;
-        var str1 : string;
-            temp : integer;
-            f2 : text;
-        begin
+    pub fn hillfile(&self, nyt: i32) -> Vec<u8> {
+        if nyt <= self.num_extra_hills.get() as i32 {
+            let mut f2 = BufReader::new(File::open("MOREHILL.SKI").unwrap());
 
-         hillfile:='HILLBASE.SKI';
-
-         if (nyt<=NumExtraHills) then
-          begin
-           assign(f2,'MOREHILL.SKI');
-           {$I-}
-           reset(f2);
-           {$I+}
-           FileOK(IOResult,'MOREHILL.SKI');
-
-           str1:='ERROR.SJH';
-
-           readln(f2); { NumExtraHills pois }
-
-           for temp:=1 to nyt do
-            readln(f2,str1);
-
-           close(f2);
-
-           hillfile:=str1;
-
-          end;
-        end;
-         */
+            let mut str1 = b"ERROR.SJH".to_vec();
+            read_line(&mut f2).unwrap(); //{ NumExtraHills pois }
+            for _ in 1..=nyt {
+                str1 = read_line(&mut f2).unwrap();
+            }
+            str1
+        } else {
+            b"HILLBASE.SKI".to_vec()
+        }
     }
 
     pub fn load_info(&self, nytmaki: i32, hill: &mut Hill) {
         Self::default_hill(hill);
 
         let str1 = if nytmaki <= NUM_WC_HILLS {
-            "HILLBASE.SKI"
+            b"HILLBASE.SKI".to_vec()
         } else {
-            //str1:=hillfile(nytmaki-NumWCHills)+'.SJH';
-            unimplemented!("extra hills");
+            [&self.hillfile(nytmaki - NUM_WC_HILLS) as &[u8], b".SJH"].concat()
         };
         let temp = if nytmaki > NUM_WC_HILLS { 0 } else { nytmaki };
 
-        let mut f1 = BufReader::new(File::open(str1).unwrap());
+        let mut f1 = BufReader::new(File::open(String::from_utf8(str1.clone()).unwrap()).unwrap());
         if self.findstart(&mut f1, temp) == 0 {
             hill.name = read_line(&mut f1).unwrap();
             hill.kr = parse_line(&mut f1).unwrap();
@@ -921,7 +949,6 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         drop(f1);
 
         self.check_file(0, hill, &str1);
-        self.check_file(1, hill, &str1);
 
         /* TODO: checksum protection
         if (l1<>l2) then { joku ei t�sm��! }
@@ -952,6 +979,10 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             end;
          end;
         */
+    }
+
+    fn edit_hill(&self, h2: &mut Hill, filestr: &mut Vec<u8>, change: bool) {
+        unimplemented!();
     }
 
     pub fn check_extra_hills(&self) {
@@ -987,10 +1018,6 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             .set((NUM_WC_HILLS + self.num_extra_hills.get() as i32) as u8);
     }
 
-    pub fn read_extras(&self) {
-        // TODO
-    }
-
     pub fn keyname(&self, chw: u16) -> Vec<u8> {
         let a = (chw >> 8) as u8;
         let b = (chw & 0xff) as u8;
@@ -1023,6 +1050,589 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             65..=90 => vec![a],
             97..=122 => vec![a.to_ascii_uppercase()],
             _ => b"NULL".to_vec(),
+        }
+    }
+
+    pub fn configure_keys(&self, k: &mut [u16]) {
+        let mut leave2 = false;
+        let mut index2 = 1;
+        let mut x = 25;
+
+        loop {
+            self.g.new_screen(1, 0);
+
+            self.g.font_color(240);
+            self.g.write_font(30, 6, self.l.lstr(199));
+
+            let mut y = 0;
+            for temp in 1..=6 {
+                y = temp * 10 + 30;
+                self.g.font_color(240);
+                self.g.write_font(x + 10, y, self.l.lstr(temp as u32 + 330));
+
+                let str2 = if temp < 6 {
+                    self.keyname(k[temp as usize])
+                } else {
+                    b"".to_vec()
+                };
+
+                self.g.font_color(246);
+                self.g.write_font(x + 160, y, &str2);
+                self.g
+                    .e_write_font(x, y, &[&txt(temp) as &[u8], b"."].concat());
+            }
+
+            y += 20;
+            self.g.e_write_font(x, y, b"0.");
+            self.g.font_color(240);
+            self.g.write_font(x + 10, y, self.l.lstr(337));
+
+            index2 = self.make_menu(35, 40, 150, 10, 6, index2, 243, 0, 0);
+
+            let mut a: u8 = 0;
+            let mut b: u8 = 0;
+
+            match index2 {
+                0 => leave2 = true,
+                1..=5 => {
+                    loop {
+                        y = index2 * 10 + 30;
+
+                        self.g
+                            .fill_box(180, (y - 2) as u16, 319, (y + 7) as u16, 243);
+                        self.g.fill_area(180, y as u16 - 2, 319, (y + 7) as u16, 63);
+
+                        self.getch(185, y, 245);
+                        a = self.s.ch.get();
+                        b = self.s.ch2.get();
+
+                        let mut str2 = self.keyname(kword(a, b));
+
+                        let mut temp2 = 0;
+
+                        for temp in 1..=5 {
+                            if kword(a, b) == k[temp as usize] {
+                                temp2 = temp;
+                            }
+                        }
+
+                        if temp2 > 0 && temp2 != index2 {
+                            str2 = b"NULL".to_vec();
+                        }
+
+                        if str2 != b"NULL" {
+                            break;
+                        }
+                    }
+                    k[index2 as usize] = kword(a, b);
+                }
+                6 => defaultkeys(k),
+                _ => unreachable!(),
+            }
+
+            if leave2 {
+                break;
+            }
+        }
+    }
+
+    pub fn set_goals(&self) {
+        let mut goals = [0; NUM_WC_HILLS as usize + 1];
+
+        load_goals(&mut goals);
+
+        self.g.new_screen(1, 0);
+
+        self.g.font_color(240);
+        self.g.write_font(30, 6, self.l.lstr(200));
+        self.g.font_color(241);
+        self.g.write_font(40, 13, self.l.lstr(243));
+
+        self.g.font_color(246);
+
+        self.g.write_font(24, 23, self.l.lstr(106));
+        self.g.e_write_font(200, 23, self.l.lstr(242));
+        self.g.e_write_font(250, 23, b"K");
+        self.g.e_write_font(300, 23, b"HR");
+
+        let mut index = 1;
+        let mut leave = false;
+
+        for temp in 1..=NUM_WC_HILLS {
+            let y = temp * 8 + 24;
+            self.g.font_color(246);
+            self.g
+                .e_write_font(18, y, &[&txt(temp) as &[u8], b"."].concat());
+            self.g.font_color(240);
+            self.g
+                .write_font(24, y, &self.g.nsh(&self.hillname(temp), 140));
+
+            self.draw_goal(&goals, temp, 0);
+            self.g.font_color(247);
+            self.g.e_write_font(250, y, &txtp(self.hillkr(temp) * 10));
+            self.g.e_write_font(300, y, &txtp(self.hrlen(temp)));
+        }
+
+        self.draw_goal(&goals, NUM_WC_HILLS + 1, 0); //{ exit }
+
+        loop {
+            let y = index * 8 + 24;
+            self.draw_goal(&goals, index, 1);
+            self.g.box_(168, (y - 2) as u16, 202, (y + 6) as u16, 240);
+
+            self.g.draw_screen();
+
+            self.s.clearchs();
+            let (ch, ch2) = self.s.wait_for_key_press();
+
+            let oldindex = index;
+
+            if (ch2 == 75 || ch == b'-') && goals[index as usize] > 4 {
+                goals[index as usize] -= 5;
+            }
+            if (ch2 == 77 || ch == b'+') && goals[index as usize] < 2500 {
+                goals[index as usize] += 5;
+            }
+            if ch2 == 72 && index > 1 {
+                index -= 1;
+            }
+            if ch2 == 80 && index < 21 {
+                index += 1;
+            }
+            if ch == 13 && index == 21 || ch2 == 68 {
+                leave = true;
+            }
+            if ch == 27 || ch2 == 79 {
+                index = 21;
+            }
+            if ch2 == 71 {
+                index = 1;
+            }
+
+            self.draw_goal(&goals, oldindex, 0);
+
+            if leave {
+                break;
+            }
+        }
+
+        write_goals(&goals);
+    }
+
+    fn draw_goal(&self, goals: &[i32; NUM_WC_HILLS as usize + 1], temp2: i32, phase: i32) {
+        if phase == 0 {
+            self.g.font_color(240);
+        } else {
+            self.g.font_color(246);
+        }
+        let y = temp2 * 8 + 24;
+        self.g
+            .fill_box(168, (y - 2) as u16, 202, (y + 6) as u16, 243);
+        self.g
+            .fill_area(168, (y - 2) as u16, 202, (y + 6) as u16, 63);
+        if temp2 > 20 {
+            self.g.e_write_font(200, y, self.l.lstr(154));
+        } else {
+            self.g.e_write_font(200, y, &txtp(goals[temp2 as usize]));
+        }
+    }
+
+    pub fn write_extras(&self) {
+        for temp in 1..=self.num_extra_hills.get() {
+            self.write_extra_hill_hr(temp as i32 + NUM_WC_HILLS);
+        }
+    }
+
+    fn write_extra_hill_hr(&self, index: i32) {
+        let mut h = Hill::default();
+        self.load_info(index, &mut h);
+
+        let hd = self.hd.borrow();
+        h.hr_name = hd[index as usize].hrname.clone();
+        h.hr_len = hd[index as usize].hrlen;
+        h.hr_time = hd[index as usize].hrtime.clone();
+
+        let temp = index - NUM_WC_HILLS;
+
+        let mut f1 = File::create(
+            String::from_utf8([&self.hillfile(temp) as &[u8], b".SJH"].concat()).unwrap(),
+        );
+        if let Ok(mut f1) = f1 {
+            self.write_hill(&mut f1, h, 0, 1); //{ ainoa mesta jossa phase=1 }
+        } else {
+            println!("Error #29: Couldn''t write file {}.SJH", temp);
+            println!("Maybe the disk is full or something.");
+        }
+    }
+
+    //{ phase: 0 - tavallinen, 1 - ei profiilin checkkausta (HR:t) }
+    fn write_hill(&self, f: &mut File, mut h: Hill, index: i32, phase: i32) {
+        let mut f1 = BufWriter::new(f);
+
+        let mut l1: i32 = 0;
+
+        writeln!(f1, "*{}", (index + 64) as u8 as char).unwrap();
+        f1.write_all(&h.name).unwrap();
+        writeln!(f1).unwrap();
+        writeln!(f1, "{}", h.kr).unwrap();
+        f1.write_all(&h.fr_index).unwrap();
+        writeln!(f1).unwrap();
+        f1.write_all(&h.bk_index).unwrap();
+        writeln!(f1).unwrap();
+        writeln!(f1, "{}", h.bk_bright).unwrap();
+        writeln!(f1, "{}", h.bk_mirror).unwrap();
+        writeln!(f1, "{}", h.vx_final).unwrap();
+
+        let b = (h.pk * 100.0).round() as u8;
+        writeln!(f1, "{}", b).unwrap();
+
+        let mut a = (h.pl_save * 10000.0).round() as i32;
+        writeln!(f1, "{}", a).unwrap();
+
+        f1.write_all(&h.author).unwrap();
+        writeln!(f1).unwrap();
+
+        l1 += valuestr(&h.name, index + 1) as i32;
+        l1 += h.kr * 77;
+        let mut c = num(&h.fr_index); //{ t�m� yhteensopivuudenkin takia }
+        if c < 0 {
+            c = valuestr(&h.fr_index, index + 1) as i32; //{ jos indexiss� kirjaimia (v3.10) }
+        }
+        l1 += c * 272;
+        c = num(&h.bk_index); //{ t�m� my�s }
+        if c < 0 {
+            c = valuestr(&h.bk_index, index + 1) as i32;
+        }
+        l1 += c * 373;
+        l1 += h.bk_bright as i32 * 313;
+        l1 += h.bk_mirror as i32 * 5775;
+        l1 += h.vx_final as i32 * 333;
+
+        l1 += b as i32 % 55555;
+        l1 += a % 11111;
+        l1 += valuestr(&h.author, index + 2) as i32;
+
+        l1 ^= 787371;
+
+        writeln!(f1, "{}", l1).unwrap();
+
+        let mut l2: i32 = 0;
+        if phase == 1 {
+            writeln!(f1, "{}", h.profile).unwrap();
+        } else {
+            h.hr_name = b"Default\xff".to_vec();
+            h.hr_len = 0;
+            h.hr_time = b"Jan 1 2001 1:00".to_vec(); //{ nollataan hillrec }
+
+            self.p.lataa_pcx(
+                &format!("FRONT{}.PCX", from_utf8(&h.fr_index).unwrap()),
+                1024 * 512,
+                0,
+                0,
+            );
+            self.m.laske_linjat(&mut a, h.kr, h.pk);
+
+            for a in 0..=1023 {
+                l2 += (self.m.profiili(a) * (a % 13 + self.m.profiili(a) % 11)) % 13313;
+            }
+
+            l2 -= 1500000;
+
+            writeln!(f1, "{}", l2).unwrap();
+        }
+
+        if index == 0 {
+            //{ extra hill }
+            l1 = 0;
+
+            f1.write_all(&h.hr_name).unwrap(); //{ m�kienkkatiedot }
+            writeln!(f1).unwrap();
+            writeln!(f1, "{}", h.hr_len).unwrap();
+            f1.write_all(&h.hr_time).unwrap();
+            writeln!(f1).unwrap();
+
+            l1 += valuestr(&h.hr_name, 13) as i32; //{ checksum }
+            l1 += h.hr_len as i32 * 3553;
+            writeln!(f1, "{}", l1).unwrap();
+        }
+    }
+
+    pub fn result_box(&self, phase: u8, result: i32) {
+        let mut temp = 348 + (phase as i32 * 2);
+
+        if result != 0 {
+            temp += 1;
+        }
+
+        //{ 1 - repl, 2 - custo, 3 - extrh }
+
+        self.g.fill_box(59, 79, 261, 121, 250);
+        self.g.fill_box(60, 80, 260, 120, 245);
+
+        self.g.font_color(246);
+
+        self.g.write_font(75, 90, self.l.lstr(temp as u32));
+        self.wait_for_key3(240, 105);
+    }
+
+    pub fn hill_maker(&self, phase: u8) {
+        let show = 18;
+
+        let mut index;
+        let mut start = 0; //{ sivulis�ys... }
+
+        let cols = [/* unused */ 0, 100, 160];
+
+        let mut newfile = false;
+
+        loop {
+            self.g.new_screen(5, 0);
+
+            //{ koodeja... }
+            let mut create = 0;
+            let mut next = 0;
+            let mut prev = 0;
+
+            self.g.font_color(246);
+            self.g.write_font(5, 5, self.l.lstr(270));
+
+            self.g.font_color(241);
+            self.g.write_font(5, 21, self.l.lstr(271));
+            self.g.write_font(5, 29, self.l.lstr(272));
+
+            self.g.font_color(247);
+
+            let str1 = [
+                &txt(1 + (start / show)) as &[u8],
+                b" ",
+                self.l.lstr(8),
+                b" ",
+                &txt((self.num_extra_hills.get() as i32 - 1) / show + 1),
+            ]
+            .concat();
+
+            self.g
+                .write_font(5, 45, &[self.l.lstr(157), b" ", &str1].concat());
+            self.g.write_font(cols[1], 5, self.l.lstr(273));
+            self.g.write_font(cols[2], 5, self.l.lstr(274));
+
+            self.g.font_color(240);
+
+            let mut temp2 = self.num_extra_hills.get() as i32 - start;
+            if temp2 > show {
+                temp2 = show;
+            }
+
+            let mut items = temp2;
+
+            if self.num_extra_hills.get() > 0 {
+                for temp in 1..=temp2 {
+                    let str1 = self.g.nsh(
+                        &[
+                            &self.hillname(start + temp + NUM_WC_HILLS) as &[u8],
+                            b" K",
+                            &txt(self.hillkr(start + temp + NUM_WC_HILLS)),
+                        ]
+                        .concat(),
+                        150,
+                    );
+                    self.g
+                        .write_font(cols[1], 5 + temp * 8, &self.hillfile(start + temp));
+                    self.g.write_font(cols[2], 5 + temp * 8, &str1);
+                }
+            }
+
+            let mut temp = temp2;
+            if (self.num_extra_hills.get() as i32) < MAX_EXTRA_HILLS {
+                self.g.font_color(246);
+                temp += 1;
+                items += 1;
+                create = items;
+                self.g.write_font(cols[1], 5 + temp * 8, self.l.lstr(275)); //{ * add new * }
+            }
+
+            self.g.font_color(247);
+
+            if start + temp2 < self.num_extra_hills.get() as i32 {
+                temp += 1;
+                items += 1;
+                next = items;
+                self.g.write_font(cols[1], 5 + temp * 8, self.l.lstr(158)); //{ * next page * }
+            }
+
+            if start > 0 {
+                temp += 1;
+                items += 1;
+                prev = items;
+                self.g.write_font(cols[1], 5 + temp * 8, self.l.lstr(159)); //{ * previous page * }
+            }
+
+            self.g.font_color(240);
+
+            temp += 2;
+            self.g.write_font(cols[1], 5 + temp * 8, self.l.lstr(276));
+
+            self.g.draw_screen();
+
+            index = self.make_menu(99, 14, 221, 8, items, 1, 243, 1, 0);
+
+            if index < 0 && index.abs() + start <= self.num_extra_hills.get() as i32 {
+                //{ delete? }
+                let filestr = [&self.hillfile(index.abs() + start) as &[u8], b".SJH"].concat();
+
+                if self.might_delete(&filestr) == 0 {
+                    self.check_extra_hills();
+                    self.load_hill_info();
+                }
+            }
+
+            if index > 0 {
+                let mut h = Hill::default();
+                let mut filestr = Vec::<u8>::new();
+                let mut edit = false;
+
+                if index == next {
+                    start += show;
+                }
+                if index == prev {
+                    start -= show;
+                }
+
+                if index == create {
+                    filestr = [b"NEW", &txt(index + start) as &[u8]].concat();
+                    h = Hill::default();
+                    edit = true;
+                    newfile = true;
+                }
+
+                if index <= temp2 {
+                    //{ uusi }
+                    self.load_info(start + index + NUM_WC_HILLS, &mut h);
+                    filestr = self.hillfile(start + index);
+                    edit = true;
+                }
+
+                if edit {
+                    self.edit_hill(&mut h, &mut filestr, newfile);
+
+                    if filestr != b"NULL" {
+                        //{ sitten kirjoitetaan p��lle }
+                        let mut f1 =
+                            File::create(String::from_utf8(filestr).unwrap() + ".SJH").unwrap();
+                        self.write_hill(&mut f1, h.clone(), 0, 0);
+
+                        self.g.new_screen(5, 0);
+                        self.result_box(3, 0);
+                    }
+
+                    self.check_extra_hills();
+                    self.load_hill_info();
+                }
+            }
+
+            if index == 0 {
+                break;
+            }
+        }
+    }
+
+    pub fn read_extras(&self) {
+        let mut hd = self.hd.borrow_mut();
+        for temp in 1..=self.num_extra_hills.get() as i32 {
+            let index = temp + NUM_WC_HILLS;
+
+            let mut h = Hill::default();
+            self.load_info(index, &mut h);
+
+            hd[index as usize].hrname = h.hr_name;
+            hd[index as usize].hrlen = h.hr_len;
+            hd[index as usize].hrtime = h.hr_time;
+        }
+    }
+
+    fn might_delete(&self, filestr: &[u8]) -> u8 {
+        let mut tempb = 1;
+
+        self.g.alert_box();
+
+        self.g
+            .write_font(75, 90, &[self.l.lstr(194), b" ", &filestr].concat());
+        self.g.write_font(
+            75,
+            110,
+            &[
+                self.l.lstr(193),
+                b" (",
+                &[self.l.lch(6, 1)],
+                b"/",
+                &[self.l.lch(7, 1)],
+                b")",
+            ]
+            .concat(),
+        );
+
+        self.getch(220, 110, 243);
+
+        if self.s.ch.get().to_ascii_uppercase() == self.l.lch(6, 1).to_ascii_uppercase() {
+            fs::remove_file(from_utf8(filestr).unwrap()).unwrap();
+            tempb = 0; //{ yep, deleted }
+        }
+
+        self.s.clearchs();
+        tempb
+    }
+
+    pub fn choose_wind_place(&self, place: &mut u8) {
+        let winds = 11;
+
+        self.g.fill_box(54, 19, 276, 181, 248);
+        self.g.fill_box(55, 20, 275, 180, 243);
+
+        self.g.font_color(246);
+        self.g.write_font(75, 30, self.l.lstr(221));
+
+        let mut yy = 0;
+        for apu1 in 1..=winds {
+            yy = apu1 * 10 + 34;
+            //{ 390-top, 391-middle, 392-bottom, 393-left, 394-center, 395-right, 396-jpr }
+            let str1 = match apu1 {
+                1 => [self.l.lstr(392) as &[u8], b"-", self.l.lstr(393)].concat(),
+                2 => [self.l.lstr(391) as &[u8], b"-", self.l.lstr(393)].concat(),
+                3 => [self.l.lstr(392) as &[u8], b"-", self.l.lstr(395)].concat(),
+                4 => [self.l.lstr(392) as &[u8], b"-", self.l.lstr(394)].concat(),
+                5 => [self.l.lstr(391) as &[u8], b"-", self.l.lstr(395)].concat(),
+                6 => [self.l.lstr(390) as &[u8], b"-", self.l.lstr(395)].concat(),
+                7 => [self.l.lstr(390) as &[u8], b"-", self.l.lstr(394)].concat(),
+                8 => [self.l.lstr(390) as &[u8], b"-", self.l.lstr(393)].concat(),
+                9 => [self.l.lstr(396) as &[u8], b": ", self.l.lstr(390)].concat(), //{ oikeasti 11 }
+                10 => [self.l.lstr(396) as &[u8], b": ", self.l.lstr(391)].concat(), //{ 12 }
+                11 => [self.l.lstr(396) as &[u8], b": ", self.l.lstr(392)].concat(), //{ 13 }
+                _ => unreachable!(),
+            };
+            self.g.font_color(246);
+            self.g
+                .e_write_font(85, yy, &[&txt(apu1) as &[u8], b"."].concat());
+            self.g.font_color(240);
+            self.g.write_font(90, yy, &str1);
+        }
+
+        yy += 20;
+        self.g.font_color(246);
+        self.g.e_write_font(85, yy, b"0.");
+        self.g.font_color(240);
+        self.g.write_font(90, yy, self.l.lstr(154));
+
+        let mut apu1 = *place;
+        if apu1 > 10 {
+            apu1 -= 2;
+        }
+
+        let mut index = self.make_menu(70, 44, 140, 10, winds, apu1 as i32, 243, 4, 0);
+        if index > 8 {
+            index += 2;
+        }
+        if index > 0 {
+            *place = index as u8;
         }
     }
 
@@ -1091,6 +1701,34 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     }
 }
 
+pub fn crypt(arvo: i32, jarj: i32) -> Vec<u8> {
+    let str1 = format!("{:05}", arvo);
+    let mut str2: Vec<u8> = Vec::new();
+
+    for c in str1.chars().rev() {
+        str2.push((c as u8) + 21);
+    }
+
+    let ch1 = (68 + 2 * ((arvo % 7) ^ 1)) as u8; //{ tarkistusluku arvosta }
+    if txt(arvo).len() > 5 {
+        str2.insert(0, ch1);
+    } else {
+        str2.insert(1, ch1);
+    }
+    str2.insert(1, ch1);
+
+    let ch1 = (65 + ((jarj ^ 33) % 19)) as u8; //{ tarkistusluku j�rjestyksest� }
+    str2.insert(2, ch1);
+
+    let mut ch1 = (68 + random(6)) as u8; //{ ihan vaan satunnainen kirjain }
+    if txt(arvo).len() > 5 {
+        ch1 = str1.as_bytes()[5] + 27;
+    }
+    str2.insert(4, ch1);
+
+    str2
+}
+
 pub fn uncrypt(mut str0: Vec<u8>, jarj: i32) -> i32 {
     // All the "- 1" are because the original code uses 1-based string indexing
 
@@ -1152,6 +1790,24 @@ pub fn loadgoal(num: i32) -> i32 {
         }
     }
     value
+}
+
+fn load_goals(goals: &mut [i32; NUM_WC_HILLS as usize + 1]) {
+    if let Ok(f) = File::open("GOALS.SKI") {
+        let mut f2 = BufReader::new(f);
+        for temp2 in 1..=NUM_WC_HILLS as usize {
+            goals[temp2] = parse_line(&mut f2).unwrap();
+        }
+    }
+}
+
+fn write_goals(goals: &[i32; NUM_WC_HILLS as usize + 1]) {
+    if let Ok(f) = File::create("GOALS.SKI") {
+        let mut f2 = BufWriter::new(f);
+        for temp2 in 1..=NUM_WC_HILLS as usize {
+            writeln!(f2, "{}", goals[temp2]).unwrap();
+        }
+    }
 }
 
 pub fn kword(ch1: u8, ch2: u8) -> u16 {

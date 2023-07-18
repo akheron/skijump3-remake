@@ -61,6 +61,7 @@ fn main() {
     let graph_module = GraphModule::new(&maki_module, &pcx_module, &sdl_port_module);
 
     let mut lang_module = LangModule::new();
+    lang_module.init();
     // Originally in SJ3Module::alku()
     lang_module.load_language(1);
 
@@ -79,7 +80,13 @@ fn main() {
         &unit_module,
     );
     let tuuli_module = TuuliModule::new(&graph_module);
-    let info_module = InfoModule::new(&graph_module, &lang_module, &pcx_module, &sdl_port_module);
+    let info_module = InfoModule::new(
+        &graph_module,
+        &lang_module,
+        &pcx_module,
+        &sdl_port_module,
+        &unit_module,
+    );
     let lumi_module = LumiModule::init();
     let mut sj3_module = SJ3Module::new(
         &graph_module,
