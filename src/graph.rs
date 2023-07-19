@@ -4,6 +4,7 @@ use crate::sdlport::SDLPortModule;
 use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::io::Read;
+use std::rc::Rc;
 
 pub struct GraphModule<'m, 'p, 's, 'si> {
     m: &'m MakiModule,
@@ -166,13 +167,14 @@ impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
         unimplemented!()
     }
 
-    pub fn e_write_font(&self, xx: i32, yy: i32, s: &[u8]) {
+    pub fn e_write_font(&self, xx: i32, yy: i32, s: impl AsBytes) {
+        let s = s.as_bytes();
         self.write_font(xx - self.font_len(s), yy, s);
     }
 
-    pub fn write_font(&self, xx: i32, yy: i32, s: &[u8]) {
+    pub fn write_font(&self, xx: i32, yy: i32, s: impl AsBytes) {
         if (xx > 0) && (yy > 0) {
-            self.do_font(xx, yy, s, true);
+            self.do_font(xx, yy, s.as_bytes(), true);
         }
     }
 
@@ -231,8 +233,8 @@ impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
         p
     }
 
-    pub fn font_len(&self, s: &[u8]) -> i32 {
-        self.do_font(0, 0, s, false)
+    pub fn font_len(&self, s: impl AsBytes) -> i32 {
+        self.do_font(0, 0, s.as_bytes(), false)
     }
 
     pub fn font_color(&self, col: u8) {
@@ -464,5 +466,33 @@ impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
         } else {
             str1.to_vec()
         }
+    }
+}
+
+pub trait AsBytes {
+    fn as_bytes(&self) -> &[u8];
+}
+
+impl AsBytes for &[u8] {
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
+impl AsBytes for Rc<Vec<u8>> {
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
+impl AsBytes for &Vec<u8> {
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
+impl<const N: usize> AsBytes for &[u8; N] {
+    fn as_bytes(&self) -> &[u8] {
+        *self
     }
 }

@@ -1,4 +1,4 @@
-use crate::graph::GraphModule;
+use crate::graph::{AsBytes, GraphModule};
 use crate::help::{txt, txtp};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
@@ -161,13 +161,20 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         self.last_pos = 0;
     }
 
-    pub fn reset_list(&mut self, omat: i32, kaikki: i32, tyyli: i32, header: &[u8], inv: bool) {
+    pub fn reset_list(
+        &mut self,
+        omat: i32,
+        kaikki: i32,
+        tyyli: i32,
+        header: impl AsBytes,
+        inv: bool,
+    ) {
         self.x = 0;
         self.y = START_Y;
         self.own_players = omat;
         self.players = kaikki;
         self.phase = tyyli;
-        self.header_str = header.to_vec();
+        self.header_str = header.as_bytes().to_vec();
 
         self.inv_back = inv;
 
@@ -188,21 +195,21 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
     fn wait_for_key(&mut self, from: u8) {
         let mut temp: i32;
         let mut good: bool;
-        let mut str1: &[u8];
 
         self.g.font_color(241);
 
         if self.page > 1 {
             self.g
-                .e_write_font(319, 5, &[b"(-", self.l.lstr(246)].concat());
+                .e_write_font(319, 5, &[b"(-" as &[u8], &self.l.lstr(246)].concat());
         }
 
-        str1 = self.l.lstr(247);
+        let mut str1 = self.l.lstr(247);
         if from == 0 {
             str1 = self.l.lstr(248);
         }
 
-        self.g.e_write_font(319, 13, &[str1, b"-)"].concat());
+        self.g
+            .e_write_font(319, 13, &[&str1 as &[u8], b"-)"].concat());
 
         self.g.draw_screen();
 

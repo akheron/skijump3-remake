@@ -251,7 +251,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 308,
                 49,
                 &[
-                    self.l.lstr(242),
+                    &self.l.lstr(242) as &[u8],
                     b": ",
                     &txtp(loadgoal(self.nytmaki)) as &[u8],
                 ]
@@ -846,14 +846,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                                 0..=130 => {
                                     // drawkothinfo
                                     let str1 = [
-                                        self.l.lstr(67),
+                                        &self.l.lstr(67) as &[u8],
                                         b" ",
                                         &txt(1
                                             + self.kothmaara as i32
                                             + self.i.pmaara.get() as i32
                                             - self.mcpisteet[0]),
                                         b" ",
-                                        self.l.lstr(8),
+                                        &self.l.lstr(8),
                                         b" ",
                                         &txt(self.kothmaara as i32 + self.i.pmaara.get() as i32),
                                     ]
@@ -950,7 +950,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                                         self.g.e_write_font(
                                             308,
                                             62,
-                                            &([str1, b": ", &txtp(temp + 1)].concat()),
+                                            &([&str1 as &[u8], b": ", &txtp(temp + 1)].concat()),
                                         );
                                     }
                                 }
@@ -1122,7 +1122,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                             308,
                             temp * 10 + 9,
                             &([
-                                self.l.lstr((330 + temp) as u32),
+                                &self.l.lstr((330 + temp) as u32) as &[u8],
                                 b": ",
                                 &self.u.keyname(self.k[temp as usize]),
                             ]
@@ -1219,7 +1219,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             self.g.write_font(
                 12,
                 160,
-                &[&namestr as &[u8], b" ", self.l.lstr(79)].concat(),
+                &[&namestr as &[u8], b" ", &self.l.lstr(79)].concat(),
             );
 
             self.g.draw_screen();
@@ -2340,13 +2340,16 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         _ => [
                             &txt(self.inj[pel as usize] as i32) as &[u8],
                             b" ",
-                            self.l.lstr(76),
+                            &self.l.lstr(76),
                         ]
                         .concat(),
                     };
 
-                    self.g
-                        .e_write_font(311, 64, &[self.l.lstr(75), b" ", &str1].concat());
+                    self.g.e_write_font(
+                        311,
+                        64,
+                        &[&self.l.lstr(75) as &[u8], b" ", &str1].concat(),
+                    );
                 }
             }
 
@@ -2646,13 +2649,13 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 self.g.font_color(247);
 
-                self.g.write_font(col[1], yy, &self.l.lstr(106));
-                self.g.e_write_font(col[2], yy, &self.l.lstr(108));
-                self.g.e_write_font(col[3], yy, &self.l.lstr(109));
-                self.g.e_write_font(col[4], yy, &self.l.lstr(98));
-                self.g.e_write_font(col[5], yy, &self.l.lstr(97));
+                self.g.write_font(col[1], yy, self.l.lstr(106));
+                self.g.e_write_font(col[2], yy, self.l.lstr(108));
+                self.g.e_write_font(col[3], yy, self.l.lstr(109));
+                self.g.e_write_font(col[4], yy, self.l.lstr(98));
+                self.g.e_write_font(col[5], yy, self.l.lstr(97));
                 self.g.e_write_font(col[6], yy, b"R 1");
-                self.g.e_write_font(col[8], yy, &self.l.lstr(108));
+                self.g.e_write_font(col[8], yy, self.l.lstr(108));
                 self.g.e_write_font(col[9], yy, b"?");
                 self.g.e_write_font(col[10], yy, b"R 2");
                 self.g.e_write_font(col[12], yy, b"?");
@@ -2779,7 +2782,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         }
 
                         self.g.font_color(240);
-                        self.g.write_font(col[1], yy, &self.l.lstr(99));
+                        self.g.write_font(col[1], yy, self.l.lstr(99));
 
                         self.g.e_write_font(
                             col[2],
@@ -3857,11 +3860,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
         let mut index = 1;
 
-        // TODO
-        // if (languagenumber=255) {
-        //     WelcomeScreen(languagenumber);
-        //     Replays(true, version, gdetail);
-        // }
+        if self.languagenumber == 255 {
+            self.i.welcome_screen(&mut self.languagenumber);
+            // TODO
+            // Replays(true, version, gdetail);
+        }
 
         while index != 0 {
             self.draw_full_main();
@@ -4317,7 +4320,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     1 => match temp {
                         1 => {
                             if self.languagenumber < 255 {
-                                self.l.lnames[self.languagenumber as usize].clone()
+                                self.l.lnames[(self.languagenumber - 1) as usize].clone()
                             } else {
                                 b"Undecided".to_vec()
                             }
@@ -4505,7 +4508,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                             190
                         });
                         self.g
-                            .write_font(80, 90, &[str1, self.l.lstr(192)].concat());
+                            .write_font(80, 90, &[&str1 as &[u8], &self.l.lstr(192)].concat());
                         self.g.write_font(80, 110, self.l.lstr(193));
 
                         self.u
@@ -4575,8 +4578,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
         print!(", LANGBASE.SKI");
         if self.languagenumber != 255 {
-            // This is currently done in main because we want to be able to borrow the strings
-            //self.l.load_language(self.languagenumber);
+            self.l.load_language(self.languagenumber);
         }
 
         self.u.check_extra_hills(); //{ lukee ylim. SJH:t ja kirjoittaa MOREHILL.SKI:n }
@@ -4617,20 +4619,20 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             4 => {
                 if self.osakilpailu == self.cup_hills {
                     [
-                        self.l.lstr(90),
+                        &self.l.lstr(90) as &[u8],
                         b" ",
-                        self.l.lstr(27 + self.cup_style as u32),
+                        &self.l.lstr(27 + self.cup_style as u32),
                     ]
                     .concat()
                 } else {
                     [
-                        self.l.lstr(27 + self.cup_style as u32),
+                        &self.l.lstr(27 + self.cup_style as u32) as &[u8],
                         b" ",
-                        self.l.lstr(87),
+                        &self.l.lstr(87),
                         b" ",
                         &txt(self.osakilpailu),
                         b" ",
-                        self.l.lstr(8),
+                        &self.l.lstr(8),
                         b" ",
                         &txt(self.cup_hills),
                     ]
@@ -4649,11 +4651,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                                 temp3 = self.osakilpailu - 8; //{ joko yksin��n tai osana WC:t� }
                             }
                             [
-                                self.l.lstr(84),
+                                &self.l.lstr(84) as &[u8],
                                 b" ",
                                 &txt(temp3),
                                 b" ",
-                                self.l.lstr(83),
+                                &self.l.lstr(83),
                                 b" - ",
                                 &self.act_hill.name,
                                 b" K",
@@ -4664,16 +4666,16 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
                     1 => {
                         if self.osakilpailu == self.cup_hills {
-                            [self.l.lstr(90), b" ", self.l.lstr(28)].concat()
+                            [&self.l.lstr(90) as &[u8], b" ", &self.l.lstr(28)].concat()
                         } else {
                             [
-                                self.l.lstr(28),
+                                &self.l.lstr(28) as &[u8],
                                 b" ",
-                                self.l.lstr(87),
+                                &self.l.lstr(87),
                                 b" ",
                                 &txt(self.osakilpailu),
                                 b" ",
-                                self.l.lstr(8),
+                                &self.l.lstr(8),
                                 b" ",
                                 &txt(self.cup_hills),
                             ]
@@ -4690,12 +4692,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     self.l.lstr(81)
                 };
                 let mut str2 = if self.cup_style == 2 {
-                    [&txt(self.osakilpailu) as &[u8], b" ", self.l.lstr(83)].concat()
+                    [&txt(self.osakilpailu) as &[u8], b" ", &self.l.lstr(83)].concat()
                 } else {
                     [
                         &txt(self.osakilpailu) as &[u8],
                         b" ",
-                        self.l.lstr(8),
+                        &self.l.lstr(8),
                         b" ",
                         &txt(self.cup_hills),
                     ]
@@ -4712,7 +4714,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 if self.kierros > 0 {
                     str2 = [&str2 as &[u8], b" - R ", &txt(self.kierros)].concat();
                 }
-                [str1 as &[u8], b" ", &str2].concat()
+                [&str1 as &[u8], b" ", &str2].concat()
             }
             _ => panic!("Invalid vaihe: {}", vaihe),
         }
@@ -4720,7 +4722,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
     fn compactsign(&self) {
         self.g.font_color(241);
-        self.g.write_font(30, 190, &self.l.lstr(86));
+        self.g.write_font(30, 190, self.l.lstr(86));
     }
 
     //{ what: 0 - WCStats, 1 - normal, 2 - 4H }

@@ -62,8 +62,6 @@ fn main() {
 
     let mut lang_module = LangModule::new();
     lang_module.init();
-    // Originally in SJ3Module::alku()
-    lang_module.load_language(1);
 
     let unit_module = UnitModule::new(
         &graph_module,

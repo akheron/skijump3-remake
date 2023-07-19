@@ -13,6 +13,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::os::unix::prelude::OsStringExt;
 use std::path::Path;
+use std::rc::Rc;
 use std::str::from_utf8;
 
 pub const NUM_PL: usize = 75; //{ montako pelaajaa on ylip��t��n }
@@ -531,17 +532,17 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
         //{ jos kupat n�es }
         if grade < 10 {
-            cstr[0] = cstr[1];
+            cstr[0] = cstr[1].clone();
         }
         if grade == 1 {
             cstr[3] = self.l.lstr((index + 35) as u32);
         }
 
-        cstr[1] = cstr[random(2) as usize];
-        cstr[2] = cstr[random(2) as usize + 2];
+        cstr[1] = cstr[random(2) as usize].clone();
+        cstr[2] = cstr[random(2) as usize + 2].clone();
 
-        let joined = [cstr[1], b"*", cstr[2]].concat();
-        cstr[1] = &joined;
+        let joined = [&cstr[1] as &[u8], b"*", &cstr[2]].concat();
+        cstr[1] = Rc::new(joined);
 
         self.g.font_color(252);
 
@@ -738,7 +739,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                     y,
                     &[
                         format!("{num} - ").as_bytes(),
-                        self.l.lstr(temp as u32 + 26),
+                        &self.l.lstr(temp as u32 + 26),
                     ]
                     .concat(),
                 );
@@ -759,7 +760,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                     y,
                     &[
                         format!("{num} - ").as_bytes(),
-                        self.l.lstr(temp as u32 + 19),
+                        &self.l.lstr(temp as u32 + 19),
                     ]
                     .concat(),
                 );
@@ -784,8 +785,11 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     pub fn new_reg_text(&self, regname: &str, _regnumber: &str) {
         self.g.fill_box(128, 155, 312, 155, 9);
         self.g.font_color(240);
-        self.g
-            .write_font(132, 163, &[self.l.lstr(35), b" ", self.l.lstr(36)].concat());
+        self.g.write_font(
+            132,
+            163,
+            &[&self.l.lstr(35) as &[u8], b" ", &self.l.lstr(36)].concat(),
+        );
         self.g.font_color(246);
         self.g.fill_box(132, 175, 308, 196, 248);
         self.g.write_font(140, 177, regname.as_bytes());
@@ -1405,14 +1409,14 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             let str1 = [
                 &txt(1 + (start / show)) as &[u8],
                 b" ",
-                self.l.lstr(8),
+                &self.l.lstr(8),
                 b" ",
                 &txt((self.num_extra_hills.get() as i32 - 1) / show + 1),
             ]
             .concat();
 
             self.g
-                .write_font(5, 45, &[self.l.lstr(157), b" ", &str1].concat());
+                .write_font(5, 45, &[&self.l.lstr(157) as &[u8], b" ", &str1].concat());
             self.g.write_font(cols[1], 5, self.l.lstr(273));
             self.g.write_font(cols[2], 5, self.l.lstr(274));
 
@@ -1555,13 +1559,16 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
         self.g.alert_box();
 
-        self.g
-            .write_font(75, 90, &[self.l.lstr(194), b" ", &filestr].concat());
+        self.g.write_font(
+            75,
+            90,
+            &[&self.l.lstr(194) as &[u8], b" ", &filestr].concat(),
+        );
         self.g.write_font(
             75,
             110,
             &[
-                self.l.lstr(193),
+                &self.l.lstr(193) as &[u8],
                 b" (",
                 &[self.l.lch(6, 1)],
                 b"/",
@@ -1596,17 +1603,17 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             yy = apu1 * 10 + 34;
             //{ 390-top, 391-middle, 392-bottom, 393-left, 394-center, 395-right, 396-jpr }
             let str1 = match apu1 {
-                1 => [self.l.lstr(392) as &[u8], b"-", self.l.lstr(393)].concat(),
-                2 => [self.l.lstr(391) as &[u8], b"-", self.l.lstr(393)].concat(),
-                3 => [self.l.lstr(392) as &[u8], b"-", self.l.lstr(395)].concat(),
-                4 => [self.l.lstr(392) as &[u8], b"-", self.l.lstr(394)].concat(),
-                5 => [self.l.lstr(391) as &[u8], b"-", self.l.lstr(395)].concat(),
-                6 => [self.l.lstr(390) as &[u8], b"-", self.l.lstr(395)].concat(),
-                7 => [self.l.lstr(390) as &[u8], b"-", self.l.lstr(394)].concat(),
-                8 => [self.l.lstr(390) as &[u8], b"-", self.l.lstr(393)].concat(),
-                9 => [self.l.lstr(396) as &[u8], b": ", self.l.lstr(390)].concat(), //{ oikeasti 11 }
-                10 => [self.l.lstr(396) as &[u8], b": ", self.l.lstr(391)].concat(), //{ 12 }
-                11 => [self.l.lstr(396) as &[u8], b": ", self.l.lstr(392)].concat(), //{ 13 }
+                1 => [&self.l.lstr(392) as &[u8], b"-", &self.l.lstr(393)].concat(),
+                2 => [&self.l.lstr(391) as &[u8], b"-", &self.l.lstr(393)].concat(),
+                3 => [&self.l.lstr(392) as &[u8], b"-", &self.l.lstr(395)].concat(),
+                4 => [&self.l.lstr(392) as &[u8], b"-", &self.l.lstr(394)].concat(),
+                5 => [&self.l.lstr(391) as &[u8], b"-", &self.l.lstr(395)].concat(),
+                6 => [&self.l.lstr(390) as &[u8], b"-", &self.l.lstr(395)].concat(),
+                7 => [&self.l.lstr(390) as &[u8], b"-", &self.l.lstr(394)].concat(),
+                8 => [&self.l.lstr(390) as &[u8], b"-", &self.l.lstr(393)].concat(),
+                9 => [&self.l.lstr(396) as &[u8], b": ", &self.l.lstr(390)].concat(), //{ oikeasti 11 }
+                10 => [&self.l.lstr(396) as &[u8], b": ", &self.l.lstr(391)].concat(), //{ 12 }
+                11 => [&self.l.lstr(396) as &[u8], b": ", &self.l.lstr(392)].concat(), //{ 13 }
                 _ => unreachable!(),
             };
             self.g.font_color(246);
@@ -1647,7 +1654,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
         self.g.alert_box();
 
-        let mut tempb = self.g.font_len(&str2) + 4;
+        let mut tempb = self.g.font_len(str2.clone()) + 4;
 
         self.g.font_color(241);
         self.g.write_font(
@@ -1688,7 +1695,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
         self.g.font_color(240);
 
-        self.g.e_write_font(xx, yy, &self.l.lstr(15));
+        self.g.e_write_font(xx, yy, self.l.lstr(15));
 
         self.getch(xx + 1, yy, 243);
 

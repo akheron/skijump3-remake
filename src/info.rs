@@ -492,7 +492,76 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
     }
 
     pub fn welcome_screen(&self, languagenumber: &mut u8) {
-        unimplemented!();
+        let full = *languagenumber == 255;
+
+        if *languagenumber == 255 {
+            *languagenumber = 1;
+        }
+
+        {
+            let mut profile = self.profile.borrow_mut();
+            for temp in 1..=5 {
+                profile[temp as usize].cstyle = 1;
+            }
+        }
+
+        if full {
+            let x = 240;
+
+            self.g.new_screen(6, 0);
+
+            self.g.font_color(240);
+            self.g.e_write_font(x, 6, b"WELCOME!");
+            self.g.font_color(246);
+            self.g.e_write_font(x, 16, b"TERVETULOA!");
+            self.g.font_color(247);
+            self.g.e_write_font(x, 26, b"WILLKOMMEN!");
+            self.g.font_color(240);
+            self.g.e_write_font(x, 36, b"V\x8eLKOMMEN!");
+        } else {
+            self.g.fill_box(74, 41, 246, 186, 248);
+            self.g.fill_box(75, 42, 245, 185, 243);
+        }
+
+        let x = 100;
+
+        self.g.font_color(240);
+        self.g.write_font(x, 50, b"PLEASE CHOOSE A LANGUAGE:");
+
+        let x = 155;
+
+        self.g.font_color(246);
+
+        for temp in 1..=self.l.num_languages() {
+            self.g.write_font(
+                x - (self.g.font_len(&self.l.lnames[temp - 1]) / 2),
+                temp as i32 * 8 + 55,
+                &self.l.lnames[temp - 1],
+            );
+        }
+
+        let temp = if full { 3 } else { 7 };
+        let index = self.u.make_menu(
+            112,
+            64,
+            100,
+            8,
+            (self.l.num_languages() - 1) as i32,
+            1,
+            243,
+            temp,
+            0,
+        );
+
+        let index = if index == 0 {
+            self.l.num_languages() as i32 - 1
+        } else {
+            index
+        };
+
+        *languagenumber = index as u8;
+
+        self.l.load_language(*languagenumber);
     }
 
     pub fn choose_seecomps(&self, seecomps: &mut u8) {
