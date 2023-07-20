@@ -3866,7 +3866,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             // Replays(true, version, gdetail);
         }
 
-        while index != 0 {
+        loop {
             self.draw_full_main();
             self.u.main_menu_text(0, VERSION_FULL);
             index = self.u.make_menu(11, 97, 108, 12, 6, index, 8, 4, 2);
@@ -3902,10 +3902,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
 
             if index == 0 {
-                // index = quitting(0);
+                index = self.u.quitting(0) as i32;
             }
 
-            self.g.draw_screen();
+            if index == 0 {
+                break;
+            }
         }
     }
 

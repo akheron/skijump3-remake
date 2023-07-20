@@ -1645,11 +1645,10 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
     //{ 0-main menu, 1-world cup }
     pub fn quitting(&self, phase: u8) -> u8 {
-        let str1 = if phase == 1 {
-            self.l.lstr(245)
-        } else {
-            self.l.lrstr(251, 253)
-        };
+        let mut str1 = self.l.lrstr(251, 253);
+        if phase == 1 {
+            str1 = self.l.lstr(245);
+        }
         let str2 = self.l.lrstr(256, 258);
 
         self.g.alert_box();

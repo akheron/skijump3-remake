@@ -1,3 +1,4 @@
+use crate::rs_util::random;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
@@ -69,9 +70,8 @@ impl LangModule {
         self.lstr(index)[(num - 1) as usize]
     }
 
-    pub fn lrstr(&self, start: u32, end: u32) -> Rc<Vec<u8>> {
-        let index = start + (rand::random::<f64>() * ((end - start + 1) as f64)) as u32;
-        self.lstr(index)
+    pub fn lrstr(&self, start: u32, stop: u32) -> Rc<Vec<u8>> {
+        self.lstr(start + random(stop - start + 1))
     }
 
     fn reset_language(&mut self) {
