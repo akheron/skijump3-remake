@@ -147,7 +147,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
-    fn givech(&self, xx: i32, yy: i32, bkcolor: u8) {
+    async fn givech(&self, xx: i32, yy: i32, bkcolor: u8) {
         let mut run: i32 = 0;
         loop {
             run += 1;
@@ -162,7 +162,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                 (yy + 6) as u16,
                 col,
             );
-            self.g.draw_screen();
+            self.g.draw_screen().await;
             if self.s.key_pressed() {
                 break;
             }
@@ -183,7 +183,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
-    pub fn getch(&self, xx: i32, yy: i32, bkcolor: u8) {
+    pub async fn getch(&self, xx: i32, yy: i32, bkcolor: u8) {
         self.g.fill_box(
             (xx - 2) as u16,
             (yy - 2) as u16,
@@ -192,12 +192,12 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             bkcolor,
         );
 
-        self.givech(xx, yy, bkcolor);
+        self.givech(xx, yy, bkcolor).await;
 
-        self.g.draw_screen();
+        self.g.draw_screen().await;
     }
 
-    pub fn load_hill(&self, keula_x: &mut i32, nytmaki: i32, act_hill: &Hill) -> u8 {
+    pub async fn load_hill(&self, keula_x: &mut i32, nytmaki: i32, act_hill: &Hill) -> u8 {
         let mut res: u8 = 0;
         self.p.lataa_pcx("LOAD.PCX", 320 * 200, 0, 0);
         self.p.siirra_standardi_paletti();
@@ -228,7 +228,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             &[&act_hill.name as &[u8], b" K"].concat(),
         );
 
-        self.g.draw_screen();
+        self.g.draw_screen().await;
 
         self.p.lataa_pcx(
             &["FRONT", from_utf8(&act_hill.fr_index).unwrap(), ".PCX"].concat(),
@@ -288,7 +288,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         res
     }
 
-    pub fn make_menu(
+    pub async fn make_menu(
         &self,
         x: i32,
         y: i32,
@@ -435,7 +435,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
             self.g
                 .box_(xx, yy, xx + length as u16, yy + height as u16, boxcol);
-            self.g.draw_screen();
+            self.g.draw_screen().await;
 
             if (ch2 == 83) && (del) {
                 out = true;
@@ -455,7 +455,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
 
         if phase != 6 {
-            self.g.draw_screen();
+            self.g.draw_screen().await;
             if index > items {
                 index = 0;
             } //{ exit }
@@ -688,7 +688,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     }
 
     #[allow(dead_code)]
-    pub fn new_unreg_text(&self) {
+    pub async fn new_unreg_text(&self) {
         self.g.fill_box(130, 120, 310, 120, 9);
         self.g.font_color(240);
         self.g.write_font(150, 130, self.l.lstr(38));
@@ -701,7 +701,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.g.write_font(150, 165, self.l.lstr(temp as u32 + 1));
         self.g.font_color(240);
         self.g.write_font(150, 180, self.l.lstr(40));
-        self.g.draw_screen();
+        self.g.draw_screen().await;
     }
     pub fn main_menu_text(&self, phase: u8, version: &[u8]) {
         // var x,y, temp, num : integer;
@@ -782,7 +782,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.g.write_font(245, 30, &[b"v", version].concat());
     }
 
-    pub fn new_reg_text(&self, regname: &str, _regnumber: &str) {
+    pub async fn new_reg_text(&self, regname: &str, _regnumber: &str) {
         self.g.fill_box(128, 155, 312, 155, 9);
         self.g.font_color(240);
         self.g.write_font(
@@ -793,7 +793,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.g.font_color(246);
         self.g.fill_box(132, 175, 308, 196, 248);
         self.g.write_font(140, 177, regname.as_bytes());
-        self.g.draw_screen();
+        self.g.draw_screen().await;
     }
 
     fn check_file(&self, phase: i32, hill: &mut Hill, str1: &[u8]) {
@@ -1057,13 +1057,13 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
-    pub fn configure_keys(&self, k: &mut [u16]) {
+    pub async fn configure_keys(&self, k: &mut [u16]) {
         let mut leave2 = false;
         let mut index2 = 1;
         let mut x = 25;
 
         loop {
-            self.g.new_screen(1, 0);
+            self.g.new_screen(1, 0).await;
 
             self.g.font_color(240);
             self.g.write_font(30, 6, self.l.lstr(199));
@@ -1091,7 +1091,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             self.g.font_color(240);
             self.g.write_font(x + 10, y, self.l.lstr(337));
 
-            index2 = self.make_menu(35, 40, 150, 10, 6, index2, 243, 0, 0);
+            index2 = self.make_menu(35, 40, 150, 10, 6, index2, 243, 0, 0).await;
 
             let mut a: u8 = 0;
             let mut b: u8 = 0;
@@ -1106,7 +1106,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                             .fill_box(180, (y - 2) as u16, 319, (y + 7) as u16, 243);
                         self.g.fill_area(180, y as u16 - 2, 319, (y + 7) as u16, 63);
 
-                        self.getch(185, y, 245);
+                        self.getch(185, y, 245).await;
                         a = self.s.ch.get();
                         b = self.s.ch2.get();
 
@@ -1140,12 +1140,12 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
-    pub fn set_goals(&self) {
+    pub async fn set_goals(&self) {
         let mut goals = [0; NUM_WC_HILLS as usize + 1];
 
         load_goals(&mut goals);
 
-        self.g.new_screen(1, 0);
+        self.g.new_screen(1, 0).await;
 
         self.g.font_color(240);
         self.g.write_font(30, 6, self.l.lstr(200));
@@ -1184,7 +1184,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             self.draw_goal(&goals, index, 1);
             self.g.box_(168, (y - 2) as u16, 202, (y + 6) as u16, 240);
 
-            self.g.draw_screen();
+            self.g.draw_screen().await;
 
             self.s.clearchs();
             let (ch, ch2) = self.s.wait_for_key_press();
@@ -1361,7 +1361,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
-    pub fn result_box(&self, phase: u8, result: i32) {
+    pub async fn result_box(&self, phase: u8, result: i32) {
         let mut temp = 348 + (phase as i32 * 2);
 
         if result != 0 {
@@ -1376,10 +1376,10 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.g.font_color(246);
 
         self.g.write_font(75, 90, self.l.lstr(temp as u32));
-        self.wait_for_key3(240, 105);
+        self.wait_for_key3(240, 105).await;
     }
 
-    pub fn hill_maker(&self, phase: u8) {
+    pub async fn hill_maker(&self, phase: u8) {
         let show = 18;
 
         let mut index;
@@ -1390,7 +1390,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         let mut newfile = false;
 
         loop {
-            self.g.new_screen(5, 0);
+            self.g.new_screen(5, 0).await;
 
             //{ koodeja... }
             let mut create = 0;
@@ -1476,15 +1476,15 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             temp += 2;
             self.g.write_font(cols[1], 5 + temp * 8, self.l.lstr(276));
 
-            self.g.draw_screen();
+            self.g.draw_screen().await;
 
-            index = self.make_menu(99, 14, 221, 8, items, 1, 243, 1, 0);
+            index = self.make_menu(99, 14, 221, 8, items, 1, 243, 1, 0).await;
 
             if index < 0 && index.abs() + start <= self.num_extra_hills.get() as i32 {
                 //{ delete? }
                 let filestr = [&self.hillfile(index.abs() + start) as &[u8], b".SJH"].concat();
 
-                if self.might_delete(&filestr) == 0 {
+                if self.might_delete(&filestr).await == 0 {
                     self.check_extra_hills();
                     self.load_hill_info();
                 }
@@ -1525,8 +1525,8 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                             File::create(String::from_utf8(filestr).unwrap() + ".SJH").unwrap();
                         self.write_hill(&mut f1, h.clone(), 0, 0);
 
-                        self.g.new_screen(5, 0);
-                        self.result_box(3, 0);
+                        self.g.new_screen(5, 0).await;
+                        self.result_box(3, 0).await;
                     }
 
                     self.check_extra_hills();
@@ -1554,7 +1554,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         }
     }
 
-    fn might_delete(&self, filestr: &[u8]) -> u8 {
+    async fn might_delete(&self, filestr: &[u8]) -> u8 {
         let mut tempb = 1;
 
         self.g.alert_box();
@@ -1578,7 +1578,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             .concat(),
         );
 
-        self.getch(220, 110, 243);
+        self.getch(220, 110, 243).await;
 
         if self.s.ch.get().to_ascii_uppercase() == self.l.lch(6, 1).to_ascii_uppercase() {
             fs::remove_file(from_utf8(filestr).unwrap()).unwrap();
@@ -1589,7 +1589,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         tempb
     }
 
-    pub fn choose_wind_place(&self, place: &mut u8) {
+    pub async fn choose_wind_place(&self, place: &mut u8) {
         let winds = 11;
 
         self.g.fill_box(54, 19, 276, 181, 248);
@@ -1634,7 +1634,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             apu1 -= 2;
         }
 
-        let mut index = self.make_menu(70, 44, 140, 10, winds, apu1 as i32, 243, 4, 0);
+        let mut index = self
+            .make_menu(70, 44, 140, 10, winds, apu1 as i32, 243, 4, 0)
+            .await;
         if index > 8 {
             index += 2;
         }
@@ -1644,7 +1646,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     }
 
     //{ 0-main menu, 1-world cup }
-    pub fn quitting(&self, phase: u8) -> u8 {
+    pub async fn quitting(&self, phase: u8) -> u8 {
         let mut str1 = self.l.lrstr(251, 253);
         if phase == 1 {
             str1 = self.l.lstr(245);
@@ -1676,7 +1678,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.g.write_font(70, 90, str1);
         self.g.write_font(70, 110, str2);
 
-        self.getch(70 + tempb, 110, 243);
+        self.getch(70 + tempb, 110, 243).await;
 
         tempb = 1;
         if self.s.ch.get().to_ascii_uppercase() == self.l.lstr(6)[0] {
@@ -1687,7 +1689,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         tempb as u8
     }
 
-    pub fn wait_for_key3(&self, xx: i32, yy: i32) -> bool {
+    pub async fn wait_for_key3(&self, xx: i32, yy: i32) -> bool {
         while self.s.key_pressed() {
             self.s.wait_for_key_press();
         }
@@ -1696,7 +1698,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
         self.g.e_write_font(xx, yy, self.l.lstr(15));
 
-        self.getch(xx + 1, yy, 243);
+        self.getch(xx + 1, yy, 243).await;
 
         if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
             self.s.ch.set(27);

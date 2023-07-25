@@ -5,10 +5,12 @@ use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::surface::Surface;
-use sdl2::timer::Timer;
 use sdl2::video::{Window, WindowContext};
-use sdl2::{EventPump, EventSubsystem, TimerSubsystem};
+use sdl2::{EventPump, EventSubsystem};
 use std::cell::{Cell, RefCell};
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use std::{process, thread};
 
@@ -32,7 +34,6 @@ pub struct SDLPortModule<'a> {
     full_screen: bool,
     aspect: f64,
 
-    timer: Timer<'a, 'a>,
     frame_count: Cell<u32>,
     sub_frame_duration: Cell<Duration>,
     last_frame_instant: Cell<Instant>,
@@ -45,13 +46,15 @@ pub struct SDLPortModule<'a> {
     // Originally in SJ3HELP.PAS
     pub ch: Cell<u8>,
     pub ch2: Cell<u8>,
+
+    // Async state
+    frame_requested: Cell<bool>,
 }
 
 impl<'a> SDLPortModule<'a> {
     pub fn init(
         canvas: &'a mut Canvas<Window>,
         texture_creator: &'a TextureCreator<WindowContext>,
-        timer_subsystem: &'a TimerSubsystem,
         event_subsystem: EventSubsystem,
         event_pump: EventPump,
         window_multiplier: u32,
@@ -74,10 +77,8 @@ impl<'a> SDLPortModule<'a> {
 
         // Finally a texture for displaying 32-bit display data
         let display_texture = texture_creator
-            .create_texture_streaming(PixelFormatEnum::RGBA8888, X_RES, Y_RES)
+            .create_texture_streaming(RGBA8888, X_RES, Y_RES)
             .unwrap();
-
-        let timer = timer_subsystem.add_timer(1, /*timer_callback*/ Box::new(|| 0));
 
         let render_dest_rect = get_render_rect(canvas, aspect);
         SDLPortModule {
@@ -93,7 +94,6 @@ impl<'a> SDLPortModule<'a> {
             full_screen: false,
             aspect,
 
-            timer,
             frame_count: Cell::new(0),
             sub_frame_duration: Cell::new(Duration::new(0, 0)),
             last_frame_instant: Cell::new(Instant::now()),
@@ -104,6 +104,9 @@ impl<'a> SDLPortModule<'a> {
 
             ch: Cell::new(1),
             ch2: Cell::new(1),
+
+            // frame_requested: RefCell::new(None),
+            frame_requested: Cell::new(false),
         }
     }
 
@@ -127,7 +130,26 @@ impl<'a> SDLPortModule<'a> {
             .unwrap();
     }
 
-    pub fn render(&self, buffer: &[u8]) {
+    pub fn render_phase1(&self, buffer: &[u8]) {
+        let mut original_surface = self.original_surface.borrow_mut();
+        original_surface.with_lock_mut(|pixels| {
+            pixels.copy_from_slice(buffer);
+        });
+    }
+
+    pub async fn render_phase2(&self) {
+        self.frame_requested.replace(true);
+        RenderFuture { s: self }.await
+    }
+
+    pub fn render_phase3(&self) {
+        if !self.frame_requested.get() {
+            return;
+        }
+        self.frame_requested.set(false);
+
+        self.wait_raster();
+
         if self.window_resized.replace(false) {
             self.render_dest_rect
                 .set(get_render_rect(&self.canvas.borrow(), self.aspect));
@@ -136,11 +158,8 @@ impl<'a> SDLPortModule<'a> {
         let mut canvas = self.canvas.borrow_mut();
         canvas.clear();
 
-        // Actual rendering
-        let mut original_surface = self.original_surface.borrow_mut();
-        original_surface.with_lock_mut(|pixels| {
-            pixels.copy_from_slice(buffer);
-        });
+        // Filled by render_phase1()
+        let original_surface = self.original_surface.borrow();
 
         // Surface to texture
         let mut display_texture = self.display_texture.borrow_mut();
@@ -154,15 +173,6 @@ impl<'a> SDLPortModule<'a> {
                     });
             })
             .unwrap();
-        // SDL_LockTexture(displayTexture, nil, @pixels, @pitch);
-        //
-        // SDL_ConvertPixels(displaySurface^.w, displaySurface^.h,
-        //                   displaySurface^.format^.format,
-        //                   displaySurface^.pixels, displaySurface^.pitch,
-        //                   SDL_PIXELFORMAT_RGBA8888,
-        //                   pixels, pitch);
-        //
-        // SDL_UnlockTexture(displayTexture);
 
         // Render texture to display
         canvas
@@ -246,14 +256,6 @@ impl<'a> SDLPortModule<'a> {
     }
 
     fn wait_for_key_press_internal(&self) -> (u8, u8) {
-        /*
-        procedure WaitForKeyPress(var ch1, ch2:char);
-        var event : TSDL_Event;
-            scancode: TSDL_ScanCode;
-            keyPressed: TSDL_KeyCode;
-            keyMod: UInt16;
-        begin
-        */
         // Setting ch2 to a correct scancode value for the key pressed can be largely ignored.
         // It is only checked by the game for special keys, where ch1 is checked or assumed to be 0.
         // This also means that the game cannot differentiate between different keys producing the same character.
@@ -571,5 +573,21 @@ fn get_render_rect(canvas: &Canvas<Window>, aspect: f64) -> Rect {
     } else {
         let w = f64::round(window_h as f64 * aspect) as u32;
         Rect::new(((window_w - w) / 2) as i32, 0, w, window_h)
+    }
+}
+
+struct RenderFuture<'s, 'si> {
+    s: &'s SDLPortModule<'si>,
+}
+
+impl<'s, 'si> Future for RenderFuture<'s, 'si> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if !self.s.frame_requested.get() {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
     }
 }

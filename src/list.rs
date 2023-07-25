@@ -45,13 +45,13 @@ const COLUMN_X: [[i32; 6]; 2] = [[24, 32, 184, 199, 252, 275], [19, 23, 153, 154
 const START_Y: i32 = 23;
 
 impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
-    pub fn new(
+    pub async fn new(
         g: &'g GraphModule<'m, 'p, 's, 'si>,
         l: &'l LangModule,
         p: &'p PcxModule<'m, 's, 'si>,
         s: &'s SDLPortModule<'si>,
         u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
-    ) -> Self {
+    ) -> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         let mut ls = Self {
             g,
             l,
@@ -75,11 +75,11 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
             first_page: false,
             header_str: vec![0; 100],
         };
-        ls.reset_list(1, NUM_PL as i32, -1, b"", false);
+        ls.reset_list(1, NUM_PL as i32, -1, b"", false).await;
         ls
     }
 
-    fn new_page(&mut self) {
+    async fn new_page(&mut self) {
         let color: u8;
         match self.phase {
             0 => {
@@ -143,7 +143,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         if self.phase >= 0 {
             if self.inv_back {
                 //{ tota pit�� tsiigata viel�... }
-                self.g.draw_hill_screen();
+                self.g.draw_hill_screen().await;
                 if self.first_page {
                     self.p.siirra_standardi_paletti();
                     self.p.tallenna_alkuosa(0);
@@ -153,7 +153,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
                 }
                 self.g.draw_anim(5, 2, 62); //{ logo kehiin }
             } else {
-                self.g.new_screen(1, color);
+                self.g.new_screen(1, color).await;
             }
             self.g.font_color(240);
             self.g.write_font(30, 6, &self.header_str);
@@ -161,7 +161,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         self.last_pos = 0;
     }
 
-    pub fn reset_list(
+    pub async fn reset_list(
         &mut self,
         omat: i32,
         kaikki: i32,
@@ -188,11 +188,11 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         self.setcol3 = 247;
 
         self.columns = 1; //{ montako saraketta per sivu }
-        self.new_page();
+        self.new_page().await;
     }
 
     //{ 0 - LEAVING, 1 - PAGE_END }
-    fn wait_for_key(&mut self, from: u8) {
+    async fn wait_for_key(&mut self, from: u8) {
         let mut temp: i32;
         let mut good: bool;
 
@@ -211,7 +211,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         self.g
             .e_write_font(319, 13, &[&str1 as &[u8], b"-)"].concat());
 
-        self.g.draw_screen();
+        self.g.draw_screen().await;
 
         loop {
             temp = self.status;
@@ -286,7 +286,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         }
 
         if self.s.ch.get() == 27 && self.phase == 3 {
-            if self.u.quitting(1) == 0 {
+            if self.u.quitting(1).await == 0 {
                 self.status = -2;
             } else {
                 self.s.ch.set(1);
@@ -297,11 +297,11 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
             //{ we need a new screen }
             self.y = START_Y;
             self.x = 0;
-            self.new_page();
+            self.new_page().await;
         }
     }
 
-    fn add_y(&mut self, amount: i32) {
+    async fn add_y(&mut self, amount: i32) {
         if amount == 0 {
             self.y += self.plus;
         } else {
@@ -316,12 +316,12 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
                 self.x = 160;
             } else {
                 //{ we want new page }
-                self.wait_for_key(1);
+                self.wait_for_key(1).await;
             }
         }
     }
 
-    pub fn entry(
+    pub async fn entry(
         &mut self,
         num: i32,
         pos: i32,
@@ -464,19 +464,19 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
             }
 
             if extra[0] == b'L' {
-                self.wait_for_key(0);
+                self.wait_for_key(0).await;
             } else {
-                self.add_y(0);
+                self.add_y(0).await;
             }
         } else {
             //{ v�lihuomautus (ei nimi) tai muu s�hly }
             if extra[0] == b'L' {
                 //{ teko syy p��st� pois }
-                self.wait_for_key(0);
+                self.wait_for_key(0).await;
             } else {
                 //{ tavalinen v�lihuomautus }
                 if who > 0 {
-                    self.add_y(self.plus / 2);
+                    self.add_y(self.plus / 2).await;
                 }
 
                 if self.status >= 0 {
@@ -488,10 +488,10 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
                         name,
                     );
 
-                    self.add_y(0);
+                    self.add_y(0).await;
 
                     if who > 1 && self.status >= 0 {
-                        self.add_y(self.plus / 2);
+                        self.add_y(self.plus / 2).await;
                     }
                 }
             }

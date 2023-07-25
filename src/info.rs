@@ -122,9 +122,9 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         }
     }
 
-    pub fn draw_main_menu(&self) {
+    pub async fn draw_main_menu(&self) {
         self.g.fill_box(0, 0, 319, 199, 0);
-        self.g.draw_screen();
+        self.g.draw_screen().await;
         self.p.lataa_pcx("MAIN.PCX", 320 * 200, 0, 0);
 
         self.p.siirra_standardi_paletti();
@@ -447,7 +447,13 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         0
     }
 
-    pub fn newcrecordscreen(&self, setfile: &[u8], newhi: &Hiscore, oldhi: &Hiscore, sortby: u8) {
+    pub async fn newcrecordscreen(
+        &self,
+        setfile: &[u8],
+        newhi: &Hiscore,
+        oldhi: &Hiscore,
+        sortby: u8,
+    ) {
         let mut tempb = oldhi.score > 0;
         let mut str1: Vec<u8>;
 
@@ -487,11 +493,11 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         } else {
             self.g.write_font(85, 110, b"-");
         }
-        self.g.draw_screen();
+        self.g.draw_screen().await;
         self.s.wait_for_key();
     }
 
-    pub fn welcome_screen(&self, languagenumber: &mut u8) {
+    pub async fn welcome_screen(&self, languagenumber: &mut u8) {
         let full = *languagenumber == 255;
 
         if *languagenumber == 255 {
@@ -508,7 +514,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         if full {
             let x = 240;
 
-            self.g.new_screen(6, 0);
+            self.g.new_screen(6, 0).await;
 
             self.g.font_color(240);
             self.g.e_write_font(x, 6, b"WELCOME!");
@@ -541,17 +547,20 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         }
 
         let temp = if full { 3 } else { 7 };
-        let index = self.u.make_menu(
-            112,
-            64,
-            100,
-            8,
-            (self.l.num_languages() - 1) as i32,
-            1,
-            243,
-            temp,
-            0,
-        );
+        let index = self
+            .u
+            .make_menu(
+                112,
+                64,
+                100,
+                8,
+                (self.l.num_languages() - 1) as i32,
+                1,
+                243,
+                temp,
+                0,
+            )
+            .await;
 
         let index = if index == 0 {
             self.l.num_languages() as i32 - 1
@@ -564,7 +573,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
         self.l.load_language(*languagenumber);
     }
 
-    pub fn choose_seecomps(&self, seecomps: &mut u8) {
+    pub async fn choose_seecomps(&self, seecomps: &mut u8) {
         self.g.font_color(240);
 
         self.g.fill_box(74, 79, 246, 133, 248);
@@ -598,7 +607,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
             self.g.fill_box(85, 105, 235, 125, 245);
             self.g.write_font(95, 112, &str1);
 
-            self.g.draw_screen();
+            self.g.draw_screen().await;
             (sch1, sch2) = self.s.wait_for_key_press();
 
             if sch1 == b'+' || sch2 == 77 || sch2 == 80 {

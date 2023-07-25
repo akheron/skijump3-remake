@@ -38,13 +38,13 @@ impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
         }
     }
 
-    pub fn draw_screen(&self) {
-        self.s.wait_raster();
-        self.s.render(self.m.video.borrow().as_ref());
+    pub async fn draw_screen(&self) {
+        self.s.render_phase1(self.m.video.borrow().as_ref());
+        self.s.render_phase2().await;
     }
-    pub fn draw_hill_screen(&self) {
+    pub async fn draw_hill_screen(&self) {
         self.m.tulosta();
-        self.draw_screen();
+        self.draw_screen().await;
     }
     pub fn close_graph(&self) {
         unimplemented!()
@@ -313,7 +313,7 @@ impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
         unimplemented!()
     }
 
-    pub fn new_screen(&self, style: u8, color: u8) {
+    pub async fn new_screen(&self, style: u8, color: u8) {
         self.fill_box(0, 0, 319, 199, 0);
 
         match style {
@@ -415,7 +415,7 @@ impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
         }
 
         self.p.aseta_paletti();
-        self.draw_screen();
+        self.draw_screen().await;
     }
 
     pub fn alert_box(&self) {

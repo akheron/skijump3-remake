@@ -260,7 +260,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         }
     }
 
-    fn hyppy(&mut self, index: i32, pel: i32, team: i32) {
+    async fn hyppy(&mut self, index: i32, pel: i32, team: i32) {
         let mut tempb: u8 = 0;
         let mut temp: i32;
         let mut temp2: i32;
@@ -450,6 +450,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             if self
                 .u
                 .load_hill(&mut self.keula_x, self.nytmaki, &self.act_hill)
+                .await
                 != 0
             {
                 self.s.ch.set(27);
@@ -458,7 +459,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             self.m.x.set(0);
             self.m.y.set(0);
-            self.g.draw_hill_screen();
+            self.g.draw_hill_screen().await;
 
             self.tuuli.hae();
         }
@@ -969,7 +970,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
                 }
 
-                self.g.draw_screen();
+                self.g.draw_screen().await;
 
                 self.s.ch.set(1);
 
@@ -982,7 +983,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     if self.s.ch.get().to_ascii_uppercase() == self.l.lch(60, 1) {
-                        self.setup_menu();
+                        self.setup_menu().await;
                         self.s.ch.set(1);
                         self.p
                             .load_suit(self.i.profile.borrow()[actprofile as usize].suitcolor, 0);
@@ -1132,7 +1133,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     self.g.font_color(247);
                 }
 
-                self.g.draw_screen();
+                self.g.draw_screen().await;
 
                 self.s.ch.set(0);
                 self.s.ch2.set(0);
@@ -1222,7 +1223,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 &[&namestr as &[u8], b" ", &self.l.lstr(79)].concat(),
             );
 
-            self.g.draw_screen();
+            self.g.draw_screen().await;
 
             self.s.wait_for_key_press();
             self.s.ch.set(27);
@@ -1686,7 +1687,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
                     rturns += 1;
 
-                    self.g.draw_screen();
+                    self.g.draw_screen().await;
                 }
 
                 if out {
@@ -2174,7 +2175,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                     rturns += 1;
 
-                    self.g.draw_screen();
+                    self.g.draw_screen().await;
 
                     if out {
                         //{ LASKU LOPPUU }
@@ -2385,7 +2386,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
             //{$ENDIF}
 
-            self.g.draw_screen();
+            self.g.draw_screen().await;
 
             if draw {
                 self.s.putsaa();
@@ -2428,7 +2429,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                  */
     }
 
-    fn showstats(&mut self) {
+    async fn showstats(&mut self) {
         let mut count: i32;
         let mut temp: i32;
         let mut yy: i32;
@@ -2448,7 +2449,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
         if self.jcup {
             for team in 0..=self.jmaara - 1 {
-                self.g.new_screen(1, 5);
+                self.g.new_screen(1, 5).await;
 
                 self.g.font_color(240);
                 self.g.write_font(
@@ -2609,19 +2610,21 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     yy += 7;
                 }
 
-                self.g.draw_screen();
+                self.g.draw_screen().await;
                 self.cupslut = self.s.wait_for_key2();
             }
         } else {
             player = 1;
 
-            self.ls.reset_list(
-                self.i.pmaara.get() as i32,
-                NUM_PL as i32,
-                7,
-                self.l.lstr(89),
-                self.inv_back,
-            );
+            self.ls
+                .reset_list(
+                    self.i.pmaara.get() as i32,
+                    NUM_PL as i32,
+                    7,
+                    self.l.lstr(89),
+                    self.inv_back,
+                )
+                .await;
 
             loop {
                 self.g.font_color(240);
@@ -2859,7 +2862,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 } else {
                     b"X"
                 };
-                player = self.ls.entry(player, 0, 0, b"", 0, 0, 0, str1);
+                player = self.ls.entry(player, 0, 0, b"", 0, 0, 0, str1).await;
 
                 if player == -2 {
                     self.cupslut = true;
@@ -2993,7 +2996,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
     // { oldvaiheet: 0 - WCquali  1 - WC, 2 - 4hills }
     // { newvaiheet: 0 - WCquali, 1 - WCk1, 2 - WCk2, 3 - 4H, 4 - MClista }
     // { monta :         kaikki,    qualit,    qualit,  >4pts     >MCpist }
-    fn lista(&mut self, vaihe: u8) {
+    async fn lista(&mut self, vaihe: u8) {
         let mut t1: i32 = 0;
         let mut t2: i32 = 0;
         let mut pts: i32;
@@ -3030,13 +3033,15 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             _ => 0,
         };
 
-        self.ls.reset_list(
-            self.i.pmaara.get() as i32,
-            NUM_PL as i32,
-            temp,
-            &self.donewheader(vaihe),
-            self.inv_back,
-        );
+        self.ls
+            .reset_list(
+                self.i.pmaara.get() as i32,
+                NUM_PL as i32,
+                temp,
+                &self.donewheader(vaihe),
+                self.inv_back,
+            )
+            .await;
         if self.compactlist {
             self.compactsign();
         }
@@ -3098,7 +3103,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 && vaihe == 1
             {
                 //{ 1. kierron v�liviiva }
-                temp2 = self.ls.entry(0, 0, 2, b"- - -", 0, 0, 0, b"X");
+                temp2 = self.ls.entry(0, 0, 2, b"- - -", 0, 0, 0, b"X").await;
             }
 
             if temp2 >= 0 {
@@ -3179,44 +3184,39 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 match vaihe {
                     0 => {
-                        temp = self.ls.entry(
-                            temp,
-                            self.sija[who as usize] as i32,
-                            who,
-                            &self.i.nimet.borrow()[who as usize],
-                            pts,
-                            self.cstats[0][who as usize],
-                            0,
-                            &extra,
-                        );
+                        temp = self
+                            .ls
+                            .entry(
+                                temp,
+                                self.sija[who as usize] as i32,
+                                who,
+                                &self.i.nimet.borrow()[who as usize],
+                                pts,
+                                self.cstats[0][who as usize],
+                                0,
+                                &extra,
+                            )
+                            .await;
                     }
                     1 | 2 => {
-                        temp = self.ls.entry(
-                            temp,
-                            self.sija[who as usize] as i32,
-                            who,
-                            &self.i.nimet.borrow()[who as usize],
-                            pts,
-                            self.cstats[1][who as usize],
-                            self.cstats[2][who as usize],
-                            &extra,
-                        );
+                        temp = self
+                            .ls
+                            .entry(
+                                temp,
+                                self.sija[who as usize] as i32,
+                                who,
+                                &self.i.nimet.borrow()[who as usize],
+                                pts,
+                                self.cstats[1][who as usize],
+                                self.cstats[2][who as usize],
+                                &extra,
+                            )
+                            .await;
                     }
                     3 => {
-                        temp = self.ls.entry(
-                            temp,
-                            self.sija[who as usize] as i32,
-                            who,
-                            &self.i.nimet.borrow()[who as usize],
-                            pts,
-                            0,
-                            0,
-                            &extra,
-                        );
-                    }
-                    4 => {
-                        if self.mcpisteet[who as usize] > 0 {
-                            temp = self.ls.entry(
+                        temp = self
+                            .ls
+                            .entry(
                                 temp,
                                 self.sija[who as usize] as i32,
                                 who,
@@ -3225,7 +3225,24 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                                 0,
                                 0,
                                 &extra,
-                            );
+                            )
+                            .await;
+                    }
+                    4 => {
+                        if self.mcpisteet[who as usize] > 0 {
+                            temp = self
+                                .ls
+                                .entry(
+                                    temp,
+                                    self.sija[who as usize] as i32,
+                                    who,
+                                    &self.i.nimet.borrow()[who as usize],
+                                    pts,
+                                    0,
+                                    0,
+                                    &extra,
+                                )
+                                .await;
                         }
                     }
                     _ => {}
@@ -3237,7 +3254,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     && self.sija[who as usize] <= 10
                 {
                     valiviiva = true;
-                    temp2 = self.ls.entry(0, 0, 2, b"...", 0, 0, 0, b"X"); //{ v�liviiva }
+                    temp2 = self.ls.entry(0, 0, 2, b"...", 0, 0, 0, b"X").await;
+                    //{ v�liviiva }
                 }
             }
 
@@ -3261,13 +3279,13 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             && vaihe == 4
             && (self.lct || self.osakilpailu == NUM_WC_HILLS)
         {
-            self.showstats();
+            self.showstats().await;
         }
         //{$ENDIF}
     }
 
     //{ 0-esittely, 1-tuloksien kanssa }
-    fn showpairs(&mut self, phase: u8) {
+    async fn showpairs(&mut self, phase: u8) {
         let draw_stuff = |column: u8, row: u8, item: u8, who: i32| {
             let xx = 145 + (column as i32 * 30);
             let yy = 17 + (row as i32 * 7);
@@ -3324,7 +3342,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 _ => {}
             }
         };
-        self.g.new_screen(1, 0);
+        self.g.new_screen(1, 0).await;
         self.g.font_color(240);
         self.g.write_font(30, 6, self.l.lstr(94));
         self.g.font_color(241);
@@ -3366,7 +3384,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 }
             }
         }
-        self.cupslut = self.u.wait_for_key3(305, 6);
+        self.cupslut = self.u.wait_for_key3(305, 6).await;
     }
 
     fn jumpalku(&mut self) {
@@ -3384,7 +3402,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
     }
 
     //{ cupstyle: 0 - SJ3 WC, 1 - Custom WC, 2 - Just 4Hills }
-    fn cup(&mut self) {
+    async fn cup(&mut self) {
         let mut temp2 = 0;
         let mut index = 0;
         let mut sortby = 0u8; //{ sortby: 0 - WC, 1 - t_points }
@@ -3490,7 +3508,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         if self.inj[self.mcluett[index] as usize] == 0 {
                             //{ onko loukkaantunut? }
                             if !self.cupslut {
-                                self.hyppy(index as i32, self.mcluett[index] as i32, 0);
+                                self.hyppy(index as i32, self.mcluett[index] as i32, 0)
+                                    .await;
                                 self.eka = false;
                             }
                         }
@@ -3526,7 +3545,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                                 && (self.qual[self.mcluett[index] as usize] > 0))
                         {
                             //{ skipquali mahis }
-                            self.hyppy(index as i32, self.mcluett[index] as i32, 0);
+                            self.hyppy(index as i32, self.mcluett[index] as i32, 0)
+                                .await;
                             self.eka = false;
                         }
                     }
@@ -3592,7 +3612,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 if !self.cupslut {
                     //{ karsinnan tulokset }
                     self.jarjestys(2, 1, NUM_PL as u8);
-                    self.lista(0);
+                    self.lista(0).await;
                 }
 
                 if !self.cupslut && dokosystem {
@@ -3600,7 +3620,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     for temp in 1..=NUM_PL {
                         self.luett[self.qual[temp] as usize] = temp as u8;
                     }
-                    self.showpairs(0);
+                    self.showpairs(0).await;
                 }
             } else {
                 for temp in 1..=NUM_PL {
@@ -3630,7 +3650,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         }
 
                         if self.inj[self.luett[index] as usize] == 0 && !self.cupslut {
-                            self.hyppy(index as i32, self.luett[index] as i32, 0);
+                            self.hyppy(index as i32, self.luett[index] as i32, 0).await;
                             self.eka = false;
                         }
                     }
@@ -3641,7 +3661,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         && self.inj[self.mcluett[index] as usize] == 0
                         && !self.cupslut
                     {
-                        self.hyppy(index as i32, self.mcluett[index] as i32, 0);
+                        self.hyppy(index as i32, self.mcluett[index] as i32, 0)
+                            .await;
                         self.eka = false;
                     }
                 }
@@ -3651,7 +3672,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 //{ 1. kierroksen tulokset }
                 self.jarjestys(2, 1, NUM_PL as u8);
                 self.updatestats(1);
-                self.lista(1);
+                self.lista(1).await;
             }
 
             for temp in 0..=NUM_PL {
@@ -3696,7 +3717,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 }
 
                 if !self.cupslut {
-                    self.showpairs(1);
+                    self.showpairs(1).await;
                 }
 
                 self.jarjestys(0, 0, NUM_PL as u8); //{ ett� mcliivi on oikealla miehell� }
@@ -3712,7 +3733,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         && self.qual[self.luett[index] as usize] > 0
                         && !self.cupslut
                     {
-                        self.hyppy(index as i32, self.luett[index] as i32, 0);
+                        self.hyppy(index as i32, self.luett[index] as i32, 0).await;
                         self.eka = false;
                     }
                 }
@@ -3735,7 +3756,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 //{ 2.kierros tulokset }
                 self.jarjestys(2, 1, NUM_PL as u8);
                 self.updatestats(1);
-                self.lista(2);
+                self.lista(2).await;
             }
 
             if !self.cupslut && sortby == 0 {
@@ -3748,7 +3769,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 self.jarjestys(0, 0, NUM_PL as u8);
                 self.updatestats(0);
-                self.lista(4);
+                self.lista(4).await;
             }
 
             for temp in 0..=NUM_PL + 1 {
@@ -3765,10 +3786,10 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 //{ ja yhteispiste tulokset }
                 self.jarjestys(1, 1, NUM_PL as u8);
                 self.updatestats(2);
-                self.lista(3);
+                self.lista(3).await;
             }
 
-            self.updaterecords(sortby); //{ enn�tystauluja jos tarvis }
+            self.updaterecords(sortby).await; //{ enn�tystauluja jos tarvis }
 
             if (self.osakilpailu == self.cup_hills) || (self.s.ch.get() == 27) || (self.cupslut) {
                 break;
@@ -3803,37 +3824,37 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         }
     }
 
-    fn draw_full_main(&mut self) {
-        self.i.draw_main_menu();
+    async fn draw_full_main(&mut self) {
+        self.i.draw_main_menu().await;
 
         // TODO
         //{$IFDEF REG}
-        self.u.new_reg_text(REGNAME, REGNUMBER);
+        self.u.new_reg_text(REGNAME, REGNUMBER).await;
         // {$ELSE}
         //self.u.new_unreg_text();
         // {$ENDIF}
     }
 
-    fn jump_menu(&mut self) {
+    async fn jump_menu(&mut self) {
         let mut index = 1;
 
         while index != 0 {
             self.u.main_menu_text(1, VERSION_FULL);
 
-            index = self.u.make_menu(11, 97, 108, 12, 6, index, 8, 4, 0);
+            index = self.u.make_menu(11, 97, 108, 12, 6, index, 8, 4, 0).await;
 
             match index {
                 1 => {
                     self.cup_style = 0;
-                    self.cup();
+                    self.cup().await;
                 }
                 2 => {
                     self.cup_style = 1;
-                    self.cup();
+                    self.cup().await;
                 }
                 3 => {
                     self.cup_style = 2;
-                    self.cup();
+                    self.cup().await;
                 }
                 //{$IFDEF REG}
                 4 => {
@@ -3850,30 +3871,30 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
 
             if index != 0 {
-                self.draw_full_main();
+                self.draw_full_main().await;
             }
         }
     }
 
-    pub fn main_menu(&mut self) {
+    pub async fn main_menu(&mut self) {
         self.g.fill_box(0, 0, 319, 199, 0);
 
         let mut index = 1;
 
         if self.languagenumber == 255 {
-            self.i.welcome_screen(&mut self.languagenumber);
+            self.i.welcome_screen(&mut self.languagenumber).await;
             // TODO
             // Replays(true, version, gdetail);
         }
 
         loop {
-            self.draw_full_main();
+            self.draw_full_main().await;
             self.u.main_menu_text(0, VERSION_FULL);
-            index = self.u.make_menu(11, 97, 108, 12, 6, index, 8, 4, 2);
+            index = self.u.make_menu(11, 97, 108, 12, 6, index, 8, 4, 2).await;
 
             match index {
                 1 => {
-                    self.jump_menu();
+                    self.jump_menu().await;
                 }
                 2 => {
                     // LoadNames(namenumber,jmaara,TeamLineup,false);
@@ -3883,7 +3904,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     // LoadNames(namenumber,jmaara,TeamLineup,true);
                 }
                 3 => {
-                    self.setup_menu();
+                    self.setup_menu().await;
                 }
                 4 => {
                     //showtops(0);
@@ -3902,7 +3923,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             }
 
             if index == 0 {
-                index = self.u.quitting(0) as i32;
+                index = self.u.quitting(0).await as i32;
             }
 
             if index == 0 {
@@ -4297,13 +4318,13 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         self.windplace = parse_line(&mut f2).unwrap();
     }
 
-    fn setup_menu(&mut self) {
+    async fn setup_menu(&mut self) {
         let mut index = [1, 1, 1, 1, 1];
         let mut screen: u8 = 0;
         let mut out = false;
 
         loop {
-            self.g.new_screen(1, 0);
+            self.g.new_screen(1, 0).await;
 
             self.g.font_color(240);
 
@@ -4408,28 +4429,31 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             //    end;
             // {$ENDIF}
 
-            self.g.draw_screen();
+            self.g.draw_screen().await;
 
-            index[screen as usize] = self.u.make_menu(
-                35,
-                40,
-                length,
-                10,
-                entries as i32,
-                index[screen as usize],
-                243,
-                0,
-                0,
-            );
+            index[screen as usize] = self
+                .u
+                .make_menu(
+                    35,
+                    40,
+                    length,
+                    10,
+                    entries as i32,
+                    index[screen as usize],
+                    243,
+                    0,
+                    0,
+                )
+                .await;
 
             match screen {
                 0 => match index[screen as usize] {
                     1 | 2 | 3 => screen = index[screen as usize] as u8,
-                    4 => self.u.configure_keys(&mut self.k),
-                    5 => self.u.set_goals(),
+                    4 => self.u.configure_keys(&mut self.k).await,
+                    5 => self.u.set_goals().await,
                     6 => {
                         self.u.write_extras();
-                        self.u.hill_maker(0);
+                        self.u.hill_maker(0).await;
                         self.u.read_extras();
                     }
                     0 => out = true,
@@ -4437,7 +4461,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 },
 
                 1 => match index[screen as usize] {
-                    1 => self.i.welcome_screen(&mut self.languagenumber),
+                    1 => self.i.welcome_screen(&mut self.languagenumber).await,
                     2 => self.beeppi = !self.beeppi,
                     3 => {
                         self.gdetail += 1;
@@ -4449,7 +4473,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         let mut n: char;
                         let mut ch = 0;
                         loop {
-                            self.u.getch(255, 70, 245);
+                            self.u.getch(255, 70, 245).await;
                             ch = self.s.ch.get();
                             if let Some(chr) = char::from_u32(ch as u32) {
                                 n = chr;
@@ -4487,10 +4511,10 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     7 => self.automatichrr = !self.automatichrr,
                     8 => self.goals = !self.goals,
                     9 => {
-                        self.i.choose_seecomps(&mut self.seecomps);
+                        self.i.choose_seecomps(&mut self.seecomps).await;
                     }
                     10 => {
-                        self.u.choose_wind_place(&mut self.windplace);
+                        self.u.choose_wind_place(&mut self.windplace).await;
                     }
                     11 => self.kosystem = !self.kosystem,
                     0 => screen = 0,
@@ -4514,7 +4538,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         self.g.write_font(80, 110, self.l.lstr(193));
 
                         self.u
-                            .getch(88 + self.g.font_len(self.l.lstr(193)), 110, 243);
+                            .getch(88 + self.g.font_len(self.l.lstr(193)), 110, 243)
+                            .await;
 
                         if self.s.ch.get().to_ascii_uppercase() == self.l.lch(6, 1) {
                             self.reset_hiscore(4 - index[screen as usize] as u8);
@@ -4814,7 +4839,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         }
     }
 
-    fn updaterecords(&mut self, mut sortby: u8) {
+    async fn updaterecords(&mut self, mut sortby: u8) {
         let mut final_: bool = false;
         let mut cscreen: bool = false;
         let mut str1: Vec<u8>;
@@ -4881,7 +4906,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     &mut self.cup_hills,
                 );
                 oldhi = self.i.top.borrow()[42].clone();
-                temp2 = self.sorthighs(4 + sortby) as i32;
+                temp2 = self.sorthighs(4 + sortby).await as i32;
 
                 if temp2 == 1 && self.setfile != b"TEMP" {
                     cscreen = true;
@@ -4898,25 +4923,27 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             match self.cup_style {
                 0 => {
                     if self.osakilpailu == 12 {
-                        self.sorthighs(2);
+                        self.sorthighs(2).await;
                     }
                     if final_ {
-                        self.sorthighs(0);
+                        self.sorthighs(0).await;
                     }
                 }
                 1 => {
                     if cscreen {
-                        self.i.newcrecordscreen(
-                            &self.setfile,
-                            &self.i.top.borrow()[42],
-                            &oldhi,
-                            sortby,
-                        );
+                        self.i
+                            .newcrecordscreen(
+                                &self.setfile,
+                                &self.i.top.borrow()[42],
+                                &oldhi,
+                                sortby,
+                            )
+                            .await;
                     }
                 }
                 2 => {
                     if final_ {
-                        self.sorthighs(2);
+                        self.sorthighs(2).await;
                     }
                 }
                 _ => {}
@@ -4925,7 +4952,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
     }
 
     //{ vaihe: 0 - WC, 1 - TC, 2 - 4H, 3 - KOTH, 4 - CC_MC, 5 - CC_4P }
-    fn sorthighs(&mut self, vaihe: u8) -> u8 {
+    async fn sorthighs(&mut self, vaihe: u8) -> u8 {
         //{ highstart: 0 - WC, 20 - TC, 30 - 4H, 35 - KOTH, 41 - CC  }
 
         let mut localnosamename: bool = self.nosamename;
@@ -5032,9 +5059,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         return_ = t2; //{ pyrkii palauttamaan lis�tyn pelaajan sijan }
 
                         if vaihe < 4 {
-                            self.g.new_screen(1, 0);
+                            self.g.new_screen(1, 0).await;
                             self.dolist(t2, vaihe);
-                            self.u.wait_for_key3(305, 6);
+                            self.u.wait_for_key3(305, 6).await;
                         }
                     }
                     break;
