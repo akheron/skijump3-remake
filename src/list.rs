@@ -221,7 +221,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
 
             good = false;
 
-            self.s.wait_for_key_press();
+            self.s.wait_for_key_press().await;
 
             match self.s.ch.get() {
                 13 | 27 => {

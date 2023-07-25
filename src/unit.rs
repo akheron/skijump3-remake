@@ -168,7 +168,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             }
         }
 
-        self.s.wait_for_key_press();
+        self.s.wait_for_key_press().await;
 
         self.g.fill_box(
             xx as u16,
@@ -333,7 +333,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             let oldindex = index;
 
             let (ch, ch2) = if self.s.key_pressed() {
-                self.s.wait_for_key_press()
+                self.s.wait_for_key_press().await
             } else {
                 (0, 0)
             };
@@ -819,8 +819,6 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
             hill.bk_index = b"1".to_vec();
             hill.fr_index = b"1".to_vec();
-
-            self.s.wait_for_key_press();
         }
     }
 
@@ -1187,7 +1185,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             self.g.draw_screen().await;
 
             self.s.clearchs();
-            let (ch, ch2) = self.s.wait_for_key_press();
+            let (ch, ch2) = self.s.wait_for_key_press().await;
 
             let oldindex = index;
 
@@ -1691,7 +1689,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
     pub async fn wait_for_key3(&self, xx: i32, yy: i32) -> bool {
         while self.s.key_pressed() {
-            self.s.wait_for_key_press();
+            self.s.wait_for_key_press().await;
         }
 
         self.g.font_color(240);

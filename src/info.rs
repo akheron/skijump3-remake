@@ -494,7 +494,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
             self.g.write_font(85, 110, b"-");
         }
         self.g.draw_screen().await;
-        self.s.wait_for_key();
+        self.s.wait_for_key().await;
     }
 
     pub async fn welcome_screen(&self, languagenumber: &mut u8) {
@@ -608,7 +608,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
             self.g.write_font(95, 112, &str1);
 
             self.g.draw_screen().await;
-            (sch1, sch2) = self.s.wait_for_key_press();
+            (sch1, sch2) = self.s.wait_for_key_press().await;
 
             if sch1 == b'+' || sch2 == 77 || sch2 == 80 {
                 index += 1;

@@ -975,7 +975,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 self.s.ch.set(1);
 
                 if self.s.key_pressed() {
-                    self.s.wait_for_key_press();
+                    self.s.wait_for_key_press().await;
 
                     if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
                         self.cupslut = true;
@@ -1139,7 +1139,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 self.s.ch2.set(0);
 
                 if self.s.key_pressed() {
-                    let (ch, ch2) = self.s.wait_for_key_press();
+                    let (ch, ch2) = self.s.wait_for_key_press().await;
                     self.s.ch.set(ch);
                     self.s.ch2.set(ch2);
                     self.s.ch.set(self.s.ch.get().to_ascii_uppercase());
@@ -1225,7 +1225,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             self.g.draw_screen().await;
 
-            self.s.wait_for_key_press();
+            self.s.wait_for_key_press().await;
             self.s.ch.set(27);
         }
 
@@ -1269,7 +1269,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 self.s.ch2.set(0);
 
                 if self.s.key_pressed() {
-                    let (ch, ch2) = self.s.wait_for_key_press();
+                    let (ch, ch2) = self.s.wait_for_key_press().await;
                     self.s.ch.set(ch.to_ascii_uppercase());
                     self.s.ch2.set(ch2);
 
@@ -1296,7 +1296,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     if self.s.ch.get() == b'P' {
-                        self.s.wait_for_key_press();
+                        self.s.wait_for_key_press().await;
                     }
                 }
 
@@ -2049,7 +2049,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     self.s.ch.set(0);
 
                     if self.s.key_pressed() {
-                        let (ch, ch2) = self.s.wait_for_key_press();
+                        let (ch, ch2) = self.s.wait_for_key_press().await;
                         self.s.ch.set(ch.to_ascii_uppercase());
                         self.s.ch2.set(ch2);
                     }
@@ -2062,7 +2062,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         out = true;
                     }
                     if self.s.ch.get() == b'P' {
-                        let (ch, ch2) = self.s.wait_for_key_press();
+                        let (ch, ch2) = self.s.wait_for_key_press().await;
                         self.s.ch.set(ch);
                         self.s.ch2.set(ch2);
                     }
@@ -2390,9 +2390,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             if draw {
                 self.s.putsaa();
-                self.cupslut = self.s.wait_for_key2();
+                self.cupslut = self.s.wait_for_key2().await;
             } else if self.s.key_pressed() {
-                self.s.wait_for_key_press();
+                self.s.wait_for_key_press().await;
                 if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
                     self.cupslut = true;
                 }
@@ -2611,7 +2611,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 }
 
                 self.g.draw_screen().await;
-                self.cupslut = self.s.wait_for_key2();
+                self.cupslut = self.s.wait_for_key2().await;
             }
         } else {
             player = 1;

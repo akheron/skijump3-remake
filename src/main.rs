@@ -21,13 +21,16 @@ use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
-use crate::sdlport::{SDLPortModule, X_RES, Y_RES};
+use crate::sdlport::{RenderResult, SDLPortModule, X_RES, Y_RES};
 use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::UnitModule;
 use futures::task::noop_waker;
+use sdl2::event::{Event, WindowEvent};
 use std::future::Future;
 use std::task::Context;
+use std::thread;
+use std::time::Duration;
 
 async fn sj3<'s, 'si>(sdl_port_module: &'s SDLPortModule<'si>) {
     let maki_module = MakiModule::new();
@@ -81,8 +84,7 @@ async fn sj3<'s, 'si>(sdl_port_module: &'s SDLPortModule<'si>) {
 fn main() {
     let sdl = sdl2::init().unwrap();
     let video_subsystem = sdl.video().unwrap();
-    let event_subsystem = sdl.event().unwrap();
-    let event_pump = sdl.event_pump().unwrap();
+    let mut event_pump = sdl.event_pump().unwrap();
 
     let window_multiplier = 2;
     let window = video_subsystem
@@ -98,13 +100,7 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
 
-    let sdl_port_module = SDLPortModule::init(
-        &mut canvas,
-        &texture_creator,
-        event_subsystem,
-        event_pump,
-        window_multiplier,
-    );
+    let sdl_port_module = SDLPortModule::init(&mut canvas, &texture_creator, window_multiplier);
 
     // We only have one task, there's no need for a real waker
     let waker = noop_waker();
@@ -114,7 +110,34 @@ fn main() {
         sj3(&sdl_port_module).await;
     });
     loop {
-        sdl_port_module.render_phase3();
+        // TODO: wait_for_keypress causes a busy loop
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Window {
+                    win_event: WindowEvent::Resized(..),
+                    ..
+                } => {
+                    sdl_port_module.handle_resized();
+                }
+                Event::Quit { .. } => {
+                    return;
+                }
+                Event::KeyDown {
+                    keycode: Some(keycode),
+                    keymod,
+                    ..
+                } => {
+                    sdl_port_module.handle_keydown(keycode, keymod);
+                }
+                _ => {}
+            }
+        }
+
+        if let RenderResult::Wait = sdl_port_module.render_phase3() {
+            thread::sleep(Duration::from_millis(1));
+        }
+
         if future.as_mut().poll(&mut ctx).is_ready() {
             break;
         }
