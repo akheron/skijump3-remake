@@ -6,9 +6,9 @@ use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
+use crate::platform::Platform;
 use crate::regfree::{REGNAME, REGNUMBER};
 use crate::rs_util::{parse_line, random, read_line};
-use crate::sdlport::SDLPortModule;
 use crate::table::{
     find_landing, jump_risk, lasku_anim, lasku_asento, lento_anim, parru_anim, ponn_anim,
     suksi_laskussa, suksi_lennossa,
@@ -26,17 +26,17 @@ use std::str::from_utf8;
 const VERSION: &[u8] = b"3.13-remake0";
 const VERSION_FULL: &[u8] = b"3.13-remake0";
 
-pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
-    g: &'g GraphModule<'m, 'p, 's, 'si>,
-    i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
+pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
+    g: &'g GraphModule<'m, 'p, 's, P>,
+    i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'u, P>,
     l: &'l LangModule,
-    ls: ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
+    ls: ListModule<'g, 'l, 'm, 'p, 's, 'u, P>,
     lumi: LumiModule,
     m: &'m MakiModule,
-    p: &'p PcxModule<'m, 's, 'si>,
-    s: &'s SDLPortModule<'si>,
-    tuuli: &'t TuuliModule<'g, 'm, 'p, 's, 'si>,
-    u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
+    p: &'p PcxModule<'m, 's, P>,
+    s: &'s P,
+    tuuli: &'t TuuliModule<'g, 'm, 'p, 's, P>,
+    u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
 
     act_hill: Hill,
     nosamename: bool,
@@ -100,18 +100,18 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
     lmaara: u16,
 }
 
-impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> {
+impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P> {
     pub fn new(
-        g: &'g GraphModule<'m, 'p, 's, 'si>,
-        i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
+        g: &'g GraphModule<'m, 'p, 's, P>,
+        i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'u, P>,
         l: &'l LangModule,
         lumi: LumiModule,
-        ls: ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u>,
+        ls: ListModule<'g, 'l, 'm, 'p, 's, 'u, P>,
         m: &'m MakiModule,
-        p: &'p PcxModule<'m, 's, 'si>,
-        s: &'s SDLPortModule<'si>,
-        tuuli: &'t TuuliModule<'g, 'm, 'p, 's, 'si>,
-        u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
+        p: &'p PcxModule<'m, 's, P>,
+        s: &'s P,
+        tuuli: &'t TuuliModule<'g, 'm, 'p, 's, P>,
+        u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
     ) -> Self {
         SJ3Module {
             g,
@@ -425,7 +425,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         // IMPLEMENTATION
 
         kr = self.act_hill.kr;
-        self.s.ch.set(0);
+        self.s.set_ch(0);
         rturns = 0;
 
         if self.eka {
@@ -453,7 +453,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 .await
                 != 0
             {
-                self.s.ch.set(27);
+                self.s.set_ch(27);
                 self.cupslut = true;
             }
 
@@ -748,7 +748,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
         self.tuuli.hae();
 
-        if draw && self.s.ch.get() != 27 {
+        if draw && self.s.get_ch() != 27 {
             loop {
                 //{ INFORUUTU LUUPPI! }
                 laskuri += 1;
@@ -972,19 +972,19 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 self.g.draw_screen().await;
 
-                self.s.ch.set(1);
+                self.s.set_ch(1);
 
-                if self.s.key_pressed() {
+                if self.s.key_pressed().await {
                     self.s.wait_for_key_press().await;
 
-                    if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
+                    if self.s.get_ch() == 0 && self.s.get_ch2() == 68 {
                         self.cupslut = true;
-                        self.s.ch.set(27);
+                        self.s.set_ch(27);
                     }
 
-                    if self.s.ch.get().to_ascii_uppercase() == self.l.lch(60, 1) {
+                    if self.s.get_ch().to_ascii_uppercase() == self.l.lch(60, 1) {
                         self.setup_menu().await;
-                        self.s.ch.set(1);
+                        self.s.set_ch(1);
                         self.p
                             .load_suit(self.i.profile.borrow()[actprofile as usize].suitcolor, 0);
                         self.p
@@ -1000,13 +1000,13 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     if self.treeni {
-                        if self.s.ch.get() == b'+' {
+                        if self.s.get_ch() == b'+' {
                             self.startgate += 1;
-                            self.s.ch.set(1);
+                            self.s.set_ch(1);
                         }
-                        if self.s.ch.get() == b'-' {
+                        if self.s.get_ch() == b'-' {
                             self.startgate -= 1;
-                            self.s.ch.set(1);
+                            self.s.set_ch(1);
                         }
                         if self.startgate < 1 {
                             self.startgate = 1;
@@ -1017,7 +1017,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
                 }
 
-                if self.s.ch.get() != 1 {
+                if self.s.get_ch() != 1 {
                     break;
                 }
             }
@@ -1048,7 +1048,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         rstartx = x;
         rstarty = y;
 
-        if self.s.ch.get() != 27 && draw {
+        if self.s.get_ch() != 27 && draw {
             loop {
                 //{ ISTUU PARRULLA LUUPPI }
                 if !self.treeni {
@@ -1135,23 +1135,23 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 self.g.draw_screen().await;
 
-                self.s.ch.set(0);
-                self.s.ch2.set(0);
+                self.s.set_ch(0);
+                self.s.set_ch2(0);
 
-                if self.s.key_pressed() {
+                if self.s.key_pressed().await {
                     let (ch, ch2) = self.s.wait_for_key_press().await;
-                    self.s.ch.set(ch);
-                    self.s.ch2.set(ch2);
-                    self.s.ch.set(self.s.ch.get().to_ascii_uppercase());
-                    if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
+                    self.s.set_ch(ch);
+                    self.s.set_ch2(ch2);
+                    self.s.set_ch(self.s.get_ch().to_ascii_uppercase());
+                    if self.s.get_ch() == 0 && self.s.get_ch2() == 68 {
                         self.cupslut = true;
-                        self.s.ch.set(27);
+                        self.s.set_ch(27);
                     }
-                    if !cjumper && (self.s.kword() == self.k[2] || self.s.ch.get() == 13) {
+                    if !cjumper && (self.s.kword() == self.k[2] || self.s.get_ch() == 13) {
                         out = true; //{ liikkeelle }
                     }
-                    if self.s.ch.get() == 0
-                        && self.s.ch2.get() == 63
+                    if self.s.get_ch() == 0
+                        && self.s.get_ch2() == 63
                         && self.wcup
                         && self.cup_style == 1
                         && index == NUM_PL as i32
@@ -1160,7 +1160,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     {
                         self.tuuli.alusta(self.windplace);
                     }
-                    if self.s.ch.get() == 27 {
+                    if self.s.get_ch() == 27 {
                         out = true;
                     }
                 }
@@ -1193,7 +1193,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 jumper_anim = parru_anim(&mut kulmalaskuri);
 
-                if self.s.ch.get() == 27 && cjumper {
+                if self.s.get_ch() == 27 && cjumper {
                     jumper_anim = 164; //{ emm� haluu tsiigaa }
                 }
 
@@ -1226,7 +1226,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             self.g.draw_screen().await;
 
             self.s.wait_for_key_press().await;
-            self.s.ch.set(27);
+            self.s.set_ch(27);
         }
 
         out = false;
@@ -1234,10 +1234,10 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         laskuri = 0;
         px = 0.0;
 
-        if self.s.ch.get() == 27 && draw && cjumper {
+        if self.s.get_ch() == 27 && draw && cjumper {
             //{ emm� haluukkaan tsiigata }
             draw = false;
-            self.s.ch.set(0);
+            self.s.set_ch(0);
         }
 
         if cjumper && !draw {
@@ -1251,7 +1251,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
         kulmalaskuri = 200;
 
-        if self.s.ch.get() != 27 {
+        if self.s.get_ch() != 27 {
             //{ hyppy - main }
             loop {
                 self.tuuli.hae();
@@ -1263,23 +1263,23 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
                 x = f64::round(matka + qx) as i32;
 
-                if self.s.ch.get() != 27 {
-                    self.s.ch.set(0); //{ en tied� muisteleeko se vanhoja }
+                if self.s.get_ch() != 27 {
+                    self.s.set_ch(0); //{ en tied� muisteleeko se vanhoja }
                 }
-                self.s.ch2.set(0);
+                self.s.set_ch2(0);
 
-                if self.s.key_pressed() {
+                if self.s.key_pressed().await {
                     let (ch, ch2) = self.s.wait_for_key_press().await;
-                    self.s.ch.set(ch.to_ascii_uppercase());
-                    self.s.ch2.set(ch2);
+                    self.s.set_ch(ch.to_ascii_uppercase());
+                    self.s.set_ch2(ch2);
 
-                    if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
+                    if self.s.get_ch() == 0 && self.s.get_ch2() == 68 {
                         self.cupslut = true;
-                        self.s.ch.set(27);
+                        self.s.set_ch(27);
                         out = true;
                     }
 
-                    if self.s.ch.get() == 27 {
+                    if self.s.get_ch() == 27 {
                         if cjumper {
                             draw = false;
                             if px < 37.0 {
@@ -1291,11 +1291,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     if cjumper {
-                        self.s.ch.set(0);
-                        self.s.ch2.set(0);
+                        self.s.set_ch(0);
+                        self.s.set_ch2(0);
                     }
 
-                    if self.s.ch.get() == b'P' {
+                    if self.s.get_ch() == b'P' {
                         self.s.wait_for_key_press().await;
                     }
                 }
@@ -1311,12 +1311,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     if cjumper {
                         //{ automatic jumper angle differentiating }
                         if lento_anim(kulma1) > 107 && laskuri % (reflex as i32) == 0 {
-                            self.s.ch.set(((self.k[2] & 0xff00) >> 8) as u8);
-                            self.s.ch2.set((self.k[2] & 0xff) as u8);
+                            self.s.set_ch(((self.k[2] & 0xff00) >> 8) as u8);
+                            self.s.set_ch2((self.k[2] & 0xff) as u8);
                         }
                         if lento_anim(kulma1) < 107 && laskuri % (reflex as i32) == 0 {
-                            self.s.ch.set(((self.k[3] & 0xff00) >> 8) as u8);
-                            self.s.ch2.set((self.k[3] & 0xff) as u8);
+                            self.s.set_ch(((self.k[3] & 0xff00) >> 8) as u8);
+                            self.s.set_ch2((self.k[3] & 0xff) as u8);
                         }
 
                         temp = find_landing(self.makikulma(x));
@@ -1346,17 +1346,17 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         }
                     } //{ if (cjumper) }
 
-                    if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[4] {
+                    if kword(self.s.get_ch(), self.s.get_ch2()) == self.k[4] {
                         landing = 1;
                     }
-                    if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[5] {
+                    if kword(self.s.get_ch(), self.s.get_ch2()) == self.k[5] {
                         landing = 2;
                     }
 
-                    if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[3] && kulma1 <= 600 {
+                    if kword(self.s.get_ch(), self.s.get_ch2()) == self.k[3] && kulma1 <= 600 {
                         kulma1 += f64::round(kulma1 as f64 / 4.0) as i32;
                     }
-                    if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[2]
+                    if kword(self.s.get_ch(), self.s.get_ch2()) == self.k[2]
                         && landing == 0
                         && kulma1 > 0
                     {
@@ -1550,7 +1550,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                     }
 
                     //{ start ponnistus! }
-                    if kword(self.s.ch.get(), self.s.ch2.get()) == self.k[1]
+                    if kword(self.s.get_ch(), self.s.get_ch2()) == self.k[1]
                         && matka > -40.0
                         && ponnistus == 0
                     {
@@ -1700,7 +1700,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         kkor = kor - keula_y as f64;
         hp = f64::round(nsqrt((matka * matka) + (kkor * kkor)) * self.act_hill.pk * 0.5) as i32 * 5;
 
-        if self.s.ch.get() == 27 {
+        if self.s.get_ch() == 27 {
             //{ painoi ESCi� }
             hp = 0;
             score = 0;
@@ -2046,25 +2046,25 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         }
                     }
 
-                    self.s.ch.set(0);
+                    self.s.set_ch(0);
 
-                    if self.s.key_pressed() {
+                    if self.s.key_pressed().await {
                         let (ch, ch2) = self.s.wait_for_key_press().await;
-                        self.s.ch.set(ch.to_ascii_uppercase());
-                        self.s.ch2.set(ch2);
+                        self.s.set_ch(ch.to_ascii_uppercase());
+                        self.s.set_ch2(ch2);
                     }
 
-                    if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
+                    if self.s.get_ch() == 0 && self.s.get_ch2() == 68 {
                         self.cupslut = true;
-                        self.s.ch.set(27);
+                        self.s.set_ch(27);
                     }
-                    if self.s.ch.get() == 27 || self.s.ch.get() == 13 {
+                    if self.s.get_ch() == 27 || self.s.get_ch() == 13 {
                         out = true;
                     }
-                    if self.s.ch.get() == b'P' {
+                    if self.s.get_ch() == b'P' {
                         let (ch, ch2) = self.s.wait_for_key_press().await;
-                        self.s.ch.set(ch);
-                        self.s.ch2.set(ch2);
+                        self.s.set_ch(ch);
+                        self.s.set_ch2(ch2);
                     }
 
                     delta_x = self.m.x.get();
@@ -2391,9 +2391,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             if draw {
                 self.s.putsaa();
                 self.cupslut = self.s.wait_for_key2().await;
-            } else if self.s.key_pressed() {
+            } else if self.s.key_pressed().await {
                 self.s.wait_for_key_press().await;
-                if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
+                if self.s.get_ch() == 0 && self.s.get_ch2() == 68 {
                     self.cupslut = true;
                 }
             }
@@ -3275,7 +3275,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
         //{$IFDEF REG}
         if !self.cupslut
             && self.cup_style == 0
-            && self.s.ch.get() != 27
+            && self.s.get_ch() != 27
             && vaihe == 4
             && (self.lct || self.osakilpailu == NUM_WC_HILLS)
         {
@@ -3453,7 +3453,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
             self.cupslut = true;
         }
 
-        self.s.ch.set(1);
+        self.s.set_ch(1);
 
         loop {
             self.osakilpailu += 1;
@@ -3739,7 +3739,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                 }
             }
 
-            self.s.ch.set(1); //{ ett� hypyn keskeytt�minen sotke liikaa }
+            self.s.set_ch(1); //{ ett� hypyn keskeytt�minen sotke liikaa }
 
             self.eka = true;
 
@@ -3791,7 +3791,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
 
             self.updaterecords(sortby).await; //{ enn�tystauluja jos tarvis }
 
-            if (self.osakilpailu == self.cup_hills) || (self.s.ch.get() == 27) || (self.cupslut) {
+            if (self.osakilpailu == self.cup_hills) || (self.s.get_ch() == 27) || (self.cupslut) {
                 break;
             }
         }
@@ -4474,7 +4474,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                         let mut ch = 0;
                         loop {
                             self.u.getch(255, 70, 245).await;
-                            ch = self.s.ch.get();
+                            ch = self.s.get_ch();
                             if let Some(chr) = char::from_u32(ch as u32) {
                                 n = chr;
                                 if ch != 27 && Path::new(&format!("NAMES{}.SKI", n)).exists() {
@@ -4541,7 +4541,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 'si, 't, 'u> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 
                             .getch(88 + self.g.font_len(self.l.lstr(193)), 110, 243)
                             .await;
 
-                        if self.s.ch.get().to_ascii_uppercase() == self.l.lch(6, 1) {
+                        if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1) {
                             self.reset_hiscore(4 - index[screen as usize] as u8);
                         }
                     }

@@ -1,3 +1,5 @@
+#![feature(async_fn_in_trait)]
+
 mod graph;
 mod help;
 mod info;
@@ -6,6 +8,7 @@ mod list;
 mod lumi;
 mod maki;
 mod pcx;
+mod platform;
 mod regfree;
 mod rs_util;
 mod sdlport;
@@ -21,48 +24,31 @@ use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
-use crate::sdlport::{RenderResult, SDLPortModule, X_RES, Y_RES};
+use crate::sdlport::{AsyncState, RenderResult, SDLPortModule, X_RES, Y_RES};
 use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::UnitModule;
 use futures::task::noop_waker;
+use platform::Platform;
 use sdl2::event::{Event, WindowEvent};
 use std::future::Future;
 use std::task::Context;
 use std::thread;
 use std::time::Duration;
 
-async fn sj3<'s, 'si>(sdl_port_module: &'s SDLPortModule<'si>) {
+async fn sj3<P: Platform>(port: &P) {
     let maki_module = MakiModule::new();
-    let pcx_module = PcxModule::new(&maki_module, sdl_port_module);
-    let graph_module = GraphModule::new(&maki_module, &pcx_module, sdl_port_module);
+    let pcx_module = PcxModule::new(&maki_module, port);
+    let graph_module = GraphModule::new(&maki_module, &pcx_module, port);
 
     let mut lang_module = LangModule::new();
     lang_module.init();
 
-    let unit_module = UnitModule::new(
-        &graph_module,
-        &lang_module,
-        &maki_module,
-        &pcx_module,
-        sdl_port_module,
-    );
-    let list_module = ListModule::new(
-        &graph_module,
-        &lang_module,
-        &pcx_module,
-        sdl_port_module,
-        &unit_module,
-    )
-    .await;
+    let unit_module = UnitModule::new(&graph_module, &lang_module, &maki_module, &pcx_module, port);
+    let list_module =
+        ListModule::new(&graph_module, &lang_module, &pcx_module, port, &unit_module).await;
     let tuuli_module = TuuliModule::new(&graph_module);
-    let info_module = InfoModule::new(
-        &graph_module,
-        &lang_module,
-        &pcx_module,
-        sdl_port_module,
-        &unit_module,
-    );
+    let info_module = InfoModule::new(&graph_module, &lang_module, &pcx_module, port, &unit_module);
     let lumi_module = LumiModule::init();
     let mut sj3_module = SJ3Module::new(
         &graph_module,
@@ -72,7 +58,7 @@ async fn sj3<'s, 'si>(sdl_port_module: &'s SDLPortModule<'si>) {
         list_module,
         &maki_module,
         &pcx_module,
-        sdl_port_module,
+        port,
         &tuuli_module,
         &unit_module,
     );
@@ -110,8 +96,9 @@ fn main() {
         sj3(&sdl_port_module).await;
     });
     loop {
-        // TODO: wait_for_keypress causes a busy loop
-
+        if future.as_mut().poll(&mut ctx).is_ready() {
+            break;
+        }
         for event in event_pump.poll_iter() {
             match event {
                 Event::Window {
@@ -133,13 +120,6 @@ fn main() {
                 _ => {}
             }
         }
-
-        if let RenderResult::Wait = sdl_port_module.render_phase3() {
-            thread::sleep(Duration::from_millis(1));
-        }
-
-        if future.as_mut().poll(&mut ctx).is_ready() {
-            break;
-        }
+        sdl_port_module.main_loop();
     }
 }

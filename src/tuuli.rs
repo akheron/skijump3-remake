@@ -1,15 +1,16 @@
 use crate::graph::GraphModule;
 use crate::help::txtp;
+use crate::platform::Platform;
 use crate::rs_util::random;
 use std::cell::Cell;
 use std::f64::consts::PI;
 
-pub struct TuuliModule<'g, 'm, 'p, 's, 'si> {
+pub struct TuuliModule<'g, 'm, 'p, 's, P: Platform> {
     pub voim: Cell<i32>,
     pub windy: Cell<i32>,
     pub value: Cell<i32>,
 
-    g: &'g GraphModule<'m, 'p, 's, 'si>,
+    g: &'g GraphModule<'m, 'p, 's, P>,
 
     tsuun: Cell<bool>,
     traja1: Cell<i32>,
@@ -20,8 +21,8 @@ pub struct TuuliModule<'g, 'm, 'p, 's, 'si> {
     tpaikka: Cell<u8>,
 }
 
-impl<'g, 'm, 'p, 's, 'si> TuuliModule<'g, 'm, 'p, 's, 'si> {
-    pub fn new(g: &'g GraphModule<'m, 'p, 's, 'si>) -> Self {
+impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
+    pub fn new(g: &'g GraphModule<'m, 'p, 's, P>) -> Self {
         let t = Self {
             voim: Cell::new(0),
             windy: Cell::new(0),

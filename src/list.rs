@@ -2,7 +2,7 @@ use crate::graph::{AsBytes, GraphModule};
 use crate::help::{txt, txtp};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
-use crate::sdlport::SDLPortModule;
+use crate::platform::Platform;
 use crate::unit::{UnitModule, NUM_PL};
 
 struct Res {
@@ -14,12 +14,12 @@ struct Res {
     len2: i32,
 }
 
-pub struct ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
-    g: &'g GraphModule<'m, 'p, 's, 'si>,
+pub struct ListModule<'g, 'l, 'm, 'p, 's, 'u, P: Platform> {
+    g: &'g GraphModule<'m, 'p, 's, P>,
     l: &'l LangModule,
-    p: &'p PcxModule<'m, 's, 'si>,
-    s: &'s SDLPortModule<'si>,
-    u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
+    p: &'p PcxModule<'m, 's, P>,
+    s: &'s P,
+    u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
 
     x: i32,
     y: i32,
@@ -44,14 +44,14 @@ const COLUMN_X: [[i32; 6]; 2] = [[24, 32, 184, 199, 252, 275], [19, 23, 153, 154
 
 const START_Y: i32 = 23;
 
-impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
+impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> ListModule<'g, 'l, 'm, 'p, 's, 'u, P> {
     pub async fn new(
-        g: &'g GraphModule<'m, 'p, 's, 'si>,
+        g: &'g GraphModule<'m, 'p, 's, P>,
         l: &'l LangModule,
-        p: &'p PcxModule<'m, 's, 'si>,
-        s: &'s SDLPortModule<'si>,
-        u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
-    ) -> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
+        p: &'p PcxModule<'m, 's, P>,
+        s: &'s P,
+        u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
+    ) -> ListModule<'g, 'l, 'm, 'p, 's, 'u, P> {
         let mut ls = Self {
             g,
             l,
@@ -223,7 +223,7 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
 
             self.s.wait_for_key_press().await;
 
-            match self.s.ch.get() {
+            match self.s.get_ch() {
                 13 | 27 => {
                     self.status = -1;
                     good = true;
@@ -241,8 +241,8 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
                 _ => {}
             }
 
-            if self.s.ch.get() == 0 {
-                match self.s.ch2.get() {
+            if self.s.get_ch2() == 0 {
+                match self.s.get_ch2() {
                     68 | 45 => {
                         self.status = -2;
                         good = true;
@@ -285,11 +285,11 @@ impl<'g, 'l, 'm, 'p, 's, 'si, 'u> ListModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
             }
         }
 
-        if self.s.ch.get() == 27 && self.phase == 3 {
+        if self.s.get_ch() == 27 && self.phase == 3 {
             if self.u.quitting(1).await == 0 {
                 self.status = -2;
             } else {
-                self.s.ch.set(1);
+                self.s.set_ch(1);
             }
         }
 

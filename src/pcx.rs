@@ -1,5 +1,5 @@
 use crate::maki::{MakiModule, SIVU_KOKO, X_SIZE};
-use crate::sdlport::SDLPortModule;
+use crate::platform::Platform;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
@@ -45,15 +45,15 @@ const STANDARDI_PALETTI: [u8; 40 * 3] = [
     43, 16, 23, 26, 26, 26, 52, 47, 0, 0, 47, 52, 51, 51, 51, 38, 38, 38, 63, 63, 63,
 ];
 
-pub struct PcxModule<'m, 's, 'si> {
+pub struct PcxModule<'m, 's, P: Platform> {
     m: &'m MakiModule,
-    s: &'s SDLPortModule<'si>,
+    s: &'s P,
     pub paletti: RefCell<[[u8; 3]; 256]>,
     pub pelasta_alkuosa: RefCell<[[u8; 3]; 256]>,
 }
 
-impl<'m, 's, 'si> PcxModule<'m, 's, 'si> {
-    pub fn new(m: &'m MakiModule, s: &'s SDLPortModule<'si>) -> Self {
+impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
+    pub fn new(m: &'m MakiModule, s: &'s P) -> Self {
         PcxModule {
             m,
             s,

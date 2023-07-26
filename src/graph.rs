@@ -1,15 +1,15 @@
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
-use crate::sdlport::SDLPortModule;
+use crate::platform::Platform;
 use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::io::Read;
 use std::rc::Rc;
 
-pub struct GraphModule<'m, 'p, 's, 'si> {
+pub struct GraphModule<'m, 'p, 's, P: Platform> {
     m: &'m MakiModule,
-    p: &'p PcxModule<'m, 's, 'si>,
-    s: &'s SDLPortModule<'si>,
+    p: &'p PcxModule<'m, 's, P>,
+    s: &'s P,
 
     anim: RefCell<Vec<Vec<u8>>>,
     anim_p: RefCell<[[u8; 2]; 200]>,
@@ -22,12 +22,8 @@ fn read_byte(file: &mut File) -> u8 {
     buf[0]
 }
 
-impl<'m, 'p, 's, 'si> GraphModule<'m, 'p, 's, 'si> {
-    pub fn new(
-        m: &'m MakiModule,
-        p: &'p PcxModule<'m, 's, 'si>,
-        s: &'s SDLPortModule<'si>,
-    ) -> Self {
+impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
+    pub fn new(m: &'m MakiModule, p: &'p PcxModule<'m, 's, P>, s: &'s P) -> Self {
         GraphModule {
             m,
             p,

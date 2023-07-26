@@ -3,8 +3,8 @@ use crate::help::{num, txt, txtp};
 use crate::lang::LangModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
+use crate::platform::Platform;
 use crate::rs_util::{parse_line, random, read_line};
-use crate::sdlport::SDLPortModule;
 use chrono::{Datelike, Timelike};
 use std::cell::{Cell, RefCell};
 use std::ffi::OsString;
@@ -99,12 +99,12 @@ impl Time {
     }
 }
 
-pub struct UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
-    g: &'g GraphModule<'m, 'p, 's, 'si>,
+pub struct UnitModule<'g, 'l, 'm, 'p, 's, P: Platform> {
+    g: &'g GraphModule<'m, 'p, 's, P>,
     l: &'l LangModule,
     m: &'m MakiModule,
-    p: &'p PcxModule<'m, 's, 'si>,
-    s: &'s SDLPortModule<'si>,
+    p: &'p PcxModule<'m, 's, P>,
+    s: &'s P,
 
     pub num_hills: Cell<u8>,
     pub vcode: Cell<u8>,
@@ -113,13 +113,13 @@ pub struct UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     hd: RefCell<Vec<Hillinfo>>,
 }
 
-impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
+impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P> {
     pub fn new(
-        g: &'g GraphModule<'m, 'p, 's, 'si>,
+        g: &'g GraphModule<'m, 'p, 's, P>,
         l: &'l LangModule,
         m: &'m MakiModule,
-        p: &'p PcxModule<'m, 's, 'si>,
-        s: &'s SDLPortModule<'si>,
+        p: &'p PcxModule<'m, 's, P>,
+        s: &'s P,
     ) -> Self {
         UnitModule {
             g,
@@ -163,7 +163,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                 col,
             );
             self.g.draw_screen().await;
-            if self.s.key_pressed() {
+            if self.s.key_pressed().await {
                 break;
             }
         }
@@ -178,7 +178,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             bkcolor,
         );
 
-        if let Some(chr) = char::from_u32(self.s.ch.get() as u32) {
+        if let Some(chr) = char::from_u32(self.s.get_ch() as u32) {
             self.g.write_font(xx, yy, format!("{}", chr).as_bytes());
         }
     }
@@ -332,7 +332,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
             self.s.clearchs();
             let oldindex = index;
 
-            let (ch, ch2) = if self.s.key_pressed() {
+            let (ch, ch2) = if self.s.key_pressed().await {
                 self.s.wait_for_key_press().await
             } else {
                 (0, 0)
@@ -1105,8 +1105,8 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
                         self.g.fill_area(180, y as u16 - 2, 319, (y + 7) as u16, 63);
 
                         self.getch(185, y, 245).await;
-                        a = self.s.ch.get();
-                        b = self.s.ch2.get();
+                        a = self.s.get_ch();
+                        b = self.s.get_ch2();
 
                         let mut str2 = self.keyname(kword(a, b));
 
@@ -1578,7 +1578,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
         self.getch(220, 110, 243).await;
 
-        if self.s.ch.get().to_ascii_uppercase() == self.l.lch(6, 1).to_ascii_uppercase() {
+        if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1).to_ascii_uppercase() {
             fs::remove_file(from_utf8(filestr).unwrap()).unwrap();
             tempb = 0; //{ yep, deleted }
         }
@@ -1679,7 +1679,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
         self.getch(70 + tempb, 110, 243).await;
 
         tempb = 1;
-        if self.s.ch.get().to_ascii_uppercase() == self.l.lstr(6)[0] {
+        if self.s.get_ch().to_ascii_uppercase() == self.l.lstr(6)[0] {
             tempb = 0;
         }
         self.s.clearchs();
@@ -1688,7 +1688,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
     }
 
     pub async fn wait_for_key3(&self, xx: i32, yy: i32) -> bool {
-        while self.s.key_pressed() {
+        while self.s.key_pressed().await {
             self.s.wait_for_key_press().await;
         }
 
@@ -1698,8 +1698,8 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si> UnitModule<'g, 'l, 'm, 'p, 's, 'si> {
 
         self.getch(xx + 1, yy, 243).await;
 
-        if self.s.ch.get() == 0 && self.s.ch2.get() == 68 {
-            self.s.ch.set(27);
+        if self.s.get_ch() == 0 && self.s.get_ch2() == 68 {
+            self.s.set_ch(27);
             true
         } else {
             false

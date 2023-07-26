@@ -2,8 +2,8 @@ use crate::graph::GraphModule;
 use crate::help::{txt, txtp};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
+use crate::platform::Platform;
 use crate::rs_util::{parse_line, random, read_line};
-use crate::sdlport::SDLPortModule;
 use crate::unit::{dayandtime_now, valuestr, Hiscore, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS};
 use std::cell::{Cell, RefCell};
 use std::fs::File;
@@ -77,12 +77,12 @@ const MAX_PROFILES: u8 = 20;
 //const MAX_PROFILES: u8 = 4;
 //{$ENDIF}
 
-pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
-    g: &'g GraphModule<'m, 'p, 's, 'si>,
+pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'u, P: Platform> {
+    g: &'g GraphModule<'m, 'p, 's, P>,
     l: &'l LangModule,
-    p: &'p PcxModule<'m, 's, 'si>,
-    s: &'s SDLPortModule<'si>,
-    u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
+    p: &'p PcxModule<'m, 's, P>,
+    s: &'s P,
+    u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
     pub top: RefCell<Vec<Hiscore>>,
     pub nimet: RefCell<Vec<Vec<u8>>>,
     pub jnimet: RefCell<Vec<Vec<u8>>>,
@@ -95,13 +95,13 @@ pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
     maxpmaara: i32,
 }
 
-impl<'g, 'l, 'm, 'p, 's, 'si, 'u> InfoModule<'g, 'l, 'm, 'p, 's, 'si, 'u> {
+impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> {
     pub fn new(
-        g: &'g GraphModule<'m, 'p, 's, 'si>,
+        g: &'g GraphModule<'m, 'p, 's, P>,
         l: &'l LangModule,
-        p: &'p PcxModule<'m, 's, 'si>,
-        s: &'s SDLPortModule<'si>,
-        u: &'u UnitModule<'g, 'l, 'm, 'p, 's, 'si>,
+        p: &'p PcxModule<'m, 's, P>,
+        s: &'s P,
+        u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
     ) -> Self {
         let profiles = (0..=20).map(|_| Profile::new()).collect::<Vec<_>>();
         InfoModule {
