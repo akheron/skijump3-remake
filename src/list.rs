@@ -16,7 +16,7 @@ struct Res {
 
 pub struct ListModule<'g, 'l, 'm, 'p, 's, 'u, P: Platform> {
     g: &'g GraphModule<'m, 'p, 's, P>,
-    l: &'l LangModule,
+    l: &'l LangModule<'s, P>,
     p: &'p PcxModule<'m, 's, P>,
     s: &'s P,
     u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
@@ -47,7 +47,7 @@ const START_Y: i32 = 23;
 impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> ListModule<'g, 'l, 'm, 'p, 's, 'u, P> {
     pub async fn new(
         g: &'g GraphModule<'m, 'p, 's, P>,
-        l: &'l LangModule,
+        l: &'l LangModule<'s, P>,
         p: &'p PcxModule<'m, 's, P>,
         s: &'s P,
         u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,

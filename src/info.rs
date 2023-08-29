@@ -6,7 +6,6 @@ use crate::platform::Platform;
 use crate::rs_util::{parse_line, random, read_line};
 use crate::unit::{dayandtime_now, valuestr, Hiscore, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS};
 use std::cell::{Cell, RefCell};
-use std::fs::File;
 use std::io::BufReader;
 
 pub struct Profile {
@@ -79,7 +78,7 @@ const MAX_PROFILES: u8 = 20;
 
 pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'u, P: Platform> {
     g: &'g GraphModule<'m, 'p, 's, P>,
-    l: &'l LangModule,
+    l: &'l LangModule<'s, P>,
     p: &'p PcxModule<'m, 's, P>,
     s: &'s P,
     u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
@@ -98,7 +97,7 @@ pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'u, P: Platform> {
 impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> {
     pub fn new(
         g: &'g GraphModule<'m, 'p, 's, P>,
-        l: &'l LangModule,
+        l: &'l LangModule<'s, P>,
         p: &'p PcxModule<'m, 's, P>,
         s: &'s P,
         u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
@@ -288,7 +287,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
     }
 
     pub fn load_profiles(&self) {
-        let mut f1 = BufReader::new(File::open("PLAYERS.SKI").unwrap());
+        let mut f1 = BufReader::new(self.s.open_file("PLAYERS.SKI"));
 
         for temp in 0..=20 {
             self.default_profile(temp, 0);
@@ -365,7 +364,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         let profile = self.profile.borrow();
         let mut nimet = self.nimet.borrow_mut();
 
-        let mut f4 = BufReader::new(File::open(format!("NAMES{}.SKI", whatset)).unwrap());
+        let mut f4 = BufReader::new(self.s.open_file(format!("NAMES{}.SKI", whatset)));
 
         read_line(&mut f4).unwrap(); //{ titlerivi pois }
 

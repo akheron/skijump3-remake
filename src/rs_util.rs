@@ -1,8 +1,7 @@
-use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::str::FromStr;
 
-pub fn read_line(f: &mut BufReader<File>) -> std::io::Result<Vec<u8>> {
+pub fn read_line(f: &mut BufReader<impl Read>) -> std::io::Result<Vec<u8>> {
     let mut line = Vec::new();
     f.read_until(0xA, &mut line)?;
     while let Some(&b'\r') | Some(&b'\n') = line.last() {
@@ -11,7 +10,7 @@ pub fn read_line(f: &mut BufReader<File>) -> std::io::Result<Vec<u8>> {
     Ok(line)
 }
 
-pub fn parse_line<T>(f: &mut BufReader<File>) -> eyre::Result<T>
+pub fn parse_line<T>(f: &mut BufReader<impl Read>) -> eyre::Result<T>
 where
     T: FromStr,
     T::Err: std::error::Error + Send + Sync + 'static,

@@ -1,3 +1,5 @@
+use std::io::{Read, Write};
+
 pub type TPalette = [[u8; 3]; 256];
 
 pub trait Platform {
@@ -25,4 +27,13 @@ pub trait Platform {
     fn kword(&self) -> u16 {
         ((self.get_ch() as u16) << 8) + self.get_ch2() as u16
     }
+
+    type WritableFile: Write;
+    fn create_file<P: AsRef<str>>(&self, path: P) -> Self::WritableFile;
+
+    type ReadableFile: Read;
+    fn open_file<P: AsRef<str>>(&self, path: P) -> Self::ReadableFile;
+
+    fn file_exists<P: AsRef<str>>(&self, path: P) -> bool;
+    fn remove_file<P: AsRef<str>>(&self, path: P);
 }

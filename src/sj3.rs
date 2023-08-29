@@ -18,8 +18,7 @@ use crate::unit::{
     crypt, dayandtime_now, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr,
     Hill, Hiscore, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
 };
-use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::str::from_utf8;
 
@@ -29,7 +28,7 @@ const VERSION_FULL: &[u8] = b"3.13-remake0";
 pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
     g: &'g GraphModule<'m, 'p, 's, P>,
     i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'u, P>,
-    l: &'l LangModule,
+    l: &'l LangModule<'s, P>,
     ls: ListModule<'g, 'l, 'm, 'p, 's, 'u, P>,
     lumi: LumiModule,
     m: &'m MakiModule,
@@ -104,7 +103,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
     pub fn new(
         g: &'g GraphModule<'m, 'p, 's, P>,
         i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'u, P>,
-        l: &'l LangModule,
+        l: &'l LangModule<'s, P>,
         lumi: LumiModule,
         ls: ListModule<'g, 'l, 'm, 'p, 's, 'u, P>,
         m: &'m MakiModule,
@@ -253,7 +252,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 &[
                     &self.l.lstr(242) as &[u8],
                     b": ",
-                    &txtp(loadgoal(self.nytmaki)) as &[u8],
+                    &txtp(loadgoal(self.s, self.nytmaki)) as &[u8],
                 ]
                 .concat(),
             );
@@ -587,7 +586,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         //{ haetaan m�kienkkakepille mesta! }
         temp = 0;
         if self.nytmaki <= NUM_WC_HILLS {
-            temp = loadgoal(self.nytmaki);
+            temp = loadgoal(self.s, self.nytmaki);
         }
 
         if draw {
@@ -2389,7 +2388,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             self.g.draw_screen().await;
 
             if draw {
-                self.s.putsaa();
+                self.s.putsaa().await;
                 self.cupslut = self.s.wait_for_key2().await;
             } else if self.s.key_pressed().await {
                 self.s.wait_for_key_press().await;
@@ -3940,7 +3939,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         let mut l1: i32 = 0;
         let mut l2: i32 = 0;
 
-        let mut f1 = File::create("HISCORE.SKI").unwrap();
+        let mut f1 = self.s.create_file("HISCORE.SKI");
         writeln!(f1, "HISCORE.SKI - !!! DO NOT ATTEMPT TO EDIT THIS FILE !!!").unwrap();
 
         //{ 20 world cupia, 10 teamia, 5 4hillsia ja 6 kothia }
@@ -3998,7 +3997,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
     fn write_config(&mut self) {
         let reg = true; // { registered wai no }
 
-        let mut f2 = BufWriter::new(File::create("CONFIG.SKI").unwrap());
+        let mut f2: Vec<u8> = Vec::new();
         writeln!(f2, "{}", reg as i32).unwrap();
         writeln!(f2, "{}", self.comphrs as i32).unwrap();
         writeln!(f2, "{}", self.lct as i32).unwrap();
@@ -4122,7 +4121,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         let mut l1: i32 = 0;
         let mut l2: i32 = 0;
 
-        let mut f1 = BufReader::new(File::open("HISCORE.SKI").unwrap());
+        let mut f1 = BufReader::new(self.s.open_file("HISCORE.SKI"));
 
         read_line(&mut f1).unwrap(); //{ se varoitusrivi pois sielt� }
 
@@ -4193,7 +4192,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
     fn read_config(&mut self) {
         let mut temp: i32 = 0;
 
-        let mut f2 = BufReader::new(File::open("CONFIG.SKI").unwrap());
+        let mut f2 = BufReader::new(self.s.open_file("CONFIG.SKI"));
 
         parse_line::<i32>(&mut f2).unwrap();
         temp = parse_line(&mut f2).unwrap();
@@ -4243,11 +4242,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         //{$ENDIF}
 
         self.setfile = b"TEMP".to_vec();
-        let mut str1 = read_line(&mut f2).unwrap();
-        if Path::new(from_utf8(&str1).unwrap())
-            .with_extension(".SJC")
-            .exists()
-        {
+        let str1 = read_line(&mut f2).unwrap();
+        let filename = [&str1 as &[u8], b".SJC"].concat();
+        if self.s.file_exists(from_utf8(&filename).unwrap()) {
             self.setfile = str1;
         }
 
@@ -4358,7 +4355,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                         3 => self.l.lstr(13 + self.gdetail as u32).to_vec(),
                         4 => {
                             let mut f3 = BufReader::new(
-                                File::open(format!("NAMES{}.SKI", self.namenumber)).unwrap(),
+                                self.s.open_file(format!("NAMES{}.SKI", self.namenumber)),
                             );
                             let mut str2 = String::new();
                             f3.read_line(&mut str2).unwrap();

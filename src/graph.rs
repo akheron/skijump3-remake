@@ -2,7 +2,6 @@ use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
 use std::cell::{Cell, RefCell};
-use std::fs::File;
 use std::io::Read;
 use std::rc::Rc;
 
@@ -16,7 +15,7 @@ pub struct GraphModule<'m, 'p, 's, P: Platform> {
     num_anim: Cell<u8>,
 }
 
-fn read_byte(file: &mut File) -> u8 {
+fn read_byte<R: Read>(mut file: R) -> u8 {
     let mut buf = [0; 1];
     file.read_exact(&mut buf).unwrap();
     buf[0]
@@ -84,7 +83,7 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
     pub fn load_anim(&self, filename: &str) {
         let mut anim = self.anim.borrow_mut();
         let mut anim_p = self.anim_p.borrow_mut();
-        let mut f1 = File::open(filename).unwrap();
+        let mut f1 = self.s.open_file(filename);
 
         let mut num_anim = 0;
 

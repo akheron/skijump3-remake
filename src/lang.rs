@@ -1,18 +1,20 @@
+use crate::platform::Platform;
 use crate::rs_util::random;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::rc::Rc;
 
-pub struct LangModule {
+pub struct LangModule<'s, P: Platform> {
+    s: &'s P,
     pub lnames: Vec<Vec<u8>>,
     pub plstr: RefCell<HashMap<u32, Rc<Vec<u8>>>>,
 }
 
-impl LangModule {
-    pub fn new() -> Self {
+impl<'s, P: Platform> LangModule<'s, P> {
+    pub fn new(s: &'s P) -> Self {
         LangModule {
+            s,
             lnames: Vec::new(),
             plstr: RefCell::new(HashMap::new()),
         }
@@ -27,7 +29,7 @@ impl LangModule {
     }
 
     pub fn load_language(&self, languageindex: u8) {
-        let f = File::open("LANGBASE.SKI").unwrap();
+        let f = self.s.open_file("LANGBASE.SKI");
         let mut lines = BufReader::new(f).split(b'\n');
         loop {
             let Some(Ok(line)) = lines.next() else {
@@ -42,9 +44,7 @@ impl LangModule {
         let mut plstr = self.plstr.borrow_mut();
         plstr.clear();
         loop {
-            let Some(Ok(line)) = lines.next() else {
-                break
-            };
+            let Some(Ok(line)) = lines.next() else { break };
             if line.starts_with(b"*") {
                 break;
             }
@@ -75,10 +75,12 @@ impl LangModule {
     }
 
     fn reset_language(&mut self) {
-        let f = BufReader::new(File::open("LANGBASE.SKI").unwrap());
+        let f = BufReader::new(self.s.open_file("LANGBASE.SKI"));
         let mut lines = f.split(b'\n');
         loop {
-            let Some(Ok(mut line)) = lines.next() else { return };
+            let Some(Ok(mut line)) = lines.next() else {
+                return;
+            };
             if line.starts_with(b"*") {
                 line = lines.next().unwrap().unwrap();
                 self.lnames.push(line);

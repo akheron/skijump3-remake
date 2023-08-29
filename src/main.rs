@@ -24,7 +24,7 @@ use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
-use crate::sdlport::{AsyncState, RenderResult, SDLPortModule, X_RES, Y_RES};
+use crate::sdlport::{SDLPortModule, X_RES, Y_RES};
 use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::UnitModule;
@@ -33,15 +33,13 @@ use platform::Platform;
 use sdl2::event::{Event, WindowEvent};
 use std::future::Future;
 use std::task::Context;
-use std::thread;
-use std::time::Duration;
 
 async fn sj3<P: Platform>(port: &P) {
     let maki_module = MakiModule::new();
     let pcx_module = PcxModule::new(&maki_module, port);
     let graph_module = GraphModule::new(&maki_module, &pcx_module, port);
 
-    let mut lang_module = LangModule::new();
+    let mut lang_module = LangModule::new(port);
     lang_module.init();
 
     let unit_module = UnitModule::new(&graph_module, &lang_module, &maki_module, &pcx_module, port);

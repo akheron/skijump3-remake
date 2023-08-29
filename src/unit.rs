@@ -7,12 +7,7 @@ use crate::platform::Platform;
 use crate::rs_util::{parse_line, random, read_line};
 use chrono::{Datelike, Timelike};
 use std::cell::{Cell, RefCell};
-use std::ffi::OsString;
-use std::fs;
-use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::os::unix::prelude::OsStringExt;
-use std::path::Path;
 use std::rc::Rc;
 use std::str::from_utf8;
 
@@ -101,7 +96,7 @@ impl Time {
 
 pub struct UnitModule<'g, 'l, 'm, 'p, 's, P: Platform> {
     g: &'g GraphModule<'m, 'p, 's, P>,
-    l: &'l LangModule,
+    l: &'l LangModule<'s, P>,
     m: &'m MakiModule,
     p: &'p PcxModule<'m, 's, P>,
     s: &'s P,
@@ -116,7 +111,7 @@ pub struct UnitModule<'g, 'l, 'm, 'p, 's, P: Platform> {
 impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P> {
     pub fn new(
         g: &'g GraphModule<'m, 'p, 's, P>,
-        l: &'l LangModule,
+        l: &'l LangModule<'s, P>,
         m: &'m MakiModule,
         p: &'p PcxModule<'m, 's, P>,
         s: &'s P,
@@ -803,8 +798,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             [b"FRONT", hill.fr_index.as_slice(), b".PCX"].concat()
         };
 
-        let filename = OsString::from_vec(str2.clone());
-        if !Path::new(&filename).exists() {
+        if !self.s.file_exists(&from_utf8(&str2).unwrap()) {
             println!(
                 "Error #345A: File {} does not exist,",
                 String::from_utf8_lossy(&str2)
@@ -841,7 +835,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
     }
 
     // 0 - löytyi, 1 - ei lytynyt
-    fn findstart(&self, f1: &mut BufReader<File>, nytmaki: i32) -> u8 {
+    fn findstart(&self, f1: &mut BufReader<P::ReadableFile>, nytmaki: i32) -> u8 {
         let mut out = false;
         let mut result = 1;
         let mut str1: Vec<u8> = Vec::new();
@@ -864,7 +858,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
     pub fn hillfile(&self, nyt: i32) -> Vec<u8> {
         if nyt <= self.num_extra_hills.get() as i32 {
-            let mut f2 = BufReader::new(File::open("MOREHILL.SKI").unwrap());
+            let mut f2 = BufReader::new(self.s.open_file("MOREHILL.SKI"));
 
             let mut str1 = b"ERROR.SJH".to_vec();
             read_line(&mut f2).unwrap(); //{ NumExtraHills pois }
@@ -887,7 +881,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         };
         let temp = if nytmaki > NUM_WC_HILLS { 0 } else { nytmaki };
 
-        let mut f1 = BufReader::new(File::open(String::from_utf8(str1.clone()).unwrap()).unwrap());
+        let mut f1 = BufReader::new(self.s.open_file(String::from_utf8(str1.clone()).unwrap()));
         if self.findstart(&mut f1, temp) == 0 {
             hill.name = read_line(&mut f1).unwrap();
             hill.kr = parse_line(&mut f1).unwrap();
@@ -1004,7 +998,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         begin
         */
         {
-            let mut f1 = BufReader::new(File::open("MOREHILL.SKI").unwrap());
+            let mut f1 = BufReader::new(self.s.open_file("MOREHILL.SKI"));
             self.num_extra_hills.set(parse_line(&mut f1).unwrap());
         }
 
@@ -1141,7 +1135,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
     pub async fn set_goals(&self) {
         let mut goals = [0; NUM_WC_HILLS as usize + 1];
 
-        load_goals(&mut goals);
+        load_goals(self.s, &mut goals);
 
         self.g.new_screen(1, 0).await;
 
@@ -1218,7 +1212,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             }
         }
 
-        write_goals(&goals);
+        write_goals(self.s, &goals);
     }
 
     fn draw_goal(&self, goals: &[i32; NUM_WC_HILLS as usize + 1], temp2: i32, phase: i32) {
@@ -1256,19 +1250,19 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         let temp = index - NUM_WC_HILLS;
 
-        let mut f1 = File::create(
-            String::from_utf8([&self.hillfile(temp) as &[u8], b".SJH"].concat()).unwrap(),
-        );
-        if let Ok(mut f1) = f1 {
-            self.write_hill(&mut f1, h, 0, 1); //{ ainoa mesta jossa phase=1 }
-        } else {
-            println!("Error #29: Couldn''t write file {}.SJH", temp);
-            println!("Maybe the disk is full or something.");
-        }
+        let mut f1: Vec<u8> = vec![];
+        //     String::from_utf8([&self.hillfile(temp) as &[u8], b".SJH"].concat()).unwrap(),
+        // );
+        // if let Ok(mut f1) = f1 {
+        self.write_hill(&mut f1, h, 0, 1); //{ ainoa mesta jossa phase=1 }
+                                           // } else {
+                                           //     println!("Error #29: Couldn''t write file {}.SJH", temp);
+                                           //     println!("Maybe the disk is full or something.");
+                                           // }
     }
 
     //{ phase: 0 - tavallinen, 1 - ei profiilin checkkausta (HR:t) }
-    fn write_hill(&self, f: &mut File, mut h: Hill, index: i32, phase: i32) {
+    fn write_hill(&self, mut f: impl Write, mut h: Hill, index: i32, phase: i32) {
         let mut f1 = BufWriter::new(f);
 
         let mut l1: i32 = 0;
@@ -1519,9 +1513,12 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
                     if filestr != b"NULL" {
                         //{ sitten kirjoitetaan p��lle }
-                        let mut f1 =
-                            File::create(String::from_utf8(filestr).unwrap() + ".SJH").unwrap();
-                        self.write_hill(&mut f1, h.clone(), 0, 0);
+                        {
+                            let mut f1 = self
+                                .s
+                                .create_file(String::from_utf8(filestr).unwrap() + ".SJH");
+                            self.write_hill(&mut f1, h.clone(), 0, 0);
+                        }
 
                         self.g.new_screen(5, 0).await;
                         self.result_box(3, 0).await;
@@ -1579,7 +1576,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.getch(220, 110, 243).await;
 
         if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1).to_ascii_uppercase() {
-            fs::remove_file(from_utf8(filestr).unwrap()).unwrap();
+            self.s.remove_file(from_utf8(filestr).unwrap());
             tempb = 0; //{ yep, deleted }
         }
 
@@ -1784,11 +1781,11 @@ pub fn valuestr(str0: &[u8], arvo: i32) -> u16 {
         .wrapping_add(arvo as u16)
 }
 
-pub fn loadgoal(num: i32) -> i32 {
+pub fn loadgoal<P: Platform>(s: &P, num: i32) -> i32 {
     let mut value: i32 = 0;
 
     if num > 0 && num <= NUM_WC_HILLS {
-        let mut f2 = File::open("GOALS.SKI").unwrap();
+        let mut f2 = s.open_file("GOALS.SKI");
         let mut b = BufReader::new(f2).lines();
         for _ in 1..=num {
             let line = b.next().unwrap().unwrap();
@@ -1798,21 +1795,17 @@ pub fn loadgoal(num: i32) -> i32 {
     value
 }
 
-fn load_goals(goals: &mut [i32; NUM_WC_HILLS as usize + 1]) {
-    if let Ok(f) = File::open("GOALS.SKI") {
-        let mut f2 = BufReader::new(f);
-        for temp2 in 1..=NUM_WC_HILLS as usize {
-            goals[temp2] = parse_line(&mut f2).unwrap();
-        }
+fn load_goals<P: Platform>(s: &P, goals: &mut [i32; NUM_WC_HILLS as usize + 1]) {
+    let mut f2 = BufReader::new(s.open_file("GOALS.SKI"));
+    for temp2 in 1..=NUM_WC_HILLS as usize {
+        goals[temp2] = parse_line(&mut f2).unwrap();
     }
 }
 
-fn write_goals(goals: &[i32; NUM_WC_HILLS as usize + 1]) {
-    if let Ok(f) = File::create("GOALS.SKI") {
-        let mut f2 = BufWriter::new(f);
-        for temp2 in 1..=NUM_WC_HILLS as usize {
-            writeln!(f2, "{}", goals[temp2]).unwrap();
-        }
+fn write_goals(s: &impl Platform, goals: &[i32; NUM_WC_HILLS as usize + 1]) {
+    let mut f2 = BufWriter::new(s.create_file("GOALS.SKI"));
+    for temp2 in 1..=NUM_WC_HILLS as usize {
+        writeln!(f2, "{}", goals[temp2]).unwrap();
     }
 }
 

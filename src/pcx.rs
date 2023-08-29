@@ -1,7 +1,6 @@
 use crate::maki::{MakiModule, SIVU_KOKO, X_SIZE};
 use crate::platform::Platform;
 use std::cell::RefCell;
-use std::fs::File;
 use std::io::Read;
 
 pub const NUM_SKIS: u16 = 4;
@@ -219,7 +218,7 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
             }
         };
 
-        let mut file = File::open(name).unwrap();
+        let mut file = self.s.open_file(name);
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();
 

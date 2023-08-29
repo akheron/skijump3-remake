@@ -7,11 +7,13 @@ use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::surface::Surface;
 use sdl2::video::{Window, WindowContext};
 use std::cell::{Cell, RefCell};
+use std::fs::File;
 use std::future::Future;
+use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::thread;
 use std::time::{Duration, Instant};
+use std::{fs, thread};
 
 pub const X_RES: u32 = 320;
 pub const Y_RES: u32 = 200;
@@ -600,5 +602,22 @@ impl<'si> Platform for SDLPortModule<'si> {
     }
     fn set_ch2(&self, ch: u8) {
         self.ch2.set(ch);
+    }
+
+    type WritableFile = File;
+    fn create_file<P: AsRef<str>>(&self, path: P) -> Self::WritableFile {
+        File::create(path.as_ref()).unwrap()
+    }
+
+    type ReadableFile = File;
+    fn open_file<P: AsRef<str>>(&self, path: P) -> Self::ReadableFile {
+        File::open(path.as_ref()).unwrap()
+    }
+
+    fn file_exists<P: AsRef<str>>(&self, path: P) -> bool {
+        Path::new(path.as_ref()).exists()
+    }
+    fn remove_file<P: AsRef<str>>(&self, path: P) {
+        fs::remove_file(path.as_ref()).unwrap();
     }
 }
