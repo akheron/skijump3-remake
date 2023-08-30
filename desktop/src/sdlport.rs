@@ -1,4 +1,4 @@
-use crate::platform::{Platform, TPalette};
+use common::{Platform, TPalette};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};

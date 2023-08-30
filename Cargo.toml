@@ -1,11 +1,3 @@
-[package]
-name = "skijump3-remake"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-chrono = "0.4.23"
-eyre = "0.6.8"
-futures = "0.3.28"
-rand = "0.8.5"
-sdl2 = "0.35.2"
+[workspace]
+members = ["common", "desktop"]
+resolver = "2"
