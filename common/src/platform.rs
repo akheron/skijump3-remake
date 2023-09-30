@@ -18,7 +18,7 @@ pub trait Platform {
         let (ch, ch2) = self.wait_for_key_press().await;
         ch == 0 && ch2 == 68
     }
-    async fn putsaa(&self);
+    fn putsaa(&self);
     fn clearchs(&self);
     fn get_ch(&self) -> u8;
     fn get_ch2(&self) -> u8;
@@ -28,11 +28,15 @@ pub trait Platform {
         ((self.get_ch() as u16) << 8) + self.get_ch2() as u16
     }
 
-    type WritableFile: Write;
-    fn create_file<P: AsRef<str>>(&self, path: P) -> Self::WritableFile;
+    type WritableFile<'a>: Write
+    where
+        Self: 'a;
+    fn create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::WritableFile<'a>;
 
-    type ReadableFile: Read;
-    fn open_file<P: AsRef<str>>(&self, path: P) -> Self::ReadableFile;
+    type ReadableFile<'a>: Read
+    where
+        Self: 'a;
+    fn open_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::ReadableFile<'a>;
 
     fn file_exists<P: AsRef<str>>(&self, path: P) -> bool;
     fn remove_file<P: AsRef<str>>(&self, path: P);

@@ -835,7 +835,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
     }
 
     // 0 - löytyi, 1 - ei lytynyt
-    fn findstart(&self, f1: &mut BufReader<P::ReadableFile>, nytmaki: i32) -> u8 {
+    fn findstart(&self, f1: &mut BufReader<P::ReadableFile<'_>>, nytmaki: i32) -> u8 {
         let mut out = false;
         let mut result = 1;
         let mut str1: Vec<u8> = Vec::new();

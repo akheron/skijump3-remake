@@ -13,8 +13,8 @@ pub struct MakiModule {
     pub x: Cell<i32>,
     pub y: Cell<i32>,
 
-    pub graffa: RefCell<[u8; (ALUE * 2 + 1024) as usize]>, //{ osoite m�en grafiikkaan }
-    pub video: RefCell<[u8; 64000]>,                       //{ osoite v�lipuskuriin }
+    pub graffa: RefCell<Vec<u8>>,    //{ osoite m�en grafiikkaan }
+    pub video: RefCell<[u8; 64000]>, //{ osoite v�lipuskuriin }
 
     siirto_osoite: Cell<u32>,
 }
@@ -29,7 +29,7 @@ impl MakiModule {
             y: Cell::new(0),
 
             siirto_osoite: Cell::new(0),
-            graffa: RefCell::new([0; (ALUE * 2 + 1024) as usize]),
+            graffa: RefCell::new(vec![0; (ALUE * 2 + 1024) as usize]),
             video: RefCell::new([0; 64000]),
         }
     }

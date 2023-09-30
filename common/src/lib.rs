@@ -27,7 +27,6 @@ use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::UnitModule;
 pub use platform::{Platform, TPalette};
-use std::future::Future;
 
 pub async fn sj3<P: Platform>(port: &P) {
     let maki_module = MakiModule::new();

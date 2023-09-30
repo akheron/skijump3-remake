@@ -2388,7 +2388,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             self.g.draw_screen().await;
 
             if draw {
-                self.s.putsaa().await;
+                self.s.putsaa();
                 self.cupslut = self.s.wait_for_key2().await;
             } else if self.s.key_pressed().await {
                 self.s.wait_for_key_press().await;

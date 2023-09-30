@@ -423,7 +423,7 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
     pub fn write_video(&self) {
         let mut video = self.m.video.borrow_mut();
         let graffa = self.m.graffa.borrow();
-        let source = &graffa.as_ref()[0..64000];
+        let source = &graffa[0..64000];
         video.copy_from_slice(source);
     }
 

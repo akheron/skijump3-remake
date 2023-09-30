@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ski Jump International v3 (remake)</title>
+  <style>
+    body {
+        background-color: #000;
+        color: #fff;
+        font-family: sans-serif;
+    }
+    a {
+        color: #fff;
+    }
+    canvas {
+        image-rendering: pixelated;
+        width: 100%;
+    }
+    footer {
+        margin-top: 1em;
+        text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="outer">
+  <canvas id="screen"></canvas>
+</div>
+<footer>
+  <a href="https://suomipelit.github.io/" targe="_blank">Suomipelit community</a> //
+  <a href="https://github.com/suomipelit/skijump3-remake" target="_blank">GitHub</a>
+</footer>
+<script type="module">
+  import { run } from './index.js';
+  try {
+      await run()
+  } catch (err) {
+      console.error(err)
+      document.querySelector('.outer').innerHTML = `<pre>${err}</pre>`
+  }
+</script>
+</body>
+</html>

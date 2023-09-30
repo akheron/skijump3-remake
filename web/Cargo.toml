@@ -1,0 +1,17 @@
+[package]
+name = "skijump3-web"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+common = { path = "../common" }
+console_log = "1.0.0"
+console_error_panic_hook = "0.1.7"
+futures = "0.3.28"
+getrandom = { version = "0.2", features = ["js"] }
+js-sys = "0.3.64"
+log = "0.4.19"
+wasm-bindgen = "0.2.87"

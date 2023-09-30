@@ -585,7 +585,7 @@ impl<'si> Platform for SDLPortModule<'si> {
         SDLPortFuture { s: self }.await;
         (self.ch.get(), self.ch2.get())
     }
-    async fn putsaa(&self) {
+    fn putsaa(&self) {
         self.putsaa();
     }
     fn clearchs(&self) {
@@ -604,13 +604,13 @@ impl<'si> Platform for SDLPortModule<'si> {
         self.ch2.set(ch);
     }
 
-    type WritableFile = File;
-    fn create_file<P: AsRef<str>>(&self, path: P) -> Self::WritableFile {
+    type WritableFile<'a> = File where Self: 'a;
+    fn create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::WritableFile<'a> {
         File::create(path.as_ref()).unwrap()
     }
 
-    type ReadableFile = File;
-    fn open_file<P: AsRef<str>>(&self, path: P) -> Self::ReadableFile {
+    type ReadableFile<'a> = File where Self: 'a;
+    fn open_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::ReadableFile<'a> {
         File::open(path.as_ref()).unwrap()
     }
 
