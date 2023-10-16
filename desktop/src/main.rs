@@ -1,5 +1,3 @@
-#![feature(async_fn_in_trait)]
-
 mod sdlport;
 
 use crate::sdlport::{SDLPortModule, X_RES, Y_RES};
