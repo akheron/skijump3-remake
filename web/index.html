@@ -12,6 +12,14 @@
     a {
         color: #fff;
     }
+    .outer {
+        display: flex;
+        justify-content: center;
+    }
+    .inner {
+        width: 100%;
+        max-width: 1200px;
+    }
     canvas {
         image-rendering: pixelated;
         width: 100%;
@@ -24,10 +32,12 @@
 </head>
 <body>
 <div class="outer">
-  <canvas id="screen"></canvas>
+  <div class="inner">
+    <canvas id="screen"></canvas>
+  </div>
 </div>
 <footer>
-  <a href="https://suomipelit.github.io/" targe="_blank">Suomipelit community</a> //
+  <a href="https://suomipelit.github.io/" target="_blank">Suomipelit community</a> //
   <a href="https://github.com/suomipelit/skijump3-remake" target="_blank">GitHub</a>
 </footer>
 <script type="module">
