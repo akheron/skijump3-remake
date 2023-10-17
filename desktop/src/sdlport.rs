@@ -9,7 +9,7 @@ use sdl2::video::{Window, WindowContext};
 use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
@@ -611,13 +611,17 @@ impl<'si> Platform for SDLPortModule<'si> {
 
     type ReadableFile<'a> = File where Self: 'a;
     fn open_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::ReadableFile<'a> {
-        File::open(path.as_ref()).unwrap()
+        File::open(asset_path(path)).unwrap()
     }
 
     fn file_exists<P: AsRef<str>>(&self, path: P) -> bool {
-        Path::new(path.as_ref()).exists()
+        Path::new(&asset_path(path)).exists()
     }
     fn remove_file<P: AsRef<str>>(&self, path: P) {
-        fs::remove_file(path.as_ref()).unwrap();
+        fs::remove_file(asset_path(path)).unwrap();
     }
+}
+
+fn asset_path<P: AsRef<str>>(path: P) -> PathBuf {
+    Path::new("assets").join(path.as_ref())
 }

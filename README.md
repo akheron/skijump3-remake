@@ -47,6 +47,15 @@ Rust.
 
 ## Development
 
+Desktop:
+
 1. Install SDL development library
-2. Copy `*.PCX` and `*.SKI` from the [original game](https://github.com/suomipelit/skijump3) to the project root
-3. Run `cargo run`
+2. Run `cargo run --bin desktop`
+
+Web:
+
+```
+cd web
+./build.sh
+python -m http.server -d dist
+```
