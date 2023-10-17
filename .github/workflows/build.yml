@@ -1,6 +1,15 @@
 name: Build
 on: [push]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "build"
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -36,3 +45,25 @@ jobs:
       - run: sudo apt-get install -y binaryen
       - run: cargo install wasm-bindgen-cli
       - run: ./build.sh
+      - uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: web/dist
+
+  deploy:
+#    if: github.ref == 'refs/heads/master'
+    needs: [build-web]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist
+      - uses: actions/configure-pages@v3
+      - uses: actions/upload-pages-artifact@v2
+        with:
+          path: '.'
+      - id: deployment
+        uses: actions/deploy-pages@v2
