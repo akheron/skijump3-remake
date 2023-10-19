@@ -4,15 +4,6 @@ use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use wasm_bindgen::prelude::wasm_bindgen;
-
-#[wasm_bindgen]
-extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
 
 pub struct WebPlatform {
     files: Files,
@@ -158,27 +149,20 @@ impl Platform for WebPlatform {
     type ReadableFile<'a> = &'a [u8];
 
     fn open_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::ReadableFile<'a> {
-        match path.as_ref() {
-            "LANGBASE.SKI" => &self.files.langbase,
-            "ANIM.SKI" => &self.files.anim,
-            "HISCORE.SKI" => &self.files.hiscore,
-            "CONFIG.SKI" => &self.files.config,
-            "PLAYERS.SKI" => &self.files.players,
-            "NAMES0.SKI" => &self.files.names0,
-            "MOREHILL.SKI" => &self.files.morehill,
-            "HILLBASE.SKI" => &self.files.hillbase,
-            "MAIN.PCX" => &self.files.main_pcx,
-            "LOAD.PCX" => &self.files.load_pcx,
-            "FRONT1.PCX" => &self.files.front1_pcx,
-            "BACK1.PCX" => &self.files.back1_pcx,
-            "GOALS.SKI" => &self.files.goals_ski,
-            _ => panic!("Unknown file {}", path.as_ref()),
+        let path = path.as_ref();
+        if let Some(contents) = self.files.file_content(path) {
+            contents
+        } else {
+            panic!("Unknown file {}", path)
         }
     }
 
     fn file_exists<P: AsRef<str>>(&self, path: P) -> bool {
-        // TODO: support custom files
-        false
+        if let Some(_) = self.files.file_content(path.as_ref()) {
+            true
+        } else {
+            false
+        }
     }
 
     fn remove_file<P: AsRef<str>>(&self, path: P) {

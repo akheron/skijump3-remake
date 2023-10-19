@@ -3,11 +3,20 @@ mod webport;
 use crate::webport::WebPlatform;
 use common::sj3;
 use futures::task::noop_waker;
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Waker};
 use wasm_bindgen::prelude::wasm_bindgen;
+
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    pub fn log(s: &str);
+}
 
 #[wasm_bindgen]
 pub struct SJ3 {
@@ -16,56 +25,52 @@ pub struct SJ3 {
     waker: Waker,
 }
 
-#[wasm_bindgen]
 pub struct Files {
-    langbase: Vec<u8>,
-    anim: Vec<u8>,
-    hiscore: Vec<u8>,
-    config: Vec<u8>,
-    players: Vec<u8>,
-    names0: Vec<u8>,
-    morehill: Vec<u8>,
-    hillbase: Vec<u8>,
-    main_pcx: Vec<u8>,
-    load_pcx: Vec<u8>,
-    front1_pcx: Vec<u8>,
-    back1_pcx: Vec<u8>,
-    goals_ski: Vec<u8>,
+    files: HashMap<String, (u32, u32)>,
+    data: Vec<u8>,
 }
 
-#[wasm_bindgen]
 impl Files {
-    pub fn new(
-        langbase: &[u8],
-        anim: &[u8],
-        hiscore: &[u8],
-        config: &[u8],
-        players: &[u8],
-        names0: &[u8],
-        morehill: &[u8],
-        hillbase: &[u8],
-        main_pcx: &[u8],
-        load_pcx: &[u8],
-        front1_pcx: &[u8],
-        back1_pcx: &[u8],
-        goals_ski: &[u8],
-    ) -> Self {
+    pub fn new(mut pack_data: &[u8]) -> Self {
+        let mut files: HashMap<String, (u32, u32)> = HashMap::new();
+
+        // See the `pack` crate for file format details
+        let num_files = read_le_u8(&mut pack_data);
+        for i in 0..num_files {
+            let name_len = read_le_u8(&mut pack_data);
+            let (name, _) = pack_data.split_at(name_len as usize);
+            pack_data = &pack_data[name_len as usize..];
+            let name = String::from_utf8(name.to_vec()).unwrap();
+            let size = read_le_u32(&mut pack_data);
+            let offset = read_le_u32(&mut pack_data);
+            files.insert(name, (size, offset));
+        }
+
         Self {
-            langbase: langbase.to_vec(),
-            anim: anim.to_vec(),
-            hiscore: hiscore.to_vec(),
-            config: config.to_vec(),
-            players: players.to_vec(),
-            names0: names0.to_vec(),
-            morehill: morehill.to_vec(),
-            hillbase: hillbase.to_vec(),
-            main_pcx: main_pcx.to_vec(),
-            load_pcx: load_pcx.to_vec(),
-            front1_pcx: front1_pcx.to_vec(),
-            back1_pcx: back1_pcx.to_vec(),
-            goals_ski: goals_ski.to_vec(),
+            files,
+            data: pack_data.to_vec(),
         }
     }
+
+    pub fn file_content<'a>(&'a self, name: &str) -> Option<&'a [u8]> {
+        self.files.get(name).map(|(size, offset)| {
+            let size = *size as usize;
+            let offset = *offset as usize;
+            &self.data[offset..offset + size]
+        })
+    }
+}
+
+fn read_le_u8(input: &mut &[u8]) -> u8 {
+    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u8>());
+    *input = rest;
+    u8::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
+fn read_le_u32(input: &mut &[u8]) -> u32 {
+    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u32>());
+    *input = rest;
+    u32::from_le_bytes(int_bytes.try_into().unwrap())
 }
 
 #[wasm_bindgen]
@@ -79,9 +84,9 @@ pub enum AsyncState {
 
 #[wasm_bindgen]
 impl SJ3 {
-    pub fn new(files: Files) -> Self {
+    pub fn new(file_data: &[u8]) -> Self {
         console_error_panic_hook::set_once();
-        let platform = Rc::new(WebPlatform::new(files));
+        let platform = Rc::new(WebPlatform::new(Files::new(file_data)));
         let platform2 = platform.clone();
         let future = Box::pin(async move {
             sj3(platform2.as_ref()).await;

@@ -1,26 +1,10 @@
-import init, { SJ3, AsyncState, Files } from "./skijump3.js"
+import init, { SJ3, AsyncState } from "./skijump3.js"
 import { setImmediate } from "./setImmediate.js";
 
 export async function run() {
   const wasm = await init()
-
-  const files = await Promise.all([
-    "LANGBASE.SKI",
-    "ANIM.SKI",
-    "HISCORE.SKI",
-    "CONFIG.SKI",
-    "PLAYERS.SKI",
-    "NAMES0.SKI",
-    "MOREHILL.SKI",
-    "HILLBASE.SKI",
-    "MAIN.PCX",
-    "LOAD.PCX",
-    "FRONT1.PCX",
-    "BACK1.PCX",
-    "GOALS.SKI",
-  ].map(loadFile))
-
-  const state = SJ3.new(Files.new(...files))
+  const packData = await loadFile("assets.pack")
+  const state = SJ3.new(packData)
 
   const canvas = document.getElementById("screen")
   canvas.width = 320
