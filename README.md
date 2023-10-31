@@ -1,7 +1,12 @@
 # Ski Jump International v3 (remake)
 
-This repository will be a complete rewrite of the legendary DOS game Ski Jump International v3. It's a very early work
-in progress, and if you'd like to play the game now, see [the original game's website](https://www.nomasi.com/sj3/).
+This repository will be a complete rewrite of the legendary DOS game Ski Jump International v3.
+
+It's a work in progress, but already somewhat playable on web browsers: https://akheron.github.io/skijump3-remake
+
+![Screenshot](screenshot.png)
+
+Also check out [the original game's website](https://www.nomasi.com/sj3/).
 
 ## Goals
 
@@ -13,37 +18,22 @@ to compile to web browsers.
 
 ## How?
 
-The remake will be written in Rust.
+The remake is written in Rust.
 
-**Phase 1: Rewrite**
+It's currently an "almost line-by-line" rewrite of the SDL2 port of the original Pascal code.
+However, it's portable through a trait that abstracts platform specific details.
 
-- Make an "almost line-by-line" rewrite of the SDL2 port, using the sdl2 rust crate.
-- This will be mostly a translation of Pascal syntax to Rust syntax.
-- Also requires handling of global mutable state (there's lots of it), and porting I/O and other platform-specific
-  code.
+The available platforms are SDL2 and web (through WebAssembly).
 
-**Phase 1.5: Verify**
+One novel idea in the port is using Rust's async/await to allow unwinding of the deeply nested
+game loop. This is required to return control to the top level after each frame when running in
+web browsers.
 
-- Write supporting code to compare the original game's output to the remake's output. This will be used to verify that
-  the remake is correct.
-- The initial idea is to allow recording input and output (pixels + palette) from the original game, and then replaying
-  the input and comparing the outputs of the remake.
+Things still left to do:
 
-**Phase 2: Refactor**
-
-- Refactor the code to be more idiomatic Rust.
-- Refactor game state and logic so that there's one main loop that can give up control after rendering each frame (a
-  requirement for web browsers).
-
-**Phase 3: Web**
-
-- Port the game to web browsers. This requires some amount of JS glue code.
-- Invent a touch UI that works well in mobile browsers.
-
-## Status
-
-Phase 1 is ongoing. The original game contains about 10k lines of Pascal code, of which about 65 % has been converted to
-Rust.
+- Not all Pascal code has been ported yet
+- The game is not yet playable on mobile browsers. This would require a touch UI.
+- There are low hanging fruits for performance improvements and to make the code more idiomatic Rust.
 
 ## Development
 
