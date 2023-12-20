@@ -1848,7 +1848,7 @@ pub fn dayandtime_now() -> Vec<u8> {
         },
         &txt(now.day() as i32),
         b" ",
-        MONTHS[now.month() as usize],
+        MONTHS[(now.month() - 1) as usize],
         b" ",
         &txt(now.year()),
         b" ",
