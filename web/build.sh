@@ -4,7 +4,7 @@ set -e
 cargo build --target wasm32-unknown-unknown --release
 wasm-bindgen ../target/wasm32-unknown-unknown/release/skijump3_web.wasm --out-dir dist --out-name skijump3 --target web
 
-cp index.html index.js setImmediate.js dist/
+cp index.html index.js dist/
 
 (cd .. && cargo run --bin pack)
 mv ../assets.pack dist/
