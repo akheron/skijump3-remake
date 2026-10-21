@@ -46,7 +46,11 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get install -y binaryen
-      - run: cargo install wasm-bindgen-cli
+      - id: wasm-bindgen
+        run: echo "version=$(cargo pkgid wasm-bindgen | cut -d@ -f2)" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wasm-bindgen.outputs.version }}
       - run: ./build.sh
       - uses: actions/upload-artifact@v7
         with:
