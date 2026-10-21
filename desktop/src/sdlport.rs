@@ -604,12 +604,18 @@ impl<'si> Platform for SDLPortModule<'si> {
         self.ch2.set(ch);
     }
 
-    type WritableFile<'a> = File where Self: 'a;
+    type WritableFile<'a>
+        = File
+    where
+        Self: 'a;
     fn create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::WritableFile<'a> {
         File::create(path.as_ref()).unwrap()
     }
 
-    type ReadableFile<'a> = File where Self: 'a;
+    type ReadableFile<'a>
+        = File
+    where
+        Self: 'a;
     fn open_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::ReadableFile<'a> {
         File::open(asset_path(path)).unwrap()
     }
