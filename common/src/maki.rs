@@ -139,7 +139,7 @@ impl MakiModule {
             let x2 = x - *keula_x; //{ suhteellinen keulan alap��h�n X }
             let y2 = profiili_y[x as usize] as i32 - profiili_y[*keula_x as usize] as i32; //{ suhteellinen Y }
             let hp = f64::round(f64::sqrt((x2 * x2 + y2 * y2) as f64) * pk * 0.5) as i32 * 5; //{ +10? }
-            if hp >= (2 * kr / 3) * 10 && hp <= kr * 12 {
+            if hp as f64 >= (2.0 / 3.0 * kr as f64) * 10.0 && hp <= kr * 12 {
                 let c = if hp < kr * 10 { 238 } else { 239 };
                 for y in 0..=2 {
                     self.kirjoita(
