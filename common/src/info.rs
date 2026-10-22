@@ -206,7 +206,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 b"\xff",
             ]
             .concat();
-            let len = (self.u.hillkr(temp) as f64 / 0.94) as i32 * 10 * kerroin as i32;
+            let len = f64::round(self.u.hillkr(temp) as f64 / 0.94) as i32 * 10 * kerroin as i32;
             let time = dayandtime_now();
             self.u.set_hrinfo(temp, name, len, time);
         }
@@ -218,8 +218,9 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                     b"\xff",
                 ]
                 .concat();
-                let len =
-                    (self.u.hillkr(temp + NUM_WC_HILLS) as f64 / 0.94) as i32 * 10 * kerroin as i32;
+                let len = f64::round(self.u.hillkr(temp + NUM_WC_HILLS) as f64 / 0.94) as i32
+                    * 10
+                    * kerroin as i32;
                 let time = dayandtime_now();
                 self.u.set_hrinfo(temp + NUM_WC_HILLS, name, len, time);
             }
