@@ -209,9 +209,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         for temp in 1..=5 {
             if self.mcpisteet[self.mcluett[temp] as usize] > 0 {
-                let mut str1 = txtp(self.mcpisteet[self.mcluett[temp] as usize]);
+                let mut str1 = txt(self.mcpisteet[self.mcluett[temp] as usize]);
 
                 if self.diffwc && temp > 1 {
+                    str1 = txt(self.mcpisteet[self.mcluett[temp] as usize]
+                        - self.mcpisteet[self.mcluett[1] as usize]);
+                }
+
+                if self.jcup {
                     str1 = [
                         &self.i.jnimet.borrow()[self.mcluett[temp] as usize] as &[u8],
                         b"$",
@@ -1224,7 +1229,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
             self.g.draw_screen().await;
 
-            self.s.wait_for_key_press().await;
+            self.s.wait_for_key().await;
             self.s.set_ch(27);
         }
 

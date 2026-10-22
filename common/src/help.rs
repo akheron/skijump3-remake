@@ -16,6 +16,9 @@ pub fn txtp(mut jokuluku: i32) -> Vec<u8> {
         if s.len() < 3 {
             s.insert(0, '0');
         }
+        if jokuluku < 0 {
+            s.insert(0, '-');
+        }
         s.into_bytes()
     }
 }

@@ -475,7 +475,10 @@ impl<'a> SDLPortModule<'a> {
     // Everything down from here originally in SJ3HELP.PAS
     fn putsaa(&self) {
         while self.key_pressed() {
-            self.process_keypress(self.keypresses.borrow_mut().remove(0));
+            let keypress = self.keypresses.borrow_mut().remove(0);
+            let (ch, ch2) = self.process_keypress(keypress);
+            self.ch.set(ch);
+            self.ch2.set(ch2);
         }
     }
 
