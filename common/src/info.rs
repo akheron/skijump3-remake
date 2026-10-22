@@ -1,5 +1,5 @@
 use crate::graph::GraphModule;
-use crate::help::{txt, txtp};
+use crate::help::{round, txt, txtp};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
@@ -206,7 +206,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 b"\xff",
             ]
             .concat();
-            let len = f64::round(self.u.hillkr(temp) as f64 / 0.94) as i32 * 10 * kerroin as i32;
+            let len = round((self.u.hillkr(temp) as f64 / 0.94) as f32) * 10 * kerroin as i32;
             let time = dayandtime_now();
             self.u.set_hrinfo(temp, name, len, time);
         }
@@ -218,7 +218,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                     b"\xff",
                 ]
                 .concat();
-                let len = f64::round(self.u.hillkr(temp + NUM_WC_HILLS) as f64 / 0.94) as i32
+                let len = round((self.u.hillkr(temp + NUM_WC_HILLS) as f64 / 0.94) as f32)
                     * 10
                     * kerroin as i32;
                 let time = dayandtime_now();

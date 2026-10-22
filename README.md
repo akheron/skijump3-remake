@@ -49,3 +49,18 @@ cd web
 ./build.sh
 python -m http.server -d dist
 ```
+
+### Floating point
+
+The original game stores its floating point variables as `single`, and the
+Borland Pascal 7 build of the DOS version computes each expression in 80-bit
+x87 precision. To get the same results on all platforms, the variables are
+`f32`, each expression is computed in `f64`, and the result is rounded to
+`f32` where the original stores a `single`: in an assignment, in a `single`
+parameter or in a function result.
+
+- `help::round` is the game's own `round`. It takes a `single`, so its
+  argument is rounded to `f32` first.
+- `help::round_half_even` is the built-in `Round` of Turbo Pascal, which the
+  units that do not use SJ3HELP call.
+- Use `libm` for `sin` and `cos`, so that all platforms compute the same values.

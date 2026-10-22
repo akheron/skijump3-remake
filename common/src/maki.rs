@@ -1,3 +1,4 @@
+use crate::help::round_half_even;
 use std::cell::{Cell, RefCell};
 
 pub const X_SIZE: u32 = 1024;
@@ -96,7 +97,7 @@ impl MakiModule {
         }
     }
 
-    pub fn laske_linjat(&self, keula_x: &mut i32, kr: i32, pk: f64) {
+    pub fn laske_linjat(&self, keula_x: &mut i32, kr: i32, pk: f32) {
         /*{ linjojen pituudet voisi ladata nopeammin levylt� ... }*/
         *keula_x = 0;
         let mut former_y: i32 = 0;
@@ -138,7 +139,7 @@ impl MakiModule {
         for x in *keula_x..(X_SIZE - 10) as i32 {
             let x2 = x - *keula_x; //{ suhteellinen keulan alap��h�n X }
             let y2 = profiili_y[x as usize] as i32 - profiili_y[*keula_x as usize] as i32; //{ suhteellinen Y }
-            let hp = f64::round(f64::sqrt((x2 * x2 + y2 * y2) as f64) * pk * 0.5) as i32 * 5; //{ +10? }
+            let hp = round_half_even(f64::sqrt((x2 * x2 + y2 * y2) as f64) * pk as f64 * 0.5) * 5; //{ +10? }
             if hp as f64 >= (2.0 / 3.0 * kr as f64) * 10.0 && hp <= kr * 12 {
                 let c = if hp < kr * 10 { 238 } else { 239 };
                 for y in 0..=2 {
