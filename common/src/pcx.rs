@@ -108,8 +108,10 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
         let mut paletti = self.paletti.borrow_mut();
         for temp in 232..=235 {
             for temp2 in 0..=2 {
-                paletti[temp as usize][temp2 as usize] -=
-                    f32::round(0.4 * (paletti[temp as usize][temp2 as usize] as f32 - 32.0)) as u8;
+                let darken =
+                    f32::round(0.4 * (paletti[temp as usize][temp2 as usize] as f32 - 32.0)) as i32;
+                paletti[temp as usize][temp2 as usize] =
+                    paletti[temp as usize][temp2 as usize].wrapping_sub(darken as u8);
             }
         }
     }
