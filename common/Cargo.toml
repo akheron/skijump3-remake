@@ -2,10 +2,11 @@
 name = "common"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.77"
 
 [dependencies]
 chrono = "0.4.23"
 eyre = "0.6.8"
 futures = "0.3.28"
+libm = "0.2.8"
 rand = "0.8.5"

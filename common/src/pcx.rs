@@ -1,3 +1,4 @@
+use crate::help::round_half_even;
 use crate::maki::{MakiModule, SIVU_KOKO, X_SIZE};
 use crate::platform::Platform;
 use std::cell::RefCell;
@@ -109,7 +110,7 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
         for temp in 232..=235 {
             for temp2 in 0..=2 {
                 let darken =
-                    f32::round(0.4 * (paletti[temp as usize][temp2 as usize] as f32 - 32.0)) as i32;
+                    round_half_even(0.4 * (paletti[temp as usize][temp2 as usize] as f64 - 32.0));
                 paletti[temp as usize][temp2 as usize] =
                     paletti[temp as usize][temp2 as usize].wrapping_sub(darken as u8);
             }
@@ -124,12 +125,13 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
             fin = 215;
         }
 
-        let r1 = bkbright as f32 / 100.0;
+        let r1 = (bkbright as f64 / 100.0) as f32;
 
         let mut paletti = self.paletti.borrow_mut();
         for temp1 in start..=fin {
             for temp2 in 0usize..=2 {
-                paletti[temp1][temp2] = f32::round(paletti[temp1][temp2] as f32 * r1) as u8;
+                paletti[temp1][temp2] =
+                    round_half_even(paletti[temp1][temp2] as f64 * r1 as f64) as u8;
                 if paletti[temp1][temp2] > 63 {
                     paletti[temp1][temp2] = 63;
                 }
@@ -193,12 +195,15 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
 
         let mut paletti = self.paletti.borrow_mut();
         for temp in 0..=3 {
-            paletti[(target + temp) as usize][0] =
-                f32::round(NUMS[SUITS[col as usize][0] as usize][temp as usize] * w1 as f32) as u8;
-            paletti[(target + temp) as usize][1] =
-                f32::round(NUMS[SUITS[col as usize][0] as usize][temp as usize] * w2 as f32) as u8;
-            paletti[(target + temp) as usize][2] =
-                f32::round(NUMS[SUITS[col as usize][0] as usize][temp as usize] * w3 as f32) as u8;
+            paletti[(target + temp) as usize][0] = round_half_even(
+                NUMS[SUITS[col as usize][0] as usize][temp as usize] as f64 * w1 as f64,
+            ) as u8;
+            paletti[(target + temp) as usize][1] = round_half_even(
+                NUMS[SUITS[col as usize][0] as usize][temp as usize] as f64 * w2 as f64,
+            ) as u8;
+            paletti[(target + temp) as usize][2] = round_half_even(
+                NUMS[SUITS[col as usize][0] as usize][temp as usize] as f64 * w3 as f64,
+            ) as u8;
         }
     }
 

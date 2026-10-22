@@ -1,5 +1,5 @@
 use crate::graph::GraphModule;
-use crate::help::txtp;
+use crate::help::{round, txtp};
 use crate::platform::Platform;
 use crate::rs_util::random;
 use std::cell::Cell;
@@ -15,7 +15,7 @@ pub struct TuuliModule<'g, 'm, 'p, 's, P: Platform> {
     tsuun: Cell<bool>,
     traja1: Cell<i32>,
     traja2: Cell<i32>,
-    tkulma: Cell<f64>,
+    tkulma: Cell<f32>,
     tuulix: Cell<i32>,
     tuuliy: Cell<i32>,
     tpaikka: Cell<u8>,
@@ -92,9 +92,9 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
 
     pub fn hae(&self) {
         self.siirra();
-        self.value.set(
-            f64::round(f64::cos(PI * self.tkulma.get() / 180.0) * self.voim.get() as f64) as i32,
-        );
+        self.value.set(round(
+            (libm::cos(PI * self.tkulma.get() as f64 / 180.0) * self.voim.get() as f64) as f32,
+        ));
     }
 
     pub fn alusta(&self, place: u8) {
@@ -105,7 +105,7 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
         self.traja1.set(temp1 - temp2);
         self.traja2.set(temp1 + temp2);
         self.tkulma
-            .set((random(temp2 as u32 * 2) as i32 + self.traja1.get()) as f64);
+            .set((random(temp2 as u32 * 2) as i32 + self.traja1.get()) as f32);
         self.voim.set(random(50) as i32);
         if random(2) == 0 {
             self.tsuun.set(true);
@@ -117,10 +117,10 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
     }
 
     pub fn siirra(&self) {
-        if (self.tsuun.get()) && (self.tkulma.get() > self.traja2.get() as f64) {
+        if (self.tsuun.get()) && (self.tkulma.get() > self.traja2.get() as f32) {
             self.tsuun.set(false);
         }
-        if !self.tsuun.get() && (self.tkulma.get() < self.traja1.get() as f64) {
+        if !self.tsuun.get() && (self.tkulma.get() < self.traja1.get() as f32) {
             self.tsuun.set(true);
         }
         if random(50) == 0 {
@@ -128,10 +128,10 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
         }
         if self.tsuun.get() {
             self.tkulma
-                .set(self.tkulma.get() + (random(4) as f64 / 5.0));
+                .set((self.tkulma.get() as f64 + random(4) as f64 / 5.0) as f32);
         } else {
             self.tkulma
-                .set(self.tkulma.get() - (random(4) as f64 / 5.0));
+                .set((self.tkulma.get() as f64 - random(4) as f64 / 5.0) as f32);
         }
     }
 

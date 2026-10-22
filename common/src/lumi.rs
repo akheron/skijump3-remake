@@ -1,3 +1,4 @@
+use crate::help::round_half_even;
 use crate::rs_util::random;
 use std::cell::RefMut;
 use std::f64::consts::PI;
@@ -55,9 +56,9 @@ impl LumiModule {
 
     fn reset(&mut self) {
         for i in 0..SINE_LGT {
-            self.sine[i as usize] =
-                f64::round(f64::sin(i as f64 * PI * 2f64 / SINE_LGT as f64) * SIVU_LIIKE as f64)
-                    as i32;
+            self.sine[i as usize] = round_half_even(
+                libm::sin(i as f64 * PI * 2f64 / SINE_LGT as f64) * SIVU_LIIKE as f64,
+            );
         }
         for i in 0..LUMI_MAX {
             let lumi = &mut self.lh[i as usize];
