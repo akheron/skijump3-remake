@@ -64,3 +64,23 @@ parameter or in a function result.
 - `help::round_half_even` is the built-in `Round` of Turbo Pascal, which the
   units that do not use SJ3HELP call.
 - Use `libm` for `sin` and `cos`, so that all platforms compute the same values.
+
+### Tracing
+
+The desktop build can replay a trace from the `sp4-trace` branch of the SDL
+port, and check that the game state and every frame match. Keypresses and
+random numbers come from the trace. Run it in a directory whose `assets`
+directory has the same data files that the Pascal game started with:
+
+```
+cargo build --release -p desktop --features trace
+SJ3_TRACE=/path/to/Trace.txt /path/to/target/release/desktop
+```
+
+It stops at the first difference, or prints `Trace replay complete` at the end
+of the trace. It compares the CRC of each frame with the trace. If
+`SJ3_FRAMES` is the directory of the frame dumps of the Pascal run, it also
+tells how a frame that differs differs from the dump.
+
+[`trace/README.md`](trace/README.md) tells how to build the Pascal reference,
+run scenarios and run the regression set.

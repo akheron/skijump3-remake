@@ -1,3 +1,4 @@
+use crate::trace;
 use std::io::{BufRead, BufReader, Read};
 use std::str::FromStr;
 
@@ -21,5 +22,8 @@ where
 }
 
 pub fn random(max: u32) -> u32 {
+    if trace::active() {
+        return trace::random(max);
+    }
     (rand::random::<f64>() * (max as f64)) as u32
 }

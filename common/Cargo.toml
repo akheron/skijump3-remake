@@ -10,3 +10,6 @@ eyre = "0.6.8"
 futures = "0.3.28"
 libm = "0.2.8"
 rand = "0.8.5"
+
+[features]
+trace = []

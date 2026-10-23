@@ -2,6 +2,7 @@ use crate::graph::GraphModule;
 use crate::help::{round, txtp};
 use crate::platform::Platform;
 use crate::rs_util::random;
+use crate::trace;
 use std::cell::Cell;
 use std::f64::consts::PI;
 
@@ -95,6 +96,14 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
         self.value.set(round(
             (libm::cos(PI * self.tkulma.get() as f64 / 180.0) * self.voim.get() as f64) as f32,
         ));
+
+        trace::record(
+            "Wind",
+            &[
+                ("tkulma", self.tkulma.get().into()),
+                ("value", self.value.get().into()),
+            ],
+        );
     }
 
     pub fn alusta(&self, place: u8) {

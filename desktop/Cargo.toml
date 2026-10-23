@@ -7,3 +7,6 @@ edition = "2021"
 common = { path = "../common" }
 futures = "0.3.28"
 sdl2 = "0.35.2"
+
+[features]
+trace = ["common/trace"]

@@ -13,6 +13,7 @@ mod regfree;
 mod rs_util;
 mod sj3;
 mod table;
+pub mod trace;
 mod tuuli;
 mod unit;
 

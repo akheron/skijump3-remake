@@ -8,6 +8,11 @@ use sdl2::event::{Event, WindowEvent};
 use std::task::Context;
 
 fn main() {
+    #[cfg(feature = "trace")]
+    if let Ok(trace_path) = std::env::var("SJ3_TRACE") {
+        common::trace::load(&trace_path, std::env::var("SJ3_FRAMES").ok());
+    }
+
     let sdl = sdl2::init().unwrap();
     let video_subsystem = sdl.video().unwrap();
     let mut event_pump = sdl.event_pump().unwrap();
@@ -37,6 +42,9 @@ fn main() {
     });
     loop {
         if future.as_mut().poll(&mut ctx).is_ready() {
+            if common::trace::active() {
+                common::trace::finish();
+            }
             break;
         }
         for event in event_pump.poll_iter() {

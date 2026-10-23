@@ -1,4 +1,4 @@
-use common::{Platform, TPalette};
+use common::{trace, Platform, TPalette};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
@@ -27,6 +27,7 @@ pub struct SDLPortModule<'a> {
     original_surface: RefCell<Surface<'static>>,
     display_texture: RefCell<Texture<'a>>,
     palette: [Color; 256],
+    traced_palette: Cell<TPalette>,
     render_dest_rect: Cell<Rect>,
 
     window_resized: Cell<bool>,
@@ -83,6 +84,7 @@ impl<'a> SDLPortModule<'a> {
             original_surface: RefCell::new(original_surface),
             display_texture: RefCell::new(display_texture),
             palette: [Color::RGB(0, 0, 0); 256],
+            traced_palette: Cell::new([[0; 3]; 256]),
             render_dest_rect: Cell::new(render_dest_rect),
 
             window_resized: Cell::new(false),
@@ -104,6 +106,7 @@ impl<'a> SDLPortModule<'a> {
     }
 
     fn set_palette(&self, input: &TPalette) {
+        self.traced_palette.set(*input);
         let colors = input
             .iter()
             .map(|color| Color::RGB(color[0] * 4, color[1] * 4, color[2] * 4))
@@ -116,6 +119,9 @@ impl<'a> SDLPortModule<'a> {
     }
 
     fn render_phase1(&self, buffer: &[u8]) {
+        if trace::active() {
+            trace::frame(buffer, &self.traced_palette.get());
+        }
         let mut original_surface = self.original_surface.borrow_mut();
         original_surface.with_lock_mut(|pixels| {
             pixels.copy_from_slice(buffer);
@@ -157,6 +163,9 @@ impl<'a> SDLPortModule<'a> {
     }
 
     fn wait_raster(&self) {
+        if trace::active() {
+            return;
+        }
         let frame_duration = Duration::from_nanos(1_000_000_000 / TARGET_FRAMES as u64);
         let mut sub_frame_duration = self.sub_frame_duration.get();
         let mut frame_count = self.frame_count.get();
@@ -181,6 +190,9 @@ impl<'a> SDLPortModule<'a> {
     }
 
     fn key_pressed(&self) -> bool {
+        if trace::active() {
+            return trace::key_pressed();
+        }
         let mut keypresses = self.keypresses.borrow_mut();
         while keypresses.len() > 0 {
             let (keycode, keymod) = keypresses.remove(0);
@@ -475,8 +487,7 @@ impl<'a> SDLPortModule<'a> {
     // Everything down from here originally in SJ3HELP.PAS
     fn putsaa(&self) {
         while self.key_pressed() {
-            let keypress = self.keypresses.borrow_mut().remove(0);
-            let (ch, ch2) = self.process_keypress(keypress);
+            let (ch, ch2) = self.next_keypress();
             self.ch.set(ch);
             self.ch2.set(ch2);
         }
@@ -504,9 +515,8 @@ impl<'a> SDLPortModule<'a> {
                 self.async_state.set(AsyncState::None);
             }
             AsyncState::WaitForKeyPress => {
-                let mut keypresses = self.keypresses.borrow_mut();
-                if !keypresses.is_empty() {
-                    let (ch, ch2) = self.process_keypress(keypresses.remove(0));
+                if trace::active() || !self.keypresses.borrow().is_empty() {
+                    let (ch, ch2) = self.next_keypress();
                     self.ch.set(ch);
                     self.ch2.set(ch2);
                     self.async_state.set(AsyncState::None);
@@ -522,6 +532,14 @@ impl<'a> SDLPortModule<'a> {
                 panic!("Unexpected AsyncState::None");
             }
         }
+    }
+
+    fn next_keypress(&self) -> (u8, u8) {
+        if trace::active() {
+            return trace::keypress();
+        }
+        let keypress = self.keypresses.borrow_mut().remove(0);
+        self.process_keypress(keypress)
     }
 }
 

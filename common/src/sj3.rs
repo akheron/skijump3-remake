@@ -13,6 +13,7 @@ use crate::table::{
     find_landing, jump_risk, lasku_anim, lasku_asento, lento_anim, parru_anim, ponn_anim,
     suksi_laskussa, suksi_lennossa,
 };
+use crate::trace;
 use crate::tuuli::TuuliModule;
 use crate::unit::{
     crypt, dayandtime_now, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr,
@@ -22,8 +23,15 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::str::from_utf8;
 
+#[cfg(not(feature = "trace"))]
 const VERSION: &[u8] = b"3.13-remake0";
+#[cfg(not(feature = "trace"))]
 const VERSION_FULL: &[u8] = b"3.13-remake0";
+// Traced frames are compared against the Pascal SDL port, which shows this version.
+#[cfg(feature = "trace")]
+const VERSION: &[u8] = b"3.13-sp4";
+#[cfg(feature = "trace")]
+const VERSION_FULL: &[u8] = b"3.13-sp4";
 
 pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
     g: &'g GraphModule<'m, 'p, 's, P>,
@@ -427,6 +435,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         */
 
         // IMPLEMENTATION
+        trace::value("hyppy_alkaa", &format!("i32 {pel}"));
 
         kr = self.act_hill.kr;
         self.s.set_ch(0);
@@ -1634,6 +1643,29 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 x = round(matka + qx);
                 y = round(kor);
 
+                trace::record(
+                    "JumpState",
+                    &[
+                        ("frame", trace::rendered_frames().into()),
+                        ("matka", matka.into()),
+                        ("px", px.into()),
+                        ("py", py.into()),
+                        ("pl", pl.into()),
+                        ("t", t.into()),
+                        ("kor", kor.into()),
+                        ("x", x.into()),
+                        ("y", y.into()),
+                        ("kulma1", kulma1.into()),
+                        ("kulmas", kulmas.into()),
+                        ("ponnistus", ponnistus.into()),
+                        ("landing", landing.into()),
+                        ("height", height.into()),
+                        ("laskuri", laskuri.into()),
+                        ("ssuunta", ssuunta.into()),
+                        ("out", out.into()),
+                    ],
+                );
+
                 if draw {
                     delta_x = self.m.x.get();
                     delta_y = self.m.y.get();
@@ -1843,6 +1875,19 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
               if (kr>=160) then inc(score,600); { lentom�ist� saa isot pisteet }
             *)*/
 
+            trace::record(
+                "JumpResult",
+                &[
+                    ("hp", hp.into()),
+                    ("score", score.into()),
+                    ("grade", grade.into()),
+                    ("kupat", kupat.into()),
+                    ("landing", landing.into()),
+                    ("riski", riski.into()),
+                    ("height", height.into()),
+                ],
+            );
+
             if score > paras {
                 //{ harjoituskamaa }
                 paras = score;
@@ -1962,6 +2007,22 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
                     kor = self.m.profiili(x) as f32;
                     ukor = self.m.profiili(ux) as f32;
+
+                    trace::record(
+                        "LandState",
+                        &[
+                            ("frame", trace::rendered_frames().into()),
+                            ("matka", matka.into()),
+                            ("umatka", umatka.into()),
+                            ("px", px.into()),
+                            ("upx", upx.into()),
+                            ("kor", kor.into()),
+                            ("ukor", ukor.into()),
+                            ("x", x.into()),
+                            ("ux", ux.into()),
+                            ("laskuri", laskuri.into()),
+                        ],
+                    );
 
                     ski_anim = suksi_laskussa(self.makikulma(x));
 
