@@ -1,6 +1,6 @@
 mod webport;
 
-use crate::webport::WebPlatform;
+use crate::webport::{Modifiers, WebPlatform};
 use common::files::Store;
 use common::sj3;
 use futures::task::noop_waker;
@@ -129,22 +129,34 @@ impl SJ3 {
         self.platform.pixels()
     }
 
-    pub fn keydown(&self, key: &str) {
-        if let Some((ch, ch2)) = match key {
-            "ArrowUp" => Some((0, 72)),
-            "ArrowLeft" => Some((0, 75)),
-            "ArrowRight" => Some((0, 77)),
-            "ArrowDown" => Some((0, 80)),
-            "Enter" => Some((13, 0)),
-            "Escape" => Some((27, 0)),
-            " " => Some((32, 0)),
-            "R" => Some((82, 19)),
-            "T" => Some((84, 20)),
-            "r" => Some((114, 19)),
-            "t" => Some((116, 20)),
-            _ => None,
-        } {
-            self.platform.keydown(ch, ch2);
-        }
+    /// Returns whether the game uses the key.
+    pub fn keydown(
+        &self,
+        key: &str,
+        code: &str,
+        shift: bool,
+        ctrl: bool,
+        alt: bool,
+        alt_graph: bool,
+        meta: bool,
+        caps_lock: bool,
+    ) -> bool {
+        let modifiers = Modifiers {
+            shift,
+            ctrl,
+            alt,
+            alt_graph,
+            meta,
+            caps_lock,
+        };
+        self.platform.keydown(key, code, modifiers)
+    }
+
+    pub fn keyup(&self, code: &str) {
+        self.platform.keyup(code);
+    }
+
+    pub fn set_unshifted_key(&self, code: &str, key: &str) {
+        self.platform.set_unshifted_key(code, key);
     }
 }

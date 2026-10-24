@@ -168,9 +168,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             bkcolor,
         );
 
-        if let Some(chr) = char::from_u32(self.s.get_ch() as u32) {
-            self.g.write_font(xx, yy, format!("{}", chr).as_bytes());
-        }
+        self.g.write_font(xx, yy, &[self.s.get_ch()]);
     }
 
     pub async fn getch(&self, xx: i32, yy: i32, bkcolor: u8) {

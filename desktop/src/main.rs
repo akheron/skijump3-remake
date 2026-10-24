@@ -67,9 +67,7 @@ fn main() {
                     return;
                 }
                 Event::KeyDown {
-                    keycode: Some(keycode),
-                    keymod,
-                    ..
+                    keycode, keymod, ..
                 } => {
                     sdl_port_module.handle_keydown(keycode, keymod);
                 }

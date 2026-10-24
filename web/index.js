@@ -18,6 +18,7 @@ export async function run() {
   const wasm = await init()
   const packData = await loadFile("assets.pack")
   const state = SJ3.new(packData)
+  loadKeyboardLayout(state)
 
   const canvas = document.getElementById("screen")
   canvas.width = 320
@@ -30,12 +31,31 @@ export async function run() {
   let unplayedTime
 
   document.addEventListener("keydown", (event) => {
-    state.keydown(event.key)
+    if (finished) {
+      return
+    }
+    const used = state.keydown(
+      event.key,
+      event.code,
+      event.shiftKey,
+      event.ctrlKey,
+      event.altKey,
+      event.getModifierState("AltGraph"),
+      event.metaKey,
+      event.getModifierState("CapsLock"),
+    )
+    if (used) {
+      event.preventDefault()
+    }
     if (waitingForKeyPress) {
       waitingForKeyPress = false
       state.resume()
       startLoop()
     }
+  })
+
+  document.addEventListener("keyup", (event) => {
+    state.keyup(event.code)
   })
 
   startLoop()
@@ -91,6 +111,19 @@ export async function run() {
       }
     }
     return false
+  }
+}
+
+// Only Chromium has getLayoutMap
+async function loadKeyboardLayout(state) {
+  if (!navigator.keyboard?.getLayoutMap) return
+  try {
+    const layoutMap = await navigator.keyboard.getLayoutMap()
+    for (const [code, key] of layoutMap) {
+      state.set_unshifted_key(code, key)
+    }
+  } catch (err) {
+    console.warn("Unable to read the keyboard layout", err)
   }
 }
 
