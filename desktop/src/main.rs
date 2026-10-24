@@ -1,6 +1,6 @@
 mod sdlport;
 
-use crate::sdlport::{SDLPortModule, X_RES, Y_RES};
+use crate::sdlport::{get_arguments, SDLPortModule, X_RES, Y_RES};
 use common::sj3;
 use futures::task::noop_waker;
 use futures::Future;
@@ -13,6 +13,8 @@ fn main() {
     if let Ok(trace_path) = std::env::var("SJ3_TRACE") {
         common::trace::load(&trace_path, std::env::var("SJ3_FRAMES").ok());
     }
+
+    let sw_rendering = get_arguments();
 
     let sdl = sdl2::init().unwrap();
     let video_subsystem = sdl.video().unwrap();
@@ -29,7 +31,11 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut canvas = window.into_canvas().build().unwrap();
+    let mut canvas_builder = window.into_canvas();
+    if sw_rendering {
+        canvas_builder = canvas_builder.software();
+    }
+    let mut canvas = canvas_builder.build().unwrap();
     let texture_creator = canvas.texture_creator();
 
     let data_dir = match std::env::var_os("SJ3_DATA_DIR") {
@@ -67,9 +73,12 @@ fn main() {
                     sdl_port_module.handle_quit();
                 }
                 Event::KeyDown {
-                    keycode, keymod, ..
+                    keycode,
+                    scancode,
+                    keymod,
+                    ..
                 } => {
-                    sdl_port_module.handle_keydown(keycode, keymod);
+                    sdl_port_module.handle_keydown(keycode, scancode, keymod);
                 }
                 _ => {}
             }

@@ -1851,16 +1851,6 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
     //{ t�ll� ladataan mnimet ja kri -taulut kuntoon }
     pub async fn load_hill_info(&self) {
-        // TODO
-        /*
-        procedure LoadHillInfo;  { t�ll� ladataan mnimet ja kri -taulut kuntoon }
-        var f1 : text;
-            temp : byte;
-            NowHill : hill_type;
-            filename : string;
-
-        begin
-        */
         {
             let mut f1 = BufReader::new(self.s.open_file("MOREHILL.SKI"));
             self.num_extra_hills.set(parse_line(&mut f1).unwrap());

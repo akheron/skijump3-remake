@@ -1,13 +1,13 @@
 use chrono::{Datelike, Timelike};
 use common::files::{Overlay, OverlayFile, Store, WritableStore};
 use common::{trace, Platform, TPalette};
-use sdl2::keyboard::{Keycode, Mod};
+use sdl2::keyboard::{Keycode, Mod, Scancode};
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::surface::Surface;
-use sdl2::video::{Window, WindowContext};
+use sdl2::video::{FullscreenType, Window, WindowContext};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::future::Future;
@@ -25,7 +25,7 @@ const ASPECT_RES: f64 = X_RES as f64 / Y_RES as f64;
 
 pub struct SDLPortModule<'a> {
     files: Overlay<DirStore, DirStore>,
-    window_multiplier: u32,
+    window_multiplier: Cell<u32>,
     canvas: RefCell<&'a mut Canvas<Window>>,
     texture_creator: &'a TextureCreator<WindowContext>,
     original_surface: RefCell<Surface<'static>>,
@@ -35,14 +35,13 @@ pub struct SDLPortModule<'a> {
     render_dest_rect: Cell<Rect>,
 
     window_resized: Cell<bool>,
-    full_screen: bool,
-    aspect: f64,
+    full_screen: Cell<bool>,
+    aspect: Cell<f64>,
 
     frame_count: Cell<u32>,
     sub_frame_duration: Cell<Duration>,
     last_frame_instant: Cell<Instant>,
 
-    sw_rendering: bool,
     close_requested: Cell<bool>,
 
     // Originally in SJ3HELP.PAS
@@ -51,28 +50,35 @@ pub struct SDLPortModule<'a> {
 
     // Async
     pub async_state: Cell<AsyncState>,
-    keypresses: RefCell<Vec<(Option<Keycode>, Mod)>>,
+    keypresses: RefCell<Vec<(Option<Keycode>, Option<Scancode>, Mod)>>,
+}
+
+pub fn get_arguments() -> bool {
+    let mut sw_rendering = false;
+    for arg in std::env::args().skip(1) {
+        match arg.as_str() {
+            "--" => break,
+            "-s" | "--sw-rendering" => sw_rendering = true,
+            _ => {}
+        }
+    }
+    sw_rendering
 }
 
 impl<'a> SDLPortModule<'a> {
+    fn reset_window_size(&self) {
+        let (w, h) = window_size(self.window_multiplier.get(), self.aspect.get());
+        self.canvas.borrow_mut().window_mut().set_size(w, h).ok();
+        self.window_resized.set(true);
+    }
+
     pub fn init(
         canvas: &'a mut Canvas<Window>,
         texture_creator: &'a TextureCreator<WindowContext>,
         window_multiplier: u32,
         data_dir: PathBuf,
     ) -> Self {
-        // let renderer_flags = 0;
         let aspect = ASPECT_RES;
-        let sw_rendering = false;
-
-        // if (sw_rendering = true) then
-        // begin
-        //   renderer_flags = renderer_flags
-        //       OR SDL_RENDERER_SOFTWARE;
-        // end;
-        //
-        // renderer = SDL_CreateRenderer(window, -1, renderer_flags);
-        // if renderer = nil then Halt;
 
         // 8-bit surface for original data
         let original_surface = Surface::new(X_RES, Y_RES, PixelFormatEnum::Index8).unwrap();
@@ -82,7 +88,7 @@ impl<'a> SDLPortModule<'a> {
             .create_texture_streaming(RGBA8888, X_RES, Y_RES)
             .unwrap();
 
-        let render_dest_rect = get_render_rect(canvas, aspect);
+        let render_dest_rect = get_render_rect(canvas.output_size().unwrap(), aspect);
         SDLPortModule {
             files: Overlay::new(
                 DirStore { dir: data_dir },
@@ -90,7 +96,7 @@ impl<'a> SDLPortModule<'a> {
                     dir: PathBuf::from("assets"),
                 },
             ),
-            window_multiplier,
+            window_multiplier: Cell::new(window_multiplier),
             canvas: RefCell::new(canvas),
             texture_creator,
             original_surface: RefCell::new(original_surface),
@@ -100,14 +106,13 @@ impl<'a> SDLPortModule<'a> {
             render_dest_rect: Cell::new(render_dest_rect),
 
             window_resized: Cell::new(false),
-            full_screen: false,
-            aspect,
+            full_screen: Cell::new(false),
+            aspect: Cell::new(aspect),
 
             frame_count: Cell::new(0),
             sub_frame_duration: Cell::new(Duration::new(0, 0)),
             last_frame_instant: Cell::new(Instant::now()),
 
-            sw_rendering,
             close_requested: Cell::new(false),
 
             ch: Cell::new(1),
@@ -145,8 +150,10 @@ impl<'a> SDLPortModule<'a> {
         self.wait_raster();
 
         if self.window_resized.replace(false) {
-            self.render_dest_rect
-                .set(get_render_rect(&self.canvas.borrow(), self.aspect));
+            self.render_dest_rect.set(get_render_rect(
+                self.canvas.borrow().output_size().unwrap(),
+                self.aspect.get(),
+            ));
         }
 
         let mut canvas = self.canvas.borrow_mut();
@@ -208,7 +215,7 @@ impl<'a> SDLPortModule<'a> {
         }
         let mut keypresses = self.keypresses.borrow_mut();
         while keypresses.len() > 0 {
-            let (keycode, keymod) = keypresses.remove(0);
+            let (keycode, scancode, keymod) = keypresses.remove(0);
             match keycode {
                 // Ignore modifier and status keys, since they did not trigger a keypress in DOS version.
                 // F11, F12 and probably others were ignored too, but that would probably be counterintuitive.
@@ -229,12 +236,29 @@ impl<'a> SDLPortModule<'a> {
                     | Keycode::PAUSE,
                 ) => {}
                 _ => {
-                    keypresses.insert(0, (keycode, keymod));
+                    keypresses.insert(0, (keycode, scancode, keymod));
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    fn toggle_fullscreen(&self) {
+        self.window_resized.set(true);
+
+        self.full_screen.set(!self.full_screen.get());
+        let flags = if self.full_screen.get() {
+            FullscreenType::Desktop
+        } else {
+            FullscreenType::Off
+        };
+
+        self.canvas
+            .borrow_mut()
+            .window_mut()
+            .set_fullscreen(flags)
+            .ok();
     }
 
     fn process_keypress(mut keycode: Keycode, keymod: Mod) -> (u8, u8) {
@@ -244,48 +268,6 @@ impl<'a> SDLPortModule<'a> {
         let mut ch1 = 0u8;
         let mut ch2 = 0u8;
 
-        /*
-        // SDL version specific shortcuts
-        if ((keyMod and KMOD_LALT) > 0) then
-        begin
-          Case scancode of
-            SDL_SCANCODE_RETURN :
-              begin
-                toggleFullscreen;
-                exit
-              end;
-            SDL_SCANCODE_R :
-              begin
-                ResetWindowSize;
-                exit
-              end;
-            SDL_SCANCODE_KP_PLUS, SDL_SCANCODE_EQUALS :
-              begin
-                windowMultiplier := windowMultiplier + 1;
-                ResetWindowSize;
-                exit
-              end;
-            SDL_SCANCODE_KP_MINUS, SDL_SCANCODE_MINUS :
-              begin
-                if (windowMultiplier > 1) then
-                begin
-                  windowMultiplier := windowMultiplier - 1;
-                  ResetWindowSize;
-                  exit
-                end;
-              end;
-            SDL_SCANCODE_A :
-              begin
-                if (aspect <> aspectRes) then
-                  aspect := aspectRes
-                else
-                  aspect := 4 / 3;
-                ResetWindowSize;
-                exit;
-              end;
-          end;
-        end;
-                            */
         // Special cases for key combinations used throughout the game.
         // Check for Right Alt/AltGr first, since pressing it can make Left Ctrl look as pressed too.
         if keymod.intersects(Mod::MODEMOD) {
@@ -511,8 +493,15 @@ impl<'a> SDLPortModule<'a> {
         self.close_requested.set(true);
     }
 
-    pub fn handle_keydown(&self, keycode: Option<Keycode>, keymod: Mod) {
-        self.keypresses.borrow_mut().push((keycode, keymod));
+    pub fn handle_keydown(
+        &self,
+        keycode: Option<Keycode>,
+        scancode: Option<Scancode>,
+        keymod: Mod,
+    ) {
+        self.keypresses
+            .borrow_mut()
+            .push((keycode, scancode, keymod));
     }
 
     pub fn main_loop(&self) {
@@ -545,20 +534,64 @@ impl<'a> SDLPortModule<'a> {
         if trace::active() {
             return trace::keypress();
         }
-        let (keycode, keymod) = self.keypresses.borrow_mut().remove(0);
+        let (keycode, scancode, keymod) = self.keypresses.borrow_mut().remove(0);
+
+        // SDL version specific shortcuts
+        if keymod.intersects(Mod::LALTMOD) {
+            match scancode {
+                Some(Scancode::Return) => {
+                    self.toggle_fullscreen();
+                    return (0, 0);
+                }
+                Some(Scancode::R) => {
+                    self.reset_window_size();
+                    return (0, 0);
+                }
+                Some(Scancode::KpPlus | Scancode::Equals) => {
+                    self.window_multiplier.set(self.window_multiplier.get() + 1);
+                    self.reset_window_size();
+                    return (0, 0);
+                }
+                Some(Scancode::KpMinus | Scancode::Minus) => {
+                    if self.window_multiplier.get() > 1 {
+                        self.window_multiplier.set(self.window_multiplier.get() - 1);
+                        self.reset_window_size();
+                        return (0, 0);
+                    }
+                }
+                Some(Scancode::A) => {
+                    if self.aspect.get() != ASPECT_RES {
+                        self.aspect.set(ASPECT_RES);
+                    } else {
+                        self.aspect.set(4.0 / 3.0);
+                    }
+                    self.reset_window_size();
+                    return (0, 0);
+                }
+                _ => {}
+            }
+        }
+
         keycode.map_or((0, 0), |keycode| Self::process_keypress(keycode, keymod))
     }
 }
 
-fn get_render_rect(canvas: &Canvas<Window>, aspect: f64) -> Rect {
-    let (window_w, window_h) = canvas.output_size().unwrap();
+// Pascal Round rounds halves to even.
+fn get_render_rect((window_w, window_h): (u32, u32), aspect: f64) -> Rect {
     if window_w as f64 / window_h as f64 <= aspect {
-        let h = f64::round(window_w as f64 / aspect) as u32;
+        let h = (window_w as f64 / aspect).round_ties_even() as u32;
         Rect::new(0, ((window_h - h) / 2) as i32, window_w, h)
     } else {
-        let w = f64::round(window_h as f64 * aspect) as u32;
+        let w = (window_h as f64 * aspect).round_ties_even() as u32;
         Rect::new(((window_w - w) / 2) as i32, 0, w, window_h)
     }
+}
+
+fn window_size(window_multiplier: u32, aspect: f64) -> (u32, u32) {
+    (
+        X_RES * window_multiplier,
+        ((Y_RES * window_multiplier) as f64 * ASPECT_RES / aspect).round_ties_even() as u32,
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -750,8 +783,9 @@ impl WritableStore for DirStore {
 
 #[cfg(test)]
 mod tests {
-    use super::SDLPortModule;
+    use super::{get_render_rect, window_size, SDLPortModule, ASPECT_RES};
     use sdl2::keyboard::{Keycode, Mod};
+    use sdl2::rect::Rect;
 
     // The expected values come from the Pascal WaitForKeyPress.
     #[test]
@@ -948,6 +982,36 @@ mod tests {
                 expected,
                 "{keycode:?} {keymod:?}"
             );
+        }
+    }
+
+    #[test]
+    fn window_size_steps() {
+        assert_eq!(window_size(1, ASPECT_RES), (320, 200));
+        assert_eq!(window_size(2, ASPECT_RES), (640, 400));
+        assert_eq!(window_size(3, ASPECT_RES), (960, 600));
+        // 4:3 aspect makes the window taller, not narrower
+        assert_eq!(window_size(1, 4.0 / 3.0), (320, 240));
+        assert_eq!(window_size(2, 4.0 / 3.0), (640, 480));
+        assert_eq!(window_size(3, 4.0 / 3.0), (960, 720));
+    }
+
+    #[test]
+    fn render_rect() {
+        let table = [
+            ((640, 400), ASPECT_RES, Rect::new(0, 0, 640, 400)),
+            // Taller window: bars at top and bottom
+            ((640, 480), ASPECT_RES, Rect::new(0, 40, 640, 400)),
+            // Wider window: bars at left and right
+            ((800, 400), ASPECT_RES, Rect::new(80, 0, 640, 400)),
+            ((640, 480), 4.0 / 3.0, Rect::new(0, 0, 640, 480)),
+            ((640, 400), 4.0 / 3.0, Rect::new(53, 0, 533, 400)),
+            // 646 / (4 / 3) = 484.5 rounds to even, as Pascal Round does
+            ((646, 600), 4.0 / 3.0, Rect::new(0, 58, 646, 484)),
+            ((650, 600), 4.0 / 3.0, Rect::new(0, 56, 650, 488)),
+        ];
+        for (size, aspect, expected) in table {
+            assert_eq!(get_render_rect(size, aspect), expected, "{size:?} {aspect}");
         }
     }
 

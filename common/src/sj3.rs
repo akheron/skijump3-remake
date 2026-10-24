@@ -6983,7 +6983,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
     async fn draw_full_main(&mut self) {
         self.i.draw_main_menu().await;
 
-        // TODO
         //{$IFDEF REG}
         self.u.new_reg_text(REGNAME, REGNUMBER).await;
         // {$ELSE}
