@@ -123,45 +123,149 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         }
     }
 
-    pub async fn draw_main_menu(&self) {
-        self.g.fill_box(0, 0, 319, 199, 0);
-        self.g.draw_screen().await;
-        self.p.lataa_pcx("MAIN.PCX", 320 * 200, 0, 0);
+    pub fn load_custom(
+        &self,
+        setfile: &[u8],
+        sortby: &mut u8,
+        hillorder: &mut [i32],
+        cuphills: &mut i32,
+    ) {
+        // TODO
+        todo!();
+    }
 
-        self.p.siirra_standardi_paletti();
-        self.p.special_main_paletti();
-        self.p.aseta_paletti();
-        self.g.write_video();
+    pub fn write_custom(
+        &self,
+        setfile: &[u8],
+        sortby: u8,
+        hillorder: &[i32],
+        cuphills: i32,
+    ) -> i32 {
+        // TODO
+        0
+    }
 
-        /*
-            StartSuit; { lataa ne hyppypukujen v�rit 190-200... }
-        */
+    pub async fn newcrecordscreen(
+        &self,
+        setfile: &[u8],
+        newhi: &Hiscore,
+        oldhi: &Hiscore,
+        sortby: u8,
+    ) {
+        let mut tempb = oldhi.score > 0;
+        let mut str1: Vec<u8>;
+
+        self.g.fill_box(54, 59, 276, 135, 248);
+        self.g.fill_box(55, 60, 275, 134, 243);
+
+        self.g.font_color(246);
+        self.g.write_font(75, 69, self.l.lstr(128));
+        str1 = if sortby == 1 {
+            txtp(newhi.score)
+        } else {
+            txt(newhi.score)
+        };
+
+        self.g.e_write_font(242, 80, &str1);
+
         self.g.font_color(240);
-        self.g.write_font(170, 51, self.l.lstr(34));
+        self.g.write_font(85, 80, &self.g.nsh(&newhi.name, 90));
+        self.g
+            .e_write_font(200, 80, &[&txt(newhi.pos as i32) as &[u8], b"."].concat());
+
         self.g.font_color(241);
+        self.g.write_font(95, 87, &newhi.time);
+        self.g.write_font(75, 100, self.l.lstr(129));
 
-        let x = 150;
-
-        for temp in 1..=self.pmaara.get() {
-            let y = (temp - 1) * 9 + 64;
+        if tempb {
+            str1 = if sortby == 1 {
+                txtp(oldhi.score)
+            } else {
+                txt(oldhi.score)
+            };
+            self.g.write_font(85, 110, &self.g.nsh(&oldhi.name, 90));
             self.g
-                .e_write_font(x + 12, y as i32, (temp.to_string() + ".").as_bytes());
-            self.g.write_font(
-                x + 20,
-                y as i32,
-                &self.nimet.borrow()[NUM_PL + 1 - temp as usize],
-            );
+                .e_write_font(200, 110, &[&txt(oldhi.pos as i32) as &[u8], b"."].concat());
+            self.g.e_write_font(242, 110, &str1);
+            self.g.write_font(95, 117, &oldhi.time);
+        } else {
+            self.g.write_font(85, 110, b"-");
+        }
+        self.g.draw_screen().await;
+        self.s.wait_for_key().await;
+    }
 
-            // (*
-            //    if (reg) then
-            //     begin
-            //      fillbox(302,y,312,y+6,209+haalarit[temp]);
-            //      fillbox(303,y+1,311,y+5,202+haalarit[temp]);
-            //     end;
-            // *)
+    pub fn load_names(
+        &self,
+        whatset: char,
+        teamdiscount: u8,
+        teamlineup: &mut [u8],
+        replaces: bool,
+    ) {
+        let mut l1: i32 = 0;
+        let mut s = b"".to_vec();
+
+        let profile = self.profile.borrow();
+        let mut nimet = self.nimet.borrow_mut();
+
+        let mut f4 = BufReader::new(self.s.open_file(format!("NAMES{}.SKI", whatset)));
+
+        read_line(&mut f4).unwrap(); //{ titlerivi pois }
+
+        let mut temp2: i32 = 0; //{ toteutuneet nimet }
+        for temp in 1..=NUM_PL as u8 + 1 {
+            s = read_line(&mut f4).unwrap();
+            let mut ok = true; //{ k�yk� nimi eli ei kai ole replace-listoilla }
+            for temp3 in 1..=self.pmaara.get() {
+                if profile[temp3 as usize].replace == temp && replaces {
+                    ok = false;
+                }
+            }
+            l1 += valuestr(&s, (temp % 43) as i32) as i32;
+            if ok {
+                temp2 += 1;
+                nimet[temp2 as usize] = s;
+            }
         }
 
-        // { Fillbox(160,120,319,199,245); }
+        if nimet[76].is_empty() {
+            nimet[76] = b"Trainee".to_vec();
+        }
+
+        for temp in 1..=self.pmaara.get() {
+            //{ siirret��n profilesta nimet }
+            nimet[NUM_PL + 1 - temp as usize] = profile
+                [self.profileorder.borrow()[temp as usize] as usize]
+                .name
+                .clone();
+        }
+
+        read_line(&mut f4).unwrap(); //{ tyhj� rivi, ehk� koodi }
+
+        for temp in 1..=NUM_TEAMS - 1 {
+            s = read_line(&mut f4).unwrap();
+            l1 += valuestr(&s, (temp % 31) as i32) as i32;
+
+            for temp2 in 1..=4 {
+                let mut tempb: u8 = parse_line(&mut f4).unwrap();
+                if tempb > 67 {
+                    tempb = 1;
+                }
+                l1 += (tempb % temp2) as i32;
+
+                if temp < NUM_TEAMS + 1 - teamdiscount as usize {
+                    teamlineup[(temp - 1) * 4 + temp2 as usize] = tempb;
+                }
+            }
+        }
+
+        if whatset == '0' {
+            let l2: i32 = parse_line(&mut f4).unwrap(); //{ haetaan se names:n checksum }
+            l1 += 5661;
+            if l1 != l2 {
+                panic!("Error #92: Something wrong with the namefile. Shit.");
+            }
+        }
     }
 
     pub fn reset_tops(&self, kerroin: u8, today: Date, now: Time) {
@@ -354,151 +458,6 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         }
     }
 
-    pub fn load_names(
-        &self,
-        whatset: char,
-        teamdiscount: u8,
-        teamlineup: &mut [u8],
-        replaces: bool,
-    ) {
-        let mut l1: i32 = 0;
-        let mut s = b"".to_vec();
-
-        let profile = self.profile.borrow();
-        let mut nimet = self.nimet.borrow_mut();
-
-        let mut f4 = BufReader::new(self.s.open_file(format!("NAMES{}.SKI", whatset)));
-
-        read_line(&mut f4).unwrap(); //{ titlerivi pois }
-
-        let mut temp2: i32 = 0; //{ toteutuneet nimet }
-        for temp in 1..=NUM_PL as u8 + 1 {
-            s = read_line(&mut f4).unwrap();
-            let mut ok = true; //{ k�yk� nimi eli ei kai ole replace-listoilla }
-            for temp3 in 1..=self.pmaara.get() {
-                if profile[temp3 as usize].replace == temp && replaces {
-                    ok = false;
-                }
-            }
-            l1 += valuestr(&s, (temp % 43) as i32) as i32;
-            if ok {
-                temp2 += 1;
-                nimet[temp2 as usize] = s;
-            }
-        }
-
-        if nimet[76].is_empty() {
-            nimet[76] = b"Trainee".to_vec();
-        }
-
-        for temp in 1..=self.pmaara.get() {
-            //{ siirret��n profilesta nimet }
-            nimet[NUM_PL + 1 - temp as usize] = profile
-                [self.profileorder.borrow()[temp as usize] as usize]
-                .name
-                .clone();
-        }
-
-        read_line(&mut f4).unwrap(); //{ tyhj� rivi, ehk� koodi }
-
-        for temp in 1..=NUM_TEAMS - 1 {
-            s = read_line(&mut f4).unwrap();
-            l1 += valuestr(&s, (temp % 31) as i32) as i32;
-
-            for temp2 in 1..=4 {
-                let mut tempb: u8 = parse_line(&mut f4).unwrap();
-                if tempb > 67 {
-                    tempb = 1;
-                }
-                l1 += (tempb % temp2) as i32;
-
-                if temp < NUM_TEAMS + 1 - teamdiscount as usize {
-                    teamlineup[(temp - 1) * 4 + temp2 as usize] = tempb;
-                }
-            }
-        }
-
-        if whatset == '0' {
-            let l2: i32 = parse_line(&mut f4).unwrap(); //{ haetaan se names:n checksum }
-            l1 += 5661;
-            if l1 != l2 {
-                panic!("Error #92: Something wrong with the namefile. Shit.");
-            }
-        }
-    }
-
-    pub fn load_custom(
-        &self,
-        setfile: &[u8],
-        sortby: &mut u8,
-        hillorder: &mut [i32],
-        cuphills: &mut i32,
-    ) {
-        // TODO
-        todo!();
-    }
-
-    pub fn write_custom(
-        &self,
-        setfile: &[u8],
-        sortby: u8,
-        hillorder: &[i32],
-        cuphills: i32,
-    ) -> i32 {
-        // TODO
-        0
-    }
-
-    pub async fn newcrecordscreen(
-        &self,
-        setfile: &[u8],
-        newhi: &Hiscore,
-        oldhi: &Hiscore,
-        sortby: u8,
-    ) {
-        let mut tempb = oldhi.score > 0;
-        let mut str1: Vec<u8>;
-
-        self.g.fill_box(54, 59, 276, 135, 248);
-        self.g.fill_box(55, 60, 275, 134, 243);
-
-        self.g.font_color(246);
-        self.g.write_font(75, 69, self.l.lstr(128));
-        str1 = if sortby == 1 {
-            txtp(newhi.score)
-        } else {
-            txt(newhi.score)
-        };
-
-        self.g.e_write_font(242, 80, &str1);
-
-        self.g.font_color(240);
-        self.g.write_font(85, 80, &self.g.nsh(&newhi.name, 90));
-        self.g
-            .e_write_font(200, 80, &[&txt(newhi.pos as i32) as &[u8], b"."].concat());
-
-        self.g.font_color(241);
-        self.g.write_font(95, 87, &newhi.time);
-        self.g.write_font(75, 100, self.l.lstr(129));
-
-        if tempb {
-            str1 = if sortby == 1 {
-                txtp(oldhi.score)
-            } else {
-                txt(oldhi.score)
-            };
-            self.g.write_font(85, 110, &self.g.nsh(&oldhi.name, 90));
-            self.g
-                .e_write_font(200, 110, &[&txt(oldhi.pos as i32) as &[u8], b"."].concat());
-            self.g.e_write_font(242, 110, &str1);
-            self.g.write_font(95, 117, &oldhi.time);
-        } else {
-            self.g.write_font(85, 110, b"-");
-        }
-        self.g.draw_screen().await;
-        self.s.wait_for_key().await;
-    }
-
     pub async fn welcome_screen(&self, languagenumber: &mut u8) {
         let full = *languagenumber == 255;
 
@@ -648,6 +607,47 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         if sch1 == 13 {
             *seecomps = index;
         }
+    }
+
+    pub async fn draw_main_menu(&self) {
+        self.g.fill_box(0, 0, 319, 199, 0);
+        self.g.draw_screen().await;
+        self.p.lataa_pcx("MAIN.PCX", 320 * 200, 0, 0);
+
+        self.p.siirra_standardi_paletti();
+        self.p.special_main_paletti();
+        self.p.aseta_paletti();
+        self.g.write_video();
+
+        /*
+            StartSuit; { lataa ne hyppypukujen v�rit 190-200... }
+        */
+        self.g.font_color(240);
+        self.g.write_font(170, 51, self.l.lstr(34));
+        self.g.font_color(241);
+
+        let x = 150;
+
+        for temp in 1..=self.pmaara.get() {
+            let y = (temp - 1) * 9 + 64;
+            self.g
+                .e_write_font(x + 12, y as i32, (temp.to_string() + ".").as_bytes());
+            self.g.write_font(
+                x + 20,
+                y as i32,
+                &self.nimet.borrow()[NUM_PL + 1 - temp as usize],
+            );
+
+            // (*
+            //    if (reg) then
+            //     begin
+            //      fillbox(302,y,312,y+6,209+haalarit[temp]);
+            //      fillbox(303,y+1,311,y+5,202+haalarit[temp]);
+            //     end;
+            // *)
+        }
+
+        // { Fillbox(160,120,319,199,245); }
     }
 }
 

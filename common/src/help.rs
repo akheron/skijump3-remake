@@ -19,6 +19,10 @@ pub fn nsqrt(x: f32) -> f32 {
     }
 }
 
+pub fn pcomp(score: i32, sij: i32) -> i32 {
+    (score * 51) + 50 - sij
+}
+
 pub fn txtp(mut jokuluku: i32) -> Vec<u8> {
     if jokuluku == 0 {
         b"0.0".to_vec()
@@ -42,8 +46,4 @@ pub fn txt(mut jokuluku: i32) -> Vec<u8> {
 pub fn num(jokuluku: &[u8]) -> i32 {
     let s = String::from_utf8_lossy(jokuluku);
     s.parse().unwrap_or(-1)
-}
-
-pub fn pcomp(score: i32, sij: i32) -> i32 {
-    (score * 51) + 50 - sij
 }

@@ -66,13 +66,20 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
         self.s.set_palette(&self.paletti.borrow());
     }
 
-    pub fn siirra_standardi_paletti(&self) {
-        let mut paletti = self.paletti.borrow_mut();
-        for temp1 in 0..=39 {
-            for temp2 in 0..=2 {
-                paletti[216 + temp1][temp2] = STANDARDI_PALETTI[temp1 * 3 + temp2];
-            }
+    pub fn tallenna_alkuosa(&self, alue: u8) {
+        let mut len = 240;
+        if alue == 1 {
+            len = 64;
         }
+        self.pelasta_alkuosa.borrow_mut()[0..len].copy_from_slice(&self.paletti.borrow()[0..len]);
+    }
+    pub fn takaisin_alkuosa(&self, alue: u8) {
+        let mut len = 240;
+        if alue == 1 {
+            len = 64;
+        }
+        self.paletti.borrow_mut()[0..len].copy_from_slice(&self.pelasta_alkuosa.borrow()[0..len]);
+        self.paletti.borrow_mut()[0][0] = 0;
     }
     pub fn siirra_liivi_pois(&self) {
         let mut paletti = self.paletti.borrow_mut();
@@ -81,28 +88,6 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
         }
         for temp in 0..=2 {
             paletti[221][temp] = paletti[218][temp];
-        }
-    }
-    pub fn muuta_logo(&self, col: u8) {
-        let mut paletti = self.paletti.borrow_mut();
-        for temp1 in 0..=1 {
-            for temp2 in 0..=2 {
-                paletti[253 + temp1][temp2] = REPLACE_LOGO[(col as usize + temp1) * 3 + temp2];
-            }
-        }
-    }
-    pub fn muuta_replay(&self, mode: u8) {
-        unimplemented!()
-    }
-    pub fn muuta_menu(&self, index: u8, col: u8) {
-        let mut paletti = self.paletti.borrow_mut();
-        for temp in 0..=2 {
-            paletti[(242 + index) as usize][temp] = REPLACE_MENU[((col * 2) * 3) as usize + temp];
-        }
-
-        for temp in 0..=2 {
-            paletti[(247 + index) as usize][temp] =
-                REPLACE_MENU[(((col * 2) + 1) * 3) as usize + temp];
         }
     }
     pub fn tumma_lumi(&self) {
@@ -114,6 +99,28 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
                 paletti[temp as usize][temp2 as usize] =
                     paletti[temp as usize][temp2 as usize].wrapping_sub(darken as u8);
             }
+        }
+    }
+    pub fn muuta_replay(&self, mode: u8) {
+        unimplemented!()
+    }
+    pub fn muuta_logo(&self, col: u8) {
+        let mut paletti = self.paletti.borrow_mut();
+        for temp1 in 0..=1 {
+            for temp2 in 0..=2 {
+                paletti[253 + temp1][temp2] = REPLACE_LOGO[(col as usize + temp1) * 3 + temp2];
+            }
+        }
+    }
+    pub fn muuta_menu(&self, index: u8, col: u8) {
+        let mut paletti = self.paletti.borrow_mut();
+        for temp in 0..=2 {
+            paletti[(242 + index) as usize][temp] = REPLACE_MENU[((col * 2) * 3) as usize + temp];
+        }
+
+        for temp in 0..=2 {
+            paletti[(247 + index) as usize][temp] =
+                REPLACE_MENU[(((col * 2) + 1) * 3) as usize + temp];
         }
     }
     pub fn savyta_paletti(&self, alue: u8, bkbright: u8) {
@@ -137,34 +144,6 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
                 }
             }
         }
-    }
-    pub fn special_main_paletti(&self) {
-        {
-            let mut paletti = self.paletti.borrow_mut();
-            paletti[243][0] = 18;
-            paletti[243][1] = 13;
-            paletti[243][2] = 34;
-
-            paletti[248][0] = 23;
-            paletti[248][1] = 16;
-            paletti[248][2] = 43;
-        }
-        self.muuta_menu(3, 0);
-    }
-    pub fn tallenna_alkuosa(&self, alue: u8) {
-        let mut len = 240;
-        if alue == 1 {
-            len = 64;
-        }
-        self.pelasta_alkuosa.borrow_mut()[0..len].copy_from_slice(&self.paletti.borrow()[0..len]);
-    }
-    pub fn takaisin_alkuosa(&self, alue: u8) {
-        let mut len = 240;
-        if alue == 1 {
-            len = 64;
-        }
-        self.paletti.borrow_mut()[0..len].copy_from_slice(&self.pelasta_alkuosa.borrow()[0..len]);
-        self.paletti.borrow_mut()[0][0] = 0;
     }
     pub fn load_skis(&self, mut col: u8, phase: u8) {
         let mut target = 231;
@@ -204,6 +183,27 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
             paletti[(target + temp) as usize][2] = round_half_even(
                 NUMS[SUITS[col as usize][0] as usize][temp as usize] as f64 * w3 as f64,
             ) as u8;
+        }
+    }
+    pub fn special_main_paletti(&self) {
+        {
+            let mut paletti = self.paletti.borrow_mut();
+            paletti[243][0] = 18;
+            paletti[243][1] = 13;
+            paletti[243][2] = 34;
+
+            paletti[248][0] = 23;
+            paletti[248][1] = 16;
+            paletti[248][2] = 43;
+        }
+        self.muuta_menu(3, 0);
+    }
+    pub fn siirra_standardi_paletti(&self) {
+        let mut paletti = self.paletti.borrow_mut();
+        for temp1 in 0..=39 {
+            for temp2 in 0..=2 {
+                paletti[216 + temp1][temp2] = STANDARDI_PALETTI[temp1 * 3 + temp2];
+            }
         }
     }
 

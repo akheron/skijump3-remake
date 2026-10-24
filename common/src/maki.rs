@@ -35,14 +35,6 @@ impl MakiModule {
         }
     }
 
-    pub fn lue(&self, osoite: i32) -> u8 {
-        self.graffa.borrow()[osoite as usize]
-    }
-
-    pub fn kirjoita(&self, osoite: i32, arvo: u8) {
-        self.graffa.borrow_mut()[osoite as usize] = arvo;
-    }
-
     pub fn paivita_kirjoitus_sivu(&self) {
         let mut graffa = self.graffa.borrow_mut();
         let video = self.video.borrow();
@@ -52,17 +44,12 @@ impl MakiModule {
         }
     }
 
-    pub fn tulosta(&self) {
-        let a: i32 = self.y.get() * X_SIZE as i32;
-        let b: i32 = ALUE as i32 - (self.x.get() >> 1) - (self.y.get() >> 1) * X_SIZE as i32;
-        self.kopioi_maki(a, b);
+    pub fn lue(&self, osoite: i32) -> u8 {
+        self.graffa.borrow()[osoite as usize]
     }
-    pub fn alusta(&self) -> bool {
-        // The original code just allocates some buffers and sets some function pointers.
-        true
-    }
-    pub fn lopeta(&self) {
-        // Empty in the original sources
+
+    pub fn kirjoita(&self, osoite: i32, arvo: u8) {
+        self.graffa.borrow_mut()[osoite as usize] = arvo;
     }
 
     fn kopioi_maki(&self, osoite: i32, delta: i32) {
@@ -90,11 +77,27 @@ impl MakiModule {
             }
         }
     }
-
     pub fn lukitse_kirjoitus_sivu(&self, sivu: u32) {
         if sivu < SIVUJA * 2 {
             self.siirto_osoite.set(sivu * SIVU_KOKO);
         }
+    }
+    pub fn tulosta(&self) {
+        let a: i32 = self.y.get() * X_SIZE as i32;
+        let b: i32 = ALUE as i32 - (self.x.get() >> 1) - (self.y.get() >> 1) * X_SIZE as i32;
+        self.kopioi_maki(a, b);
+    }
+
+    pub fn aseta_moodi(&self, m: u16) {
+        unimplemented!()
+    }
+
+    pub fn profiili(&self, x: i32) -> i32 {
+        let mut temp: i32 = 0;
+        if (x > 0) && (x < 1300) {
+            temp = self.profiili_y.borrow()[x as usize] as i32;
+        }
+        temp
     }
 
     pub fn laske_linjat(&self, keula_x: &mut i32, kr: i32, pk: f32) {
@@ -151,14 +154,11 @@ impl MakiModule {
             }
         }
     }
-    pub fn aseta_moodi(&self, m: u16) {
-        unimplemented!()
+    pub fn alusta(&self) -> bool {
+        // The original code just allocates some buffers and sets some function pointers.
+        true
     }
-    pub fn profiili(&self, x: i32) -> i32 {
-        let mut temp: i32 = 0;
-        if (x > 0) && (x < 1300) {
-            temp = self.profiili_y.borrow()[x as usize] as i32;
-        }
-        temp
+    pub fn lopeta(&self) {
+        // Empty in the original sources
     }
 }

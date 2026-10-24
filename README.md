@@ -61,6 +61,25 @@ cd web
 python -m http.server -d dist
 ```
 
+### Structure
+
+The port follows the Pascal code line by line:
+
+- Each Pascal unit has one Rust module, for example `SJ3UNIT.PAS` is
+  `unit.rs`.
+- The functions of a module are in the same order as in the implementation
+  section of the Pascal unit.
+- The names are the Pascal names in lower case. Finnish names and the Pascal
+  comments stay.
+- A nested Pascal procedure is a closure or a private method directly before
+  its outer function.
+- Arrays keep the Pascal index range: `array[1..5]` is a Rust array of 6
+  elements that the code indexes with 1 to 5.
+- Where Pascal arithmetic overflows and wraps, use `wrapping_*` or the same
+  casts, so that debug builds do not panic where Pascal continues.
+- Procedures that render or wait for keys are `async fn`.
+- A Rust helper that has no Pascal equivalent goes below its callers.
+
 ### Floating point
 
 The original game stores its floating point variables as `single`, and the

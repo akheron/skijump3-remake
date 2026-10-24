@@ -190,6 +190,651 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
     }
 
+    fn write_records(&self) {
+        let mut l1: i32 = 0;
+        let mut l2: i32 = 0;
+
+        let mut f1 = self.s.create_file("HISCORE.SKI");
+        writeln!(f1, "HISCORE.SKI - !!! DO NOT ATTEMPT TO EDIT THIS FILE !!!").unwrap();
+
+        //{ 20 world cupia, 10 teamia, 5 4hillsia ja 6 kothia }
+        {
+            let top = self.i.top.borrow();
+            for temp in 1..=41i32 {
+                f1.write_all(&top[temp as usize].name).unwrap();
+                writeln!(f1).unwrap();
+                l1 += valuestr(&top[temp as usize].name, temp) as i32;
+                let str1 = crypt(top[temp as usize].pos as i32, temp);
+                f1.write_all(&str1).unwrap();
+                writeln!(f1).unwrap();
+                l2 += valuestr(&str1, temp) as i32;
+                let str1 = crypt(top[temp as usize].score, temp);
+                f1.write_all(&str1).unwrap();
+                writeln!(f1).unwrap();
+                l2 += valuestr(&str1, temp) as i32;
+            }
+        }
+
+        for temp in 1..=NUM_WC_HILLS {
+            let hrname = self.u.hrname(temp);
+            f1.write_all(&hrname).unwrap();
+            l1 += valuestr(&hrname, temp) as i32;
+            let str1 = crypt(hrname.len() as i32, temp);
+            f1.write_all(&str1).unwrap();
+            l2 += valuestr(&str1, temp) as i32;
+        }
+
+        l1 = l1 ^ 734697;
+
+        writeln!(f1, "{}", l1).unwrap();
+        writeln!(f1, "{}", l2).unwrap();
+
+        let str1 = format!("{}", l1 + l2 + 53).into_bytes();
+        writeln!(f1, "{}", valuestr(&str1, 22)).unwrap();
+
+        {
+            let top = self.i.top.borrow();
+            for temp in 1..=41 {
+                f1.write_all(&top[temp].time).unwrap();
+                writeln!(f1).unwrap();
+            }
+        }
+
+        for temp in 1..=NUM_WC_HILLS {
+            f1.write_all(&self.u.hrtime(temp)).unwrap();
+            writeln!(f1).unwrap();
+        }
+
+        self.u.makevcode(VERSION, true);
+        writeln!(f1, "{}", self.u.vcode.get()).unwrap();
+    }
+
+    fn write_config(&mut self) {
+        let reg = true; // { registered wai no }
+
+        let mut f2: Vec<u8> = Vec::new();
+        writeln!(f2, "{}", reg as i32).unwrap();
+        writeln!(f2, "{}", self.comphrs as i32).unwrap();
+        writeln!(f2, "{}", self.lct as i32).unwrap();
+        writeln!(f2, "{}", self.diff as i32).unwrap();
+        writeln!(f2, "{}", self.compactlist as i32).unwrap();
+        writeln!(f2, "{}", self.inv_back as i32).unwrap();
+        writeln!(f2, "{}", self.automatichrr as i32).unwrap();
+        writeln!(f2, "{}", self.beeppi as i32).unwrap();
+        writeln!(f2, "{}", self.nosamename as i32).unwrap();
+        writeln!(f2, "{}", self.goals as i32).unwrap();
+        writeln!(f2, "{}", self.diffwc as i32).unwrap();
+        writeln!(f2, "{}", self.kosystem as i32).unwrap();
+
+        writeln!(f2, "{}", self.languagenumber).unwrap();
+        writeln!(f2, "{}", self.trainrounds).unwrap();
+        writeln!(f2, "{}", self.namenumber).unwrap();
+        f2.write_all(&self.setfile).unwrap();
+        writeln!(f2).unwrap();
+
+        writeln!(f2, "{}", self.gdetail).unwrap();
+        writeln!(f2, "{}", self.seecomps).unwrap();
+        writeln!(f2, "0").unwrap();
+        writeln!(f2, "0").unwrap();
+        writeln!(f2, "0").unwrap();
+
+        writeln!(f2, "{}", self.jmaara).unwrap();
+        let jnimet = self.i.jnimet.borrow();
+        for temp in 1..=self.jmaara {
+            f2.write_all(&jnimet[16 - temp as usize]).unwrap();
+            writeln!(f2).unwrap();
+        }
+
+        let pmaara = self.i.pmaara.get();
+        writeln!(f2, "{}", pmaara).unwrap();
+        let profileorder = self.i.profileorder.borrow();
+        for temp in 1..=pmaara {
+            writeln!(f2, "{}", profileorder[temp as usize]).unwrap();
+        }
+
+        writeln!(f2, "{}", self.kothwind as i32).unwrap();
+        writeln!(f2, "{}", self.kothrounds).unwrap();
+
+        writeln!(f2, "{}", self.kothpack).unwrap();
+        writeln!(f2, "{}", self.kothmaki).unwrap();
+
+        writeln!(f2, "{}", self.kothmaara).unwrap();
+        for temp in 1..=self.kothmaara {
+            writeln!(f2, "{}", self.kothpel[temp as usize]).unwrap();
+        }
+
+        //{ n�ppiskomennot }
+        for temp in 1..=5 {
+            writeln!(f2, "{}", self.k[temp as usize]).unwrap();
+        }
+
+        writeln!(f2, "{}", self.windplace).unwrap();
+
+        writeln!(f2, "0").unwrap();
+        writeln!(f2, "0").unwrap();
+    }
+
+    fn reset_hiscore(&mut self, kerroin: u8) {
+        self.now = self.u.get_now();
+
+        self.i.reset_tops(kerroin, self.today, self.now);
+        self.write_records();
+    }
+
+    fn reset_config(&mut self) {
+        self.kothmaara = 1;
+        for temp in 1..=20 {
+            self.kothpel[temp as usize] = temp;
+        }
+
+        self.i.pmaara.set(1);
+        {
+            let mut profileorder = self.i.profileorder.borrow_mut();
+            for temp in 1..=20 {
+                profileorder[temp as usize] = 0;
+            }
+        }
+
+        self.jmaara = 1;
+
+        //{ configien nollaus ocks� }
+        self.languagenumber = 255; //{ se kysyy sitten alussa }
+
+        self.beeppi = false;
+        self.gdetail = 0;
+
+        self.namenumber = '0';
+
+        self.trainrounds = 0;
+
+        //{$IFDEF REG}
+        self.lct = true;
+        //{$ELSE}
+        //self.lct = false;
+        //{$ENDIF}
+
+        self.diff = false;
+        self.diffwc = false;
+        self.compactlist = false;
+        self.inv_back = false;
+        self.automatichrr = true;
+
+        self.goals = true;
+        self.kosystem = true;
+        self.seecomps = 1;
+
+        self.comphrs = true;
+        self.nosamename = false;
+
+        defaultkeys(&mut self.k);
+        self.windplace = 1;
+
+        self.setfile = b"TEMP".to_vec();
+
+        self.write_config();
+    }
+
+    fn read_records(&mut self) {
+        let mut l1: i32 = 0;
+        let mut l2: i32 = 0;
+
+        let mut f1 = BufReader::new(self.s.open_file("HISCORE.SKI"));
+
+        read_line(&mut f1).unwrap(); //{ se varoitusrivi pois sielt� }
+
+        let mut top = self.i.top.borrow_mut();
+        for temp in 1..=41 {
+            //{ 20 World Cup, 10 Team Cupia, 5 4hillsia ja 6 Kothia }
+            let name = read_line(&mut f1).unwrap();
+            l1 += valuestr(&name, temp) as i32;
+
+            let mut str1 = read_line(&mut f1).unwrap();
+            l2 += valuestr(&str1, temp) as i32;
+            let pos = uncrypt(str1.clone(), temp) as u8;
+
+            str1 = read_line(&mut f1).unwrap();
+            l2 += valuestr(&str1, temp) as i32;
+            let score = uncrypt(str1, temp);
+
+            top.push(Hiscore {
+                name,
+                pos,
+                score,
+                time: Vec::new(),
+            });
+        }
+
+        for temp in 1..=NUM_WC_HILLS {
+            //{ katso mit� tehd��n kun tehd��n lis�� m�ki� }
+            let name = read_line(&mut f1).unwrap();
+            l1 += valuestr(&name, temp) as i32;
+
+            let str1 = read_line(&mut f1).unwrap();
+            l2 += valuestr(&str1, temp) as i32;
+            let len = uncrypt(str1.clone(), temp);
+
+            self.u.set_hrinfo(temp, &name as &[u8], len, b"" as &[u8]);
+        }
+
+        l1 ^= 734697;
+
+        let l3 = parse_line(&mut f1).unwrap();
+        let l4 = parse_line(&mut f1).unwrap();
+        let l5 = parse_line(&mut f1).unwrap();
+
+        let str1 = (l1 + l2 + 53).to_string().into_bytes();
+
+        for temp in 1..=41 {
+            top[temp - 1].time = read_line(&mut f1).unwrap();
+        }
+
+        for temp in 1..=NUM_WC_HILLS {
+            let name = self.u.hrname(temp);
+            let len = self.u.hrlen(temp);
+            let time = read_line(&mut f1).unwrap();
+            self.u.set_hrinfo(temp, name, len, time);
+        }
+
+        self.u.vcode.set(parse_line(&mut f1).unwrap_or(1));
+
+        if l1 != l3 || l2 != l4 || valuestr(&str1, 22) as i32 != l5 {
+            writeln(b"Error #21A: Something doesn't add up in the HISCORE.SKI file.");
+            writeln(b"Maybe you tried to edit it or something.  Please don't do it again.");
+            // self.reset_hiscore(1);
+            // self.reset_config();
+            std::process::exit(1);
+        }
+    }
+
+    fn read_config(&mut self) {
+        let mut temp: i32 = 0;
+
+        let mut f2 = BufReader::new(self.s.open_file("CONFIG.SKI"));
+
+        parse_line::<i32>(&mut f2).unwrap();
+        temp = parse_line(&mut f2).unwrap();
+        self.comphrs = temp != 0;
+        temp = parse_line(&mut f2).unwrap();
+        //{$IFDEF REG}
+        self.lct = temp != 0;
+        //{$ELSE}
+        //self.lct=false;
+        //{$ENDIF}
+        temp = parse_line(&mut f2).unwrap();
+        self.diff = temp != 0;
+        temp = parse_line(&mut f2).unwrap();
+        self.compactlist = temp != 0;
+        temp = parse_line(&mut f2).unwrap();
+        //{$IFDEF REG}
+        self.inv_back = temp != 0;
+        //{$ELSE}
+        //self.inv_back=false;
+        //{$ENDIF}
+        temp = parse_line(&mut f2).unwrap();
+        //{$IFDEF REG}
+        self.automatichrr = temp != 0;
+        //{$ELSE}
+        //self.automatichrr=false;
+        //{$ENDIF}
+        temp = parse_line(&mut f2).unwrap();
+        self.beeppi = temp != 0;
+        temp = parse_line(&mut f2).unwrap();
+        self.nosamename = temp != 0;
+        temp = parse_line(&mut f2).unwrap();
+        self.goals = temp != 0;
+        temp = parse_line(&mut f2).unwrap();
+        self.diffwc = temp != 0;
+        temp = parse_line(&mut f2).unwrap();
+        self.kosystem = temp != 0;
+
+        self.languagenumber = parse_line(&mut f2).unwrap();
+        self.trainrounds = parse_line(&mut f2).unwrap();
+        //{$IFNDEF REG}
+        //self.trainrounds=0;
+        //{$ENDIF}
+
+        self.namenumber = parse_line(&mut f2).unwrap();
+        //{$IFNDEF REG}
+        //self.namenumber=0;
+        //{$ENDIF}
+
+        self.setfile = b"TEMP".to_vec();
+        let str1 = read_line(&mut f2).unwrap();
+        let filename = [&str1 as &[u8], b".SJC"].concat();
+        if self.s.file_exists(from_utf8(&filename).unwrap()) {
+            self.setfile = str1;
+        }
+
+        self.gdetail = parse_line(&mut f2).unwrap();
+        self.seecomps = parse_line(&mut f2).unwrap();
+
+        parse_line::<i32>(&mut f2).unwrap();
+        parse_line::<i32>(&mut f2).unwrap();
+        parse_line::<i32>(&mut f2).unwrap();
+
+        self.jmaara = parse_line(&mut f2).unwrap();
+
+        {
+            let mut jnimet = self.i.jnimet.borrow_mut();
+            for temp in 1..=self.jmaara {
+                jnimet[NUM_TEAMS + 1 - temp as usize] = read_line(&mut f2).unwrap();
+            }
+            if jnimet[NUM_TEAMS].is_empty() {
+                jnimet[NUM_TEAMS] = b"Team Finlando".to_vec();
+            }
+        }
+
+        {
+            let mut pmaara = parse_line(&mut f2).unwrap();
+            let mut profileorder = self.i.profileorder.borrow_mut();
+            if pmaara > 0 && pmaara < 11 {
+                for temp in 1..=pmaara {
+                    profileorder[temp as usize] = parse_line(&mut f2).unwrap();
+                }
+            } else {
+                pmaara = 1;
+            }
+            //{$IFNDEF REG}
+            //if pmaara > 2 { pmaara = 2; }
+            //{$ENDIF}
+            self.i.pmaara.set(pmaara);
+        }
+
+        temp = parse_line(&mut f2).unwrap();
+        self.kothwind = temp != 0;
+
+        self.kothrounds = parse_line(&mut f2).unwrap();
+        self.kothpack = parse_line(&mut f2).unwrap();
+        //{$IFNDEF REG}
+        //if (self.kothpack < 1) || (self.kothpack > 6) { self.kothpack = 1; }
+        //{$ENDIF}
+        self.kothmaki = parse_line(&mut f2).unwrap();
+        self.kothmaara = parse_line(&mut f2).unwrap();
+
+        if self.kothmaara > 20 {
+            self.kothmaara = 1;
+        }
+
+        for temp in 1u8..=20u8 {
+            self.kothpel[temp as usize] = temp; //{ ettei siell� ole nollia }
+        }
+
+        for temp in 1..=self.kothmaara {
+            self.kothpel[temp as usize] = parse_line(&mut f2).unwrap();
+        }
+
+        defaultkeys(&mut self.k);
+
+        for temp in 1..=5 {
+            self.k[temp as usize] = parse_line(&mut f2).unwrap();
+        }
+
+        self.windplace = parse_line(&mut f2).unwrap();
+    }
+
+    async fn setup_menu(&mut self) {
+        let mut index = [1, 1, 1, 1, 1];
+        let mut screen: u8 = 0;
+        let mut out = false;
+
+        loop {
+            self.g.new_screen(1, 0).await;
+
+            self.g.font_color(240);
+
+            let (str1, entries, length) = match screen {
+                0 => (self.l.lstr(175), 6, 221),
+                1 => (self.l.lstr(176), 4, 221),
+                2 => (self.l.lstr(177), 11, 221),
+                3 => (self.l.lstr(178), 5, 221),
+                _ => unreachable!(),
+            };
+
+            self.g.write_font(30, 6, str1);
+
+            for temp in 0..=entries {
+                let str1 = match screen {
+                    1 => match temp {
+                        1 => {
+                            if self.languagenumber < 255 {
+                                self.l.lnames[(self.languagenumber - 1) as usize].clone()
+                            } else {
+                                b"Undecided".to_vec()
+                            }
+                        }
+                        2 => {
+                            if self.beeppi {
+                                self.l.lstr(6).to_vec()
+                            } else {
+                                self.l.lstr(7).to_vec()
+                            }
+                        }
+                        3 => self.l.lstr(13 + self.gdetail as u32).to_vec(),
+                        4 => {
+                            let mut f3 = BufReader::new(
+                                self.s.open_file(format!("NAMES{}.SKI", self.namenumber)),
+                            );
+                            let mut str2 = String::new();
+                            f3.read_line(&mut str2).unwrap();
+                            self.g.font_color(241);
+                            self.g.write_font(40, 78, &str2.into_bytes());
+
+                            let mut s = vec![0; self.namenumber.len_utf8()];
+                            self.namenumber.encode_utf8(&mut s);
+                            s
+                        }
+                        _ => b"".to_vec(),
+                    },
+
+                    2 => match temp {
+                        1 => self
+                            .l
+                            .lstr(if self.trainrounds == 0 {
+                                9
+                            } else {
+                                self.trainrounds as u32
+                            })
+                            .to_vec(),
+                        2 => self.l.lstr(if self.lct { 180 } else { 185 }).to_vec(),
+                        3 => self.l.lstr(if self.diff { 181 } else { 186 }).to_vec(),
+                        4 => self.l.lstr(if self.diffwc { 181 } else { 186 }).to_vec(),
+                        5 => self
+                            .l
+                            .lstr(if self.compactlist { 182 } else { 187 })
+                            .to_vec(),
+                        6 => self.l.lstr(if self.inv_back { 183 } else { 188 }).to_vec(),
+                        7 => self
+                            .l
+                            .lstr(if self.automatichrr { 182 } else { 185 })
+                            .to_vec(),
+                        8 => self.l.lstr(if self.goals { 180 } else { 186 }).to_vec(),
+                        9 => {
+                            if self.seecomps > NUM_PL as u8 {
+                                self.l.lstr(self.seecomps as u32).to_vec()
+                            } else {
+                                [b"#" as &[u8], &txt(self.seecomps as i32)].concat()
+                            }
+                        }
+                        11 => self.l.lstr(if self.kosystem { 182 } else { 185 }).to_vec(),
+                        _ => b"".to_vec(),
+                    },
+
+                    3 => match temp {
+                        1 => self.l.lstr(if self.comphrs { 183 } else { 187 }).to_vec(),
+                        2 => self
+                            .l
+                            .lstr(if self.nosamename { 185 } else { 180 })
+                            .to_vec(),
+                        _ => b"".to_vec(),
+                    },
+
+                    _ => b"".to_vec(),
+                };
+
+                self.u.setup_item(temp, screen, entries, &str1);
+            }
+
+            // {$IFNDEF REG}
+            //   if (screen<3) then
+            //    begin
+            //     fontcolor(241);
+            //     writefont(10,185,lstr(208)+' '+lstr(209));
+            //     fontcolor(240);
+            //    end;
+            // {$ENDIF}
+
+            self.g.draw_screen().await;
+
+            index[screen as usize] = self
+                .u
+                .make_menu(
+                    35,
+                    40,
+                    length,
+                    10,
+                    entries as i32,
+                    index[screen as usize],
+                    243,
+                    0,
+                    0,
+                )
+                .await;
+
+            match screen {
+                0 => match index[screen as usize] {
+                    1 | 2 | 3 => screen = index[screen as usize] as u8,
+                    4 => self.u.configure_keys(&mut self.k).await,
+                    5 => self.u.set_goals().await,
+                    6 => {
+                        self.u.write_extras();
+                        self.u.hill_maker(0).await;
+                        self.u.read_extras();
+                    }
+                    0 => out = true,
+                    _ => unreachable!(),
+                },
+
+                1 => match index[screen as usize] {
+                    1 => self.i.welcome_screen(&mut self.languagenumber).await,
+                    2 => self.beeppi = !self.beeppi,
+                    3 => {
+                        self.gdetail += 1;
+                        if self.gdetail > 1 {
+                            self.gdetail = 0;
+                        }
+                    }
+                    4 => {
+                        let mut n: char;
+                        let mut ch = 0;
+                        loop {
+                            self.u.getch(255, 70, 245).await;
+                            ch = self.s.get_ch();
+                            if let Some(chr) = char::from_u32(ch as u32) {
+                                n = chr;
+                                if ch != 27 && self.s.file_exists(format!("NAMES{}.SKI", n)) {
+                                    break;
+                                }
+                            }
+                        }
+                        if ch != 27 {
+                            self.namenumber = n;
+                            self.i.load_names(
+                                self.namenumber,
+                                self.jmaara,
+                                &mut self.teamlineup,
+                                true,
+                            );
+                        }
+                    }
+                    0 => screen = 0,
+                    _ => unreachable!(),
+                },
+
+                2 => match index[screen as usize] {
+                    1 => {
+                        self.trainrounds += 1;
+                        if self.trainrounds > 3 {
+                            self.trainrounds = 0;
+                        }
+                    }
+                    2 => self.lct = !self.lct,
+                    3 => self.diff = !self.diff,
+                    4 => self.diffwc = !self.diffwc,
+                    5 => self.compactlist = !self.compactlist,
+                    6 => self.inv_back = !self.inv_back,
+                    7 => self.automatichrr = !self.automatichrr,
+                    8 => self.goals = !self.goals,
+                    9 => {
+                        self.i.choose_seecomps(&mut self.seecomps).await;
+                    }
+                    10 => {
+                        self.u.choose_wind_place(&mut self.windplace).await;
+                    }
+                    11 => self.kosystem = !self.kosystem,
+                    0 => screen = 0,
+                    _ => unreachable!(),
+                },
+
+                3 => match index[screen as usize] {
+                    1 => self.comphrs = !self.comphrs,
+                    2 => self.nosamename = !self.nosamename,
+                    3 | 4 => {
+                        self.g.fill_box(69, 79, 251, 131, 242);
+                        self.g.fill_box(70, 80, 250, 130, 244);
+                        self.g.fill_area(70, 80, 250, 130, 63);
+                        let mut str1 = self.l.lstr(if index[screen as usize] == 4 {
+                            191
+                        } else {
+                            190
+                        });
+                        self.g
+                            .write_font(80, 90, &[&str1 as &[u8], &self.l.lstr(192)].concat());
+                        self.g.write_font(80, 110, self.l.lstr(193));
+
+                        self.u
+                            .getch(88 + self.g.font_len(self.l.lstr(193)), 110, 243)
+                            .await;
+
+                        if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1) {
+                            self.reset_hiscore(4 - index[screen as usize] as u8);
+                        }
+                    }
+
+                    5 => {
+                        self.reset_config();
+                    }
+
+                    0 => screen = 0,
+                    _ => unreachable!(),
+                },
+
+                _ => unreachable!(),
+            }
+
+            if out {
+                break;
+            }
+        }
+
+        self.write_config(); //{ pistet��n muutokset levylle }
+    }
+
+    fn reset_stats(&mut self) {
+        for aaa in 0..=15 {
+            for bbb in 0..=NUM_WC_HILLS as usize {
+                self.stats[aaa][bbb].comp_pos = 0;
+                self.stats[aaa][bbb].wc_pos = 0;
+                self.stats[aaa][bbb].comp_pts = 0;
+
+                for ccc in 1..=2 {
+                    self.stats[aaa][bbb].round_pts[ccc] = 0;
+                    self.stats[aaa][bbb].round_len[ccc] = 0;
+                    self.stats[aaa][bbb].reason[ccc] = 0;
+                }
+            }
+        }
+    }
+
     fn makikulma(&self, x: i32) -> i32 {
         let value = self.m.profiili(x + 9)
             + self.m.profiili(x + 8)
@@ -205,6 +850,115 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             0
         } else {
             value
+        }
+    }
+
+    fn drawkothinfo(&self, top5: &[u8; 7], pel: i32) {
+        let str1 = [
+            &self.l.lstr(67) as &[u8],
+            b" ",
+            &txt(1 + self.kothmaara as i32 + self.i.pmaara.get() as i32 - self.mcpisteet[0]),
+            b" ",
+            &self.l.lstr(8),
+            b" ",
+            &txt(self.kothmaara as i32 + self.i.pmaara.get() as i32),
+        ]
+        .concat();
+
+        self.g.e_write_font(308, 9, &str1);
+
+        if top5[1] > 0 {
+            let mut str1 = self.l.lstr(68);
+
+            if (self.kierros == 1) && (self.kothrounds > 1) {
+                str1 = self.l.lstr(69)
+            };
+
+            self.g.e_write_font(308, 19, str1);
+
+            let mut str1 = txtp(self.pisteet[top5[1] as usize]);
+
+            if self.kierros == 2 {
+                str1 = txtp(self.pisteet[top5[1] as usize] - self.pisteet[pel as usize]);
+            }
+
+            self.g.e_write_font(
+                308,
+                29,
+                &([
+                    self.i.nimet.borrow()[top5[1] as usize].as_slice(),
+                    b"$",
+                    str1.as_slice(),
+                ]
+                .concat()),
+            );
+        }
+    }
+
+    fn drawkeymap(&self) {
+        self.g.draw_anim(227, 2, 64);
+
+        self.g.font_color(246);
+        self.g.e_write_font(308, 9, self.l.lstr(330));
+
+        for temp in 1..=5 {
+            self.g.e_write_font(
+                308,
+                temp * 10 + 9,
+                &([
+                    &self.l.lstr((330 + temp) as u32) as &[u8],
+                    b": ",
+                    &self.u.keyname(self.k[temp as usize]),
+                ]
+                .concat()),
+            );
+        }
+        self.g.font_color(247);
+    }
+
+    fn drawtop5info(&self, top5: &[u8; 7], index: i32, pel: i32) {
+        let text = [&self.act_hill.name as &[u8], b" K", &txt(self.act_hill.kr)].concat();
+        self.g.e_write_font(308, 9, &text);
+
+        for temp in 0..5 {
+            if self.pisteet[top5[temp] as usize] > 0 {
+                let mut str1 = txtp(self.pisteet[top5[temp] as usize]);
+
+                if self.diff && temp > 1 {
+                    str1 = txtp(self.pisteet[top5[temp] as usize] - self.pisteet[top5[1] as usize]);
+                }
+                if self.jcup {
+                    str1 = [
+                        &self.i.jnimet.borrow()[top5[temp] as usize] as &[u8],
+                        b"$",
+                        &str1,
+                    ]
+                    .concat();
+                } else {
+                    str1 = [
+                        &self.i.nimet.borrow()[top5[temp] as usize] as &[u8],
+                        b"$",
+                        &str1,
+                    ]
+                    .concat();
+                }
+
+                self.g.e_write_font(308, 13 + temp as i32 * 7, &str1);
+            }
+        }
+
+        let mut str1 = self.l.lstr(62);
+        if (self.kierros == 2) && (index == 1) && (self.wcup) {
+            str1 = self.l.lstr(63);
+        }
+
+        let temp = self.pisteet[top5[1] as usize] - self.pisteet[pel as usize];
+        if temp > 0 {
+            self.g.e_write_font(
+                308,
+                62,
+                &([&str1 as &[u8], b": ", &txtp(temp + 1)].concat()),
+            );
         }
     }
 
@@ -269,6 +1023,91 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 ]
                 .concat(),
             );
+        }
+    }
+
+    fn drawinfo(&self, l: &mut i32, top5: &[u8; 7], index: i32, pel: i32) {
+        if (self.pisteet[top5[1] as usize] == 0) || (self.kierros < 0) {
+            //{ ei tuloksia n�ytett�v�n� }
+            if (self.wcup || self.jcup) && (self.mcpisteet[self.mcluett[1] as usize] > 0) {
+                match *l {
+                    0..=130 => self.drawhrinfo(),
+                    146..=276 => self.drawwcinfo(),
+                    291 => *l = 0,
+                    _ => (),
+                }
+            } else {
+                self.drawhrinfo()
+            }
+        } else {
+            //{ on tuloksia }
+            if self.koth {
+                match *l {
+                    0..=130 => self.drawkothinfo(top5, pel),
+                    146..=276 => self.drawhrinfo(),
+                    291 => *l = 0,
+                    _ => (),
+                }
+            } else {
+                match *l {
+                    0..=130 => self.drawtop5info(top5, index, pel),
+                    146..=276 => self.drawhrinfo(),
+                    291..=422 => {
+                        if self.mcpisteet[self.mcluett[1] as usize] > 0 {
+                            self.drawwcinfo()
+                        } else {
+                            *l = 0;
+                        }
+                    }
+                    437 => *l = 0,
+                    _ => (),
+                }
+            }
+        }
+    }
+
+    fn jarjesta5(&self, top5: &mut [u8; 7], index: i32) {
+        for apu1 in 0..=5 {
+            top5[apu1 as usize] = 0;
+        }
+
+        if self.koth {
+            let mut apu2 = 30000;
+            let mut apu3 = 0; //{ hae huonoin t�h�n menness� }
+
+            for apu1 in 1..=index - 1 {
+                if self.mcpisteet[self.mcluett[apu1 as usize] as usize] == 0 {
+                    //{ jos pelaaja mukana ja ei itse? KOTH }
+                    if self.pisteet[self.mcluett[apu1 as usize] as usize] < apu2 {
+                        apu2 = self.pisteet[self.mcluett[apu1 as usize] as usize];
+                        apu3 = self.mcluett[apu1 as usize];
+                    }
+                }
+            }
+
+            if apu2 != 30000 {
+                top5[1] = apu3;
+            }
+        } else {
+            let num = if self.jcup { NUM_TEAMS } else { NUM_PL } as u8;
+
+            for apu1 in 1..=num {
+                let mut apu2 = 1;
+                loop {
+                    //{ Verrataan jokaiseen }
+                    if self.pisteet[apu1 as usize] > self.pisteet[top5[apu2 as usize] as usize] {
+                        for apu3 in (apu2 + 1..=5).rev() {
+                            top5[apu3 as usize] = top5[apu3 as usize - 1];
+                        }
+                        top5[apu2 as usize] = apu1;
+                        apu2 = num;
+                    }
+                    apu2 += 1;
+                    if apu2 >= 6 {
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -707,52 +1546,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             self.g.font_color(241);
         }
 
-        // jajesta5
-        {
-            for apu1 in 0..=5 {
-                top5[apu1 as usize] = 0;
-            }
-
-            if self.koth {
-                let mut apu2 = 30000;
-                let mut apu3 = 0; //{ hae huonoin t�h�n menness� }
-
-                for apu1 in 1..=index - 1 {
-                    if self.mcpisteet[self.mcluett[apu1 as usize] as usize] == 0 {
-                        //{ jos pelaaja mukana ja ei itse? KOTH }
-                        if self.pisteet[self.mcluett[apu1 as usize] as usize] < apu2 {
-                            apu2 = self.pisteet[self.mcluett[apu1 as usize] as usize];
-                            apu3 = self.mcluett[apu1 as usize];
-                        }
-                    }
-                }
-
-                if apu2 != 30000 {
-                    top5[1] = apu3;
-                }
-            } else {
-                let num = if self.jcup { NUM_TEAMS } else { NUM_PL } as u8;
-
-                for apu1 in 1..=num {
-                    let mut apu2 = 1;
-                    loop {
-                        //{ Verrataan jokaiseen }
-                        if self.pisteet[apu1 as usize] > self.pisteet[top5[apu2 as usize] as usize]
-                        {
-                            for apu3 in (apu2 + 1..=5).rev() {
-                                top5[apu3 as usize] = top5[apu3 as usize - 1];
-                            }
-                            top5[apu2 as usize] = apu1;
-                            apu2 = num;
-                        }
-                        apu2 += 1;
-                        if apu2 >= 6 {
-                            break;
-                        }
-                    }
-                }
-            }
-        };
+        self.jarjesta5(&mut top5, index);
 
         delta_x = self.m.x.get();
         delta_y = self.m.y.get();
@@ -839,151 +1633,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     temp = team;
                 }
 
-                // drawinfo
-                {
-                    if (self.pisteet[top5[1] as usize] == 0) || (self.kierros < 0) {
-                        //{ ei tuloksia n�ytett�v�n� }
-                        if (self.wcup || self.jcup)
-                            && (self.mcpisteet[self.mcluett[1] as usize] > 0)
-                        {
-                            match laskuri {
-                                0..=130 => self.drawhrinfo(),
-                                146..=276 => self.drawwcinfo(),
-                                291 => laskuri = 0,
-                                _ => (),
-                            }
-                        } else {
-                            self.drawhrinfo()
-                        }
-                    } else {
-                        //{ on tuloksia }
-                        if self.koth {
-                            match laskuri {
-                                0..=130 => {
-                                    // drawkothinfo
-                                    let str1 = [
-                                        &self.l.lstr(67) as &[u8],
-                                        b" ",
-                                        &txt(1
-                                            + self.kothmaara as i32
-                                            + self.i.pmaara.get() as i32
-                                            - self.mcpisteet[0]),
-                                        b" ",
-                                        &self.l.lstr(8),
-                                        b" ",
-                                        &txt(self.kothmaara as i32 + self.i.pmaara.get() as i32),
-                                    ]
-                                    .concat();
-
-                                    self.g.e_write_font(308, 9, &str1);
-
-                                    if top5[1] > 0 {
-                                        let mut str1 = self.l.lstr(68);
-
-                                        if (self.kierros == 1) && (self.kothrounds > 1) {
-                                            str1 = self.l.lstr(69)
-                                        };
-
-                                        self.g.e_write_font(308, 19, str1);
-
-                                        let mut str1 = txtp(self.pisteet[top5[1] as usize]);
-
-                                        if self.kierros == 2 {
-                                            str1 = txtp(
-                                                self.pisteet[top5[1] as usize]
-                                                    - self.pisteet[pel as usize],
-                                            );
-                                        }
-
-                                        self.g.e_write_font(
-                                            308,
-                                            29,
-                                            &([
-                                                self.i.nimet.borrow()[top5[1] as usize].as_slice(),
-                                                b"$",
-                                                str1.as_slice(),
-                                            ]
-                                            .concat()),
-                                        );
-                                    }
-                                }
-                                146..=276 => self.drawhrinfo(),
-                                291 => laskuri = 0,
-                                _ => (),
-                            }
-                        } else {
-                            match laskuri {
-                                0..=130 => {
-                                    // drawtop5info
-                                    let text = [
-                                        &self.act_hill.name as &[u8],
-                                        b" K",
-                                        &txt(self.act_hill.kr),
-                                    ]
-                                    .concat();
-                                    self.g.e_write_font(308, 9, &text);
-
-                                    for temp in 0..5 {
-                                        if self.pisteet[top5[temp] as usize] > 0 {
-                                            let mut str1 = txtp(self.pisteet[top5[temp] as usize]);
-
-                                            if self.diff && temp > 1 {
-                                                str1 = txtp(
-                                                    self.pisteet[top5[temp] as usize]
-                                                        - self.pisteet[top5[1] as usize],
-                                                );
-                                            }
-                                            if self.jcup {
-                                                str1 = [
-                                                    &self.i.jnimet.borrow()[top5[temp] as usize]
-                                                        as &[u8],
-                                                    b"$",
-                                                    &str1,
-                                                ]
-                                                .concat();
-                                            } else {
-                                                str1 = [
-                                                    &self.i.nimet.borrow()[top5[temp] as usize]
-                                                        as &[u8],
-                                                    b"$",
-                                                    &str1,
-                                                ]
-                                                .concat();
-                                            }
-
-                                            self.g.e_write_font(308, 13 + temp as i32 * 7, &str1);
-                                        }
-                                    }
-
-                                    let mut str1 = self.l.lstr(62);
-                                    if (self.kierros == 2) && (index == 1) && (self.wcup) {
-                                        str1 = self.l.lstr(63);
-                                    }
-
-                                    let temp =
-                                        self.pisteet[top5[1] as usize] - self.pisteet[pel as usize];
-                                    if temp > 0 {
-                                        self.g.e_write_font(
-                                            308,
-                                            62,
-                                            &([&str1 as &[u8], b": ", &txtp(temp + 1)].concat()),
-                                        );
-                                    }
-                                }
-                                146..=276 => self.drawhrinfo(),
-                                291..=422 => {
-                                    if self.mcpisteet[self.mcluett[1] as usize] > 0 {
-                                        self.drawwcinfo()
-                                    } else {
-                                        laskuri = 0;
-                                    }
-                                }
-                                437 => laskuri = 0,
-                                _ => (),
-                            }
-                        }
-                    }
-                }
+                self.drawinfo(&mut laskuri, &top5, index, pel);
 
                 self.g.draw_screen().await;
 
@@ -1127,25 +1777,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 }
 
                 if self.eka && self.osakilpailu == 1 && !cjumper {
-                    // drawkeymap
-                    self.g.draw_anim(227, 2, 64);
-
-                    self.g.font_color(246);
-                    self.g.e_write_font(308, 9, self.l.lstr(330));
-
-                    for temp in 1..=5 {
-                        self.g.e_write_font(
-                            308,
-                            temp * 10 + 9,
-                            &([
-                                &self.l.lstr((330 + temp) as u32) as &[u8],
-                                b": ",
-                                &self.u.keyname(self.k[temp as usize]),
-                            ]
-                            .concat()),
-                        );
-                    }
-                    self.g.font_color(247);
+                    self.drawkeymap();
                 }
 
                 self.g.draw_screen().await;
@@ -2960,98 +3592,439 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
     }
 
-    fn jarjestys(&mut self, fromarray: u8, toarray: u8, num: u8) {
-        // { from: 0 - MCpist, 1 - fourpts, 2 - pisteet }
-        // { to: 0 - mcluett, 1 - luett }
-        let mut score1: i32;
-        let mut score2: i32;
-        let mut templuett: [u8; NUM_PL + 2] = [0; NUM_PL + 2];
+    //{ h0 = main menusta,muuten kertoo mik� highlightataan }
+    fn dolist(&self, high: u8, phase: u8) {
+        // TODO
+    }
 
-        for t1 in 1..=NUM_PL + 1 {
-            //{ kaikki nolliin }
-            templuett[t1] = 0;
-            self.sija[t1] = 0;
-        }
-        for t1 in 1..=num {
-            //{ Jokainen hypp��j� k�yd��n l�pi }
-            let mut t2 = 1;
+    //{ vaiheet: 0 - WCquali  1 - WC   2 - 4hills }
+    fn donewheader(&self, vaihe: u8) -> Vec<u8> {
+        match vaihe {
+            4 => {
+                if self.osakilpailu == self.cup_hills {
+                    [
+                        &self.l.lstr(90) as &[u8],
+                        b" ",
+                        &self.l.lstr(27 + self.cup_style as u32),
+                    ]
+                    .concat()
+                } else {
+                    [
+                        &self.l.lstr(27 + self.cup_style as u32) as &[u8],
+                        b" ",
+                        &self.l.lstr(87),
+                        b" ",
+                        &txt(self.osakilpailu),
+                        b" ",
+                        &self.l.lstr(8),
+                        b" ",
+                        &txt(self.cup_hills),
+                    ]
+                    .concat()
+                }
+            }
 
-            loop {
-                match fromarray {
-                    0 => {
-                        score1 = self.mcpisteet[t1 as usize];
-                        score2 = self.mcpisteet[templuett[t2 as usize] as usize];
+            3 => {
+                match self.cup_style {
+                    0 | 2 => {
+                        if self.osakilpailu == 12 || self.osakilpailu == self.cup_hills {
+                            self.l.lstr(85).to_vec()
+                        } else {
+                            let mut temp3 = self.osakilpailu;
+                            if self.osakilpailu > 4 {
+                                temp3 = self.osakilpailu - 8; //{ joko yksin��n tai osana WC:t� }
+                            }
+                            [
+                                &self.l.lstr(84) as &[u8],
+                                b" ",
+                                &txt(temp3),
+                                b" ",
+                                &self.l.lstr(83),
+                                b" - ",
+                                &self.act_hill.name,
+                                b" K",
+                                &txt(self.act_hill.kr),
+                            ]
+                            .concat()
+                        }
                     }
                     1 => {
-                        score1 = self.fourpts[t1 as usize];
-                        score2 = self.fourpts[templuett[t2 as usize] as usize];
+                        if self.osakilpailu == self.cup_hills {
+                            [&self.l.lstr(90) as &[u8], b" ", &self.l.lstr(28)].concat()
+                        } else {
+                            [
+                                &self.l.lstr(28) as &[u8],
+                                b" ",
+                                &self.l.lstr(87),
+                                b" ",
+                                &txt(self.osakilpailu),
+                                b" ",
+                                &self.l.lstr(8),
+                                b" ",
+                                &txt(self.cup_hills),
+                            ]
+                            .concat()
+                        }
                     }
+                    _ => panic!("Invalid cup style: {}", self.cup_style),
+                }
+            }
+            0 | 1 | 2 => {
+                let str1 = if vaihe == 0 {
+                    self.l.lstr(82)
+                } else {
+                    self.l.lstr(81)
+                };
+                let mut str2 = if self.cup_style == 2 {
+                    [&txt(self.osakilpailu) as &[u8], b" ", &self.l.lstr(83)].concat()
+                } else {
+                    [
+                        &txt(self.osakilpailu) as &[u8],
+                        b" ",
+                        &self.l.lstr(8),
+                        b" ",
+                        &txt(self.cup_hills),
+                    ]
+                    .concat()
+                };
+                str2 = [
+                    &str2 as &[u8],
+                    b" - ",
+                    &self.act_hill.name,
+                    b" K",
+                    &txt(self.act_hill.kr),
+                ]
+                .concat();
+                if self.kierros > 0 {
+                    str2 = [&str2 as &[u8], b" - R ", &txt(self.kierros)].concat();
+                }
+                [&str1 as &[u8], b" ", &str2].concat()
+            }
+            _ => panic!("Invalid vaihe: {}", vaihe),
+        }
+    }
+
+    fn compactsign(&self) {
+        self.g.font_color(241);
+        self.g.write_font(30, 190, self.l.lstr(86));
+    }
+
+    //{ what: 0 - WCStats, 1 - normal, 2 - 4H }
+    fn updatestats(&mut self, what: u8) {
+        let mut who: i32;
+        let mut victim: i32;
+        let mut str1: Vec<u8>;
+
+        for temp in 1..=NUM_PL {
+            who = if what == 0 {
+                self.mcluett[temp]
+            } else {
+                self.luett[temp]
+            } as i32;
+
+            if who > NUM_PL as i32 - self.i.pmaara.get() as i32 {
+                //{ oma j�tk� }
+                victim = NUM_PL as i32 + 1 - who;
+
+                match what {
+                    0 => {
+                        if self.cup_style == 0 {
+                            //{ WC pohjaisia statseja }
+                            self.stats[victim as usize][self.osakilpailu as usize].wc_pos =
+                                self.sija[who as usize];
+                            if self.osakilpailu == self.cup_hills {
+                                if self.sija[who as usize] == 1 {
+                                    self.i.profile.borrow_mut()
+                                        [self.i.profileorder.borrow()[victim as usize] as usize]
+                                        .wcswon += 1;
+                                }
+                                self.i.profile.borrow_mut()
+                                    [self.i.profileorder.borrow()[victim as usize] as usize]
+                                    .wcs += 1;
+                            }
+
+                            if self.mcpisteet[who as usize]
+                                >= self.i.profile.borrow()
+                                    [self.i.profileorder.borrow()[victim as usize] as usize]
+                                    .bestpoints as i32
+                            {
+                                self.i.profile.borrow_mut()
+                                    [self.i.profileorder.borrow()[victim as usize] as usize]
+                                    .bestpoints = self.mcpisteet[who as usize] as u16;
+                                str1 = if self.osakilpailu == self.cup_hills {
+                                    [&txt(self.sija[who as usize] as i32) as &[u8], b"."].concat()
+                                } else {
+                                    b"-".to_vec()
+                                };
+                                self.i.profile.borrow_mut()
+                                    [self.i.profileorder.borrow()[victim as usize] as usize]
+                                    .bestresult = [
+                                    &txt(self.mcpisteet[who as usize]) as &[u8],
+                                    b" (",
+                                    &str1,
+                                    b")",
+                                ]
+                                .concat();
+                            }
+                        }
+                    }
+                    1 => {
+                        //{ perus kisanaikaisia statseja }
+                        self.stats[victim as usize][self.osakilpailu as usize].comp_pos =
+                            self.sija[who as usize];
+                        if self.kierros == 1 {
+                            self.stats[victim as usize][self.osakilpailu as usize].round1_pos =
+                                self.sija[who as usize];
+                        }
+                        if self.cup_style == 0 && self.kierros == 2 && self.sija[who as usize] == 1
+                        {
+                            self.i.profile.borrow_mut()
+                                [self.i.profileorder.borrow()[victim as usize] as usize]
+                                .legswon += 1;
+                        }
+                    }
+
                     2 => {
-                        score1 = self.pisteet[t1 as usize];
-                        score2 = self.pisteet[templuett[t2 as usize] as usize];
-                    }
-                    _ => panic!("Invalid fromarray"),
-                }
-                if score1 > score2 {
-                    for t3 in (t2..=num as i32).rev() {
-                        templuett[t3 as usize] = templuett[t3 as usize - 1];
+                        //{ fourhills tulos talteen }
+                        self.stats[victim as usize][0].round_pts[1] = self.fourpts[who as usize];
+                        self.stats[victim as usize][0].comp_pos = self.sija[who as usize];
                     }
 
-                    templuett[t2 as usize] = t1;
-                    t2 = 100;
-                } else if t2 == num as i32 {
-                    templuett[t1 as usize] = t1;
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    //{ vaihe: 0 - WC, 1 - TC, 2 - 4H, 3 - KOTH, 4 - CC_MC, 5 - CC_4P }
+    async fn sorthighs(&mut self, vaihe: u8) -> u8 {
+        //{ highstart: 0 - WC, 20 - TC, 30 - 4H, 35 - KOTH, 41 - CC  }
+
+        let mut localnosamename: bool = self.nosamename;
+        let mut leave: bool = false;
+        let mut who: i32;
+        let mut players: i32 = self.i.pmaara.get() as i32;
+        let mut pts: i32;
+        let mut highstart: u8 = 0;
+        let mut highlength: u8 = 20;
+        let mut victimname: Vec<u8>;
+        let mut return_: u8 = 0;
+        let mut datestr: Vec<u8> = dayandtime(self.today, self.now);
+
+        match vaihe {
+            1 => {
+                players = self.jmaara as i32;
+                highstart = 20;
+                highlength = 10;
+            }
+            2 => {
+                highstart = 30;
+                highlength = 5;
+            }
+            4 | 5 => {
+                highstart = 41;
+                localnosamename = true; //{ ei milloinkaan useampia nimi� }
+            }
+            _ => {}
+        }
+
+        for t1 in 1..=players {
+            for t2 in 1..=highlength {
+                if vaihe == 1 {
+                    who = NUM_TEAMS as i32 + 1 - t1;
+                    victimname = self.i.jnimet.borrow()[who as usize].clone();
+                } else {
+                    who = NUM_PL as i32 + 1 - t1;
+                    victimname = self.i.nimet.borrow()[who as usize].clone();
                 }
 
-                t2 += 1;
+                pts = match vaihe {
+                    0 | 1 | 4 => self.mcpisteet[who as usize],
+                    2 | 5 => self.fourpts[who as usize],
+                    _ => 0,
+                };
 
-                if t2 > num as i32 {
+                if pcomp(pts, self.sija[who as usize] as i32)
+                    > pcomp(
+                        self.i.top.borrow()[(t2 + highstart) as usize].score,
+                        self.i.top.borrow()[(t2 + highstart) as usize].pos as i32,
+                    )
+                {
+                    leave = true; //{ tekeek� nimet vai ei }
+
+                    if localnosamename {
+                        for t3 in 1..=t2 - 1 {
+                            if self.i.top.borrow()[(t3 + highstart) as usize].name == victimname {
+                                leave = false;
+                            }
+                        }
+                        if leave {
+                            //{ ei ollut parempaa samaa nime� }
+                            let mut top = self.i.top.borrow_mut();
+                            for t3 in t2..=highlength {
+                                if top[(t3 + highstart) as usize].name == victimname {
+                                    for t4 in t3..=highlength - 1 {
+                                        top[(t4 + highstart) as usize] =
+                                            top[(t4 + highstart + 1) as usize].clone();
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if leave {
+                        if t2 < highlength {
+                            let mut top = self.i.top.borrow_mut();
+                            for t3 in ((t2 + 1)..=highlength).rev() {
+                                top[(t3 + highstart) as usize] =
+                                    top[(t3 + highstart - 1) as usize].clone();
+                            }
+                        }
+
+                        if vaihe > 2 && self.cup_hills == 1 {
+                            datestr = [
+                                b"(",
+                                &txtp(self.stats[t1 as usize][1].round_len[1]) as &[u8],
+                                b"m-",
+                                &txtp(self.stats[t1 as usize][1].round_len[2]),
+                                b"m)",
+                            ]
+                            .concat();
+                        }
+
+                        {
+                            let mut top = self.i.top.borrow_mut();
+                            top[(t2 + highstart) as usize].score = pts;
+                            top[(t2 + highstart) as usize].name = victimname;
+                            top[(t2 + highstart) as usize].pos = self.sija[who as usize];
+                            top[(t2 + highstart) as usize].time = datestr.clone();
+                        }
+
+                        return_ = t2; //{ pyrkii palauttamaan lis�tyn pelaajan sijan }
+
+                        if vaihe < 4 {
+                            self.g.new_screen(1, 0).await;
+                            self.dolist(t2, vaihe);
+                            self.u.wait_for_key3(305, 6).await;
+                        }
+                    }
                     break;
                 }
             }
         }
+        return_
+    }
 
-        for t1 in 1..=num {
-            //{ k��nteistaulukko eli sija[pelaaja]? }
-            self.sija[templuett[t1 as usize] as usize] = t1;
+    async fn updaterecords(&mut self, mut sortby: u8) {
+        let mut final_: bool = false;
+        let mut cscreen: bool = false;
+        let mut str1: Vec<u8>;
+        let mut who: i32;
+        let mut temp2: i32;
+        let mut oldhi = Hiscore::default();
+
+        if self.osakilpailu == self.cup_hills {
+            final_ = true;
         }
 
-        for t1 in 2..=num {
-            //{ tasapiste-sijoittelija }
-            match fromarray {
+        for t1 in 1..=self.i.pmaara.get() as i32 {
+            who = NUM_PL as i32 + 1 - t1;
+
+            //{ pari profilesin parasta tulosta }
+
+            if ((self.cup_style == 0 && self.osakilpailu == 12) || (self.cup_style == 2 && final_))
+                && self.fourpts[who as usize]
+                    >= self.i.profile.borrow()[self.i.profileorder.borrow()[t1 as usize] as usize]
+                        .best4points as i32
+            {
+                self.i.profile.borrow_mut()[self.i.profileorder.borrow()[t1 as usize] as usize]
+                    .best4points = self.fourpts[who as usize] as u16;
+                self.i.profile.borrow_mut()[self.i.profileorder.borrow()[t1 as usize] as usize]
+                    .best4result = [
+                    &txtp(self.fourpts[who as usize]) as &[u8],
+                    b" (",
+                    &txt(self.sija[who as usize] as i32),
+                    b".)",
+                ]
+                .concat();
+            }
+
+            if self.cup_style == 0
+                && self.mcpisteet[who as usize]
+                    >= self.i.profile.borrow()
+                        [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
+                        .bestpoints as i32
+            {
+                self.i.profile.borrow_mut()
+                    [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
+                    .bestpoints = self.mcpisteet[who as usize] as u16;
+                str1 = if final_ {
+                    [&txt(self.sija[who as usize] as i32) as &[u8], b"."].concat()
+                } else {
+                    b"-".to_vec()
+                };
+                self.i.profile.borrow_mut()
+                    [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
+                    .bestresult = [
+                    &txt(self.mcpisteet[who as usize]) as &[u8],
+                    b" (",
+                    &str1,
+                    b")",
+                ]
+                .concat();
+            }
+
+            if self.cup_style == 1 && final_ {
+                self.i.load_custom(
+                    &self.setfile,
+                    &mut sortby,
+                    &mut self.hill_order,
+                    &mut self.cup_hills,
+                );
+                oldhi = self.i.top.borrow()[42].clone();
+                temp2 = self.sorthighs(4 + sortby).await as i32;
+
+                if temp2 == 1 && self.setfile != b"TEMP" {
+                    cscreen = true;
+                }
+
+                if temp2 > 0 {
+                    self.i
+                        .write_custom(&self.setfile, sortby, &self.hill_order, self.cup_hills);
+                }
+            }
+        }
+
+        if !self.cupslut {
+            match self.cup_style {
                 0 => {
-                    score1 = self.mcpisteet[templuett[t1 as usize] as usize];
-                    score2 = self.mcpisteet[templuett[t1 as usize - 1] as usize];
+                    if self.osakilpailu == 12 {
+                        self.sorthighs(2).await;
+                    }
+                    if final_ {
+                        self.sorthighs(0).await;
+                    }
                 }
                 1 => {
-                    score1 = self.fourpts[templuett[t1 as usize] as usize];
-                    score2 = self.fourpts[templuett[t1 as usize - 1] as usize];
+                    if cscreen {
+                        self.i
+                            .newcrecordscreen(
+                                &self.setfile,
+                                &self.i.top.borrow()[42],
+                                &oldhi,
+                                sortby,
+                            )
+                            .await;
+                    }
                 }
                 2 => {
-                    score1 = self.pisteet[templuett[t1 as usize] as usize];
-                    score2 = self.pisteet[templuett[t1 as usize - 1] as usize];
+                    if final_ {
+                        self.sorthighs(2).await;
+                    }
                 }
-                _ => panic!("Invalid fromarray"),
+                _ => {}
             }
-
-            if score1 == score2 {
-                self.sija[templuett[t1 as usize] as usize] =
-                    self.sija[templuett[t1 as usize - 1] as usize];
-            }
-        }
-
-        match toarray {
-            0 => {
-                for t1 in 1..=num {
-                    self.mcluett[t1 as usize] = templuett[t1 as usize];
-                }
-            }
-            1 => {
-                for t1 in 1..=num {
-                    self.luett[t1 as usize] = templuett[t1 as usize];
-                }
-            }
-            _ => panic!("Invalid toarray"),
         }
     }
 
@@ -3367,6 +4340,101 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             self.showstats().await;
         }
         //{$ENDIF}
+    }
+
+    fn jarjestys(&mut self, fromarray: u8, toarray: u8, num: u8) {
+        // { from: 0 - MCpist, 1 - fourpts, 2 - pisteet }
+        // { to: 0 - mcluett, 1 - luett }
+        let mut score1: i32;
+        let mut score2: i32;
+        let mut templuett: [u8; NUM_PL + 2] = [0; NUM_PL + 2];
+
+        for t1 in 1..=NUM_PL + 1 {
+            //{ kaikki nolliin }
+            templuett[t1] = 0;
+            self.sija[t1] = 0;
+        }
+        for t1 in 1..=num {
+            //{ Jokainen hypp��j� k�yd��n l�pi }
+            let mut t2 = 1;
+
+            loop {
+                match fromarray {
+                    0 => {
+                        score1 = self.mcpisteet[t1 as usize];
+                        score2 = self.mcpisteet[templuett[t2 as usize] as usize];
+                    }
+                    1 => {
+                        score1 = self.fourpts[t1 as usize];
+                        score2 = self.fourpts[templuett[t2 as usize] as usize];
+                    }
+                    2 => {
+                        score1 = self.pisteet[t1 as usize];
+                        score2 = self.pisteet[templuett[t2 as usize] as usize];
+                    }
+                    _ => panic!("Invalid fromarray"),
+                }
+                if score1 > score2 {
+                    for t3 in (t2..=num as i32).rev() {
+                        templuett[t3 as usize] = templuett[t3 as usize - 1];
+                    }
+
+                    templuett[t2 as usize] = t1;
+                    t2 = 100;
+                } else if t2 == num as i32 {
+                    templuett[t1 as usize] = t1;
+                }
+
+                t2 += 1;
+
+                if t2 > num as i32 {
+                    break;
+                }
+            }
+        }
+
+        for t1 in 1..=num {
+            //{ k��nteistaulukko eli sija[pelaaja]? }
+            self.sija[templuett[t1 as usize] as usize] = t1;
+        }
+
+        for t1 in 2..=num {
+            //{ tasapiste-sijoittelija }
+            match fromarray {
+                0 => {
+                    score1 = self.mcpisteet[templuett[t1 as usize] as usize];
+                    score2 = self.mcpisteet[templuett[t1 as usize - 1] as usize];
+                }
+                1 => {
+                    score1 = self.fourpts[templuett[t1 as usize] as usize];
+                    score2 = self.fourpts[templuett[t1 as usize - 1] as usize];
+                }
+                2 => {
+                    score1 = self.pisteet[templuett[t1 as usize] as usize];
+                    score2 = self.pisteet[templuett[t1 as usize - 1] as usize];
+                }
+                _ => panic!("Invalid fromarray"),
+            }
+
+            if score1 == score2 {
+                self.sija[templuett[t1 as usize] as usize] =
+                    self.sija[templuett[t1 as usize - 1] as usize];
+            }
+        }
+
+        match toarray {
+            0 => {
+                for t1 in 1..=num {
+                    self.mcluett[t1 as usize] = templuett[t1 as usize];
+                }
+            }
+            1 => {
+                for t1 in 1..=num {
+                    self.luett[t1 as usize] = templuett[t1 as usize];
+                }
+            }
+            _ => panic!("Invalid toarray"),
+        }
     }
 
     //{ 0-esittely, 1-tuloksien kanssa }
@@ -3893,20 +4961,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         */
     }
 
-    fn reset_stats(&mut self) {
-        for aaa in 0..=15 {
-            for bbb in 0..=NUM_WC_HILLS as usize {
-                self.stats[aaa][bbb].comp_pos = 0;
-                self.stats[aaa][bbb].wc_pos = 0;
-                self.stats[aaa][bbb].comp_pts = 0;
-
-                for ccc in 1..=2 {
-                    self.stats[aaa][bbb].round_pts[ccc] = 0;
-                    self.stats[aaa][bbb].round_len[ccc] = 0;
-                    self.stats[aaa][bbb].reason[ccc] = 0;
-                }
-            }
-        }
+    fn check_param(&self) {
+        // TODO
     }
 
     async fn draw_full_main(&mut self) {
@@ -4017,639 +5073,6 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
     }
 
-    fn check_param(&self) {
-        // TODO
-    }
-
-    fn write_records(&self) {
-        let mut l1: i32 = 0;
-        let mut l2: i32 = 0;
-
-        let mut f1 = self.s.create_file("HISCORE.SKI");
-        writeln!(f1, "HISCORE.SKI - !!! DO NOT ATTEMPT TO EDIT THIS FILE !!!").unwrap();
-
-        //{ 20 world cupia, 10 teamia, 5 4hillsia ja 6 kothia }
-        {
-            let top = self.i.top.borrow();
-            for temp in 1..=41i32 {
-                f1.write_all(&top[temp as usize].name).unwrap();
-                writeln!(f1).unwrap();
-                l1 += valuestr(&top[temp as usize].name, temp) as i32;
-                let str1 = crypt(top[temp as usize].pos as i32, temp);
-                f1.write_all(&str1).unwrap();
-                writeln!(f1).unwrap();
-                l2 += valuestr(&str1, temp) as i32;
-                let str1 = crypt(top[temp as usize].score, temp);
-                f1.write_all(&str1).unwrap();
-                writeln!(f1).unwrap();
-                l2 += valuestr(&str1, temp) as i32;
-            }
-        }
-
-        for temp in 1..=NUM_WC_HILLS {
-            let hrname = self.u.hrname(temp);
-            f1.write_all(&hrname).unwrap();
-            l1 += valuestr(&hrname, temp) as i32;
-            let str1 = crypt(hrname.len() as i32, temp);
-            f1.write_all(&str1).unwrap();
-            l2 += valuestr(&str1, temp) as i32;
-        }
-
-        l1 = l1 ^ 734697;
-
-        writeln!(f1, "{}", l1).unwrap();
-        writeln!(f1, "{}", l2).unwrap();
-
-        let str1 = format!("{}", l1 + l2 + 53).into_bytes();
-        writeln!(f1, "{}", valuestr(&str1, 22)).unwrap();
-
-        {
-            let top = self.i.top.borrow();
-            for temp in 1..=41 {
-                f1.write_all(&top[temp].time).unwrap();
-                writeln!(f1).unwrap();
-            }
-        }
-
-        for temp in 1..=NUM_WC_HILLS {
-            f1.write_all(&self.u.hrtime(temp)).unwrap();
-            writeln!(f1).unwrap();
-        }
-
-        self.u.makevcode(VERSION, true);
-        writeln!(f1, "{}", self.u.vcode.get()).unwrap();
-    }
-
-    fn write_config(&mut self) {
-        let reg = true; // { registered wai no }
-
-        let mut f2: Vec<u8> = Vec::new();
-        writeln!(f2, "{}", reg as i32).unwrap();
-        writeln!(f2, "{}", self.comphrs as i32).unwrap();
-        writeln!(f2, "{}", self.lct as i32).unwrap();
-        writeln!(f2, "{}", self.diff as i32).unwrap();
-        writeln!(f2, "{}", self.compactlist as i32).unwrap();
-        writeln!(f2, "{}", self.inv_back as i32).unwrap();
-        writeln!(f2, "{}", self.automatichrr as i32).unwrap();
-        writeln!(f2, "{}", self.beeppi as i32).unwrap();
-        writeln!(f2, "{}", self.nosamename as i32).unwrap();
-        writeln!(f2, "{}", self.goals as i32).unwrap();
-        writeln!(f2, "{}", self.diffwc as i32).unwrap();
-        writeln!(f2, "{}", self.kosystem as i32).unwrap();
-
-        writeln!(f2, "{}", self.languagenumber).unwrap();
-        writeln!(f2, "{}", self.trainrounds).unwrap();
-        writeln!(f2, "{}", self.namenumber).unwrap();
-        f2.write_all(&self.setfile).unwrap();
-        writeln!(f2).unwrap();
-
-        writeln!(f2, "{}", self.gdetail).unwrap();
-        writeln!(f2, "{}", self.seecomps).unwrap();
-        writeln!(f2, "0").unwrap();
-        writeln!(f2, "0").unwrap();
-        writeln!(f2, "0").unwrap();
-
-        writeln!(f2, "{}", self.jmaara).unwrap();
-        let jnimet = self.i.jnimet.borrow();
-        for temp in 1..=self.jmaara {
-            f2.write_all(&jnimet[16 - temp as usize]).unwrap();
-            writeln!(f2).unwrap();
-        }
-
-        let pmaara = self.i.pmaara.get();
-        writeln!(f2, "{}", pmaara).unwrap();
-        let profileorder = self.i.profileorder.borrow();
-        for temp in 1..=pmaara {
-            writeln!(f2, "{}", profileorder[temp as usize]).unwrap();
-        }
-
-        writeln!(f2, "{}", self.kothwind as i32).unwrap();
-        writeln!(f2, "{}", self.kothrounds).unwrap();
-
-        writeln!(f2, "{}", self.kothpack).unwrap();
-        writeln!(f2, "{}", self.kothmaki).unwrap();
-
-        writeln!(f2, "{}", self.kothmaara).unwrap();
-        for temp in 1..=self.kothmaara {
-            writeln!(f2, "{}", self.kothpel[temp as usize]).unwrap();
-        }
-
-        //{ n�ppiskomennot }
-        for temp in 1..=5 {
-            writeln!(f2, "{}", self.k[temp as usize]).unwrap();
-        }
-
-        writeln!(f2, "{}", self.windplace).unwrap();
-
-        writeln!(f2, "0").unwrap();
-        writeln!(f2, "0").unwrap();
-    }
-
-    fn reset_hiscore(&mut self, kerroin: u8) {
-        self.now = self.u.get_now();
-
-        self.i.reset_tops(kerroin, self.today, self.now);
-        self.write_records();
-    }
-
-    fn reset_config(&mut self) {
-        self.kothmaara = 1;
-        for temp in 1..=20 {
-            self.kothpel[temp as usize] = temp;
-        }
-
-        self.i.pmaara.set(1);
-        {
-            let mut profileorder = self.i.profileorder.borrow_mut();
-            for temp in 1..=20 {
-                profileorder[temp as usize] = 0;
-            }
-        }
-
-        self.jmaara = 1;
-
-        //{ configien nollaus ocks� }
-        self.languagenumber = 255; //{ se kysyy sitten alussa }
-
-        self.beeppi = false;
-        self.gdetail = 0;
-
-        self.namenumber = '0';
-
-        self.trainrounds = 0;
-
-        //{$IFDEF REG}
-        self.lct = true;
-        //{$ELSE}
-        //self.lct = false;
-        //{$ENDIF}
-
-        self.diff = false;
-        self.diffwc = false;
-        self.compactlist = false;
-        self.inv_back = false;
-        self.automatichrr = true;
-
-        self.goals = true;
-        self.kosystem = true;
-        self.seecomps = 1;
-
-        self.comphrs = true;
-        self.nosamename = false;
-
-        defaultkeys(&mut self.k);
-        self.windplace = 1;
-
-        self.setfile = b"TEMP".to_vec();
-
-        self.write_config();
-    }
-
-    fn read_records(&mut self) {
-        let mut l1: i32 = 0;
-        let mut l2: i32 = 0;
-
-        let mut f1 = BufReader::new(self.s.open_file("HISCORE.SKI"));
-
-        read_line(&mut f1).unwrap(); //{ se varoitusrivi pois sielt� }
-
-        let mut top = self.i.top.borrow_mut();
-        for temp in 1..=41 {
-            //{ 20 World Cup, 10 Team Cupia, 5 4hillsia ja 6 Kothia }
-            let name = read_line(&mut f1).unwrap();
-            l1 += valuestr(&name, temp) as i32;
-
-            let mut str1 = read_line(&mut f1).unwrap();
-            l2 += valuestr(&str1, temp) as i32;
-            let pos = uncrypt(str1.clone(), temp) as u8;
-
-            str1 = read_line(&mut f1).unwrap();
-            l2 += valuestr(&str1, temp) as i32;
-            let score = uncrypt(str1, temp);
-
-            top.push(Hiscore {
-                name,
-                pos,
-                score,
-                time: Vec::new(),
-            });
-        }
-
-        for temp in 1..=NUM_WC_HILLS {
-            //{ katso mit� tehd��n kun tehd��n lis�� m�ki� }
-            let name = read_line(&mut f1).unwrap();
-            l1 += valuestr(&name, temp) as i32;
-
-            let str1 = read_line(&mut f1).unwrap();
-            l2 += valuestr(&str1, temp) as i32;
-            let len = uncrypt(str1.clone(), temp);
-
-            self.u.set_hrinfo(temp, &name as &[u8], len, b"" as &[u8]);
-        }
-
-        l1 ^= 734697;
-
-        let l3 = parse_line(&mut f1).unwrap();
-        let l4 = parse_line(&mut f1).unwrap();
-        let l5 = parse_line(&mut f1).unwrap();
-
-        let str1 = (l1 + l2 + 53).to_string().into_bytes();
-
-        for temp in 1..=41 {
-            top[temp - 1].time = read_line(&mut f1).unwrap();
-        }
-
-        for temp in 1..=NUM_WC_HILLS {
-            let name = self.u.hrname(temp);
-            let len = self.u.hrlen(temp);
-            let time = read_line(&mut f1).unwrap();
-            self.u.set_hrinfo(temp, name, len, time);
-        }
-
-        self.u.vcode.set(parse_line(&mut f1).unwrap_or(1));
-
-        if l1 != l3 || l2 != l4 || valuestr(&str1, 22) as i32 != l5 {
-            writeln(b"Error #21A: Something doesn't add up in the HISCORE.SKI file.");
-            writeln(b"Maybe you tried to edit it or something.  Please don't do it again.");
-            // self.reset_hiscore(1);
-            // self.reset_config();
-            std::process::exit(1);
-        }
-    }
-
-    fn read_config(&mut self) {
-        let mut temp: i32 = 0;
-
-        let mut f2 = BufReader::new(self.s.open_file("CONFIG.SKI"));
-
-        parse_line::<i32>(&mut f2).unwrap();
-        temp = parse_line(&mut f2).unwrap();
-        self.comphrs = temp != 0;
-        temp = parse_line(&mut f2).unwrap();
-        //{$IFDEF REG}
-        self.lct = temp != 0;
-        //{$ELSE}
-        //self.lct=false;
-        //{$ENDIF}
-        temp = parse_line(&mut f2).unwrap();
-        self.diff = temp != 0;
-        temp = parse_line(&mut f2).unwrap();
-        self.compactlist = temp != 0;
-        temp = parse_line(&mut f2).unwrap();
-        //{$IFDEF REG}
-        self.inv_back = temp != 0;
-        //{$ELSE}
-        //self.inv_back=false;
-        //{$ENDIF}
-        temp = parse_line(&mut f2).unwrap();
-        //{$IFDEF REG}
-        self.automatichrr = temp != 0;
-        //{$ELSE}
-        //self.automatichrr=false;
-        //{$ENDIF}
-        temp = parse_line(&mut f2).unwrap();
-        self.beeppi = temp != 0;
-        temp = parse_line(&mut f2).unwrap();
-        self.nosamename = temp != 0;
-        temp = parse_line(&mut f2).unwrap();
-        self.goals = temp != 0;
-        temp = parse_line(&mut f2).unwrap();
-        self.diffwc = temp != 0;
-        temp = parse_line(&mut f2).unwrap();
-        self.kosystem = temp != 0;
-
-        self.languagenumber = parse_line(&mut f2).unwrap();
-        self.trainrounds = parse_line(&mut f2).unwrap();
-        //{$IFNDEF REG}
-        //self.trainrounds=0;
-        //{$ENDIF}
-
-        self.namenumber = parse_line(&mut f2).unwrap();
-        //{$IFNDEF REG}
-        //self.namenumber=0;
-        //{$ENDIF}
-
-        self.setfile = b"TEMP".to_vec();
-        let str1 = read_line(&mut f2).unwrap();
-        let filename = [&str1 as &[u8], b".SJC"].concat();
-        if self.s.file_exists(from_utf8(&filename).unwrap()) {
-            self.setfile = str1;
-        }
-
-        self.gdetail = parse_line(&mut f2).unwrap();
-        self.seecomps = parse_line(&mut f2).unwrap();
-
-        parse_line::<i32>(&mut f2).unwrap();
-        parse_line::<i32>(&mut f2).unwrap();
-        parse_line::<i32>(&mut f2).unwrap();
-
-        self.jmaara = parse_line(&mut f2).unwrap();
-
-        {
-            let mut jnimet = self.i.jnimet.borrow_mut();
-            for temp in 1..=self.jmaara {
-                jnimet[NUM_TEAMS + 1 - temp as usize] = read_line(&mut f2).unwrap();
-            }
-            if jnimet[NUM_TEAMS].is_empty() {
-                jnimet[NUM_TEAMS] = b"Team Finlando".to_vec();
-            }
-        }
-
-        {
-            let mut pmaara = parse_line(&mut f2).unwrap();
-            let mut profileorder = self.i.profileorder.borrow_mut();
-            if pmaara > 0 && pmaara < 11 {
-                for temp in 1..=pmaara {
-                    profileorder[temp as usize] = parse_line(&mut f2).unwrap();
-                }
-            } else {
-                pmaara = 1;
-            }
-            //{$IFNDEF REG}
-            //if pmaara > 2 { pmaara = 2; }
-            //{$ENDIF}
-            self.i.pmaara.set(pmaara);
-        }
-
-        temp = parse_line(&mut f2).unwrap();
-        self.kothwind = temp != 0;
-
-        self.kothrounds = parse_line(&mut f2).unwrap();
-        self.kothpack = parse_line(&mut f2).unwrap();
-        //{$IFNDEF REG}
-        //if (self.kothpack < 1) || (self.kothpack > 6) { self.kothpack = 1; }
-        //{$ENDIF}
-        self.kothmaki = parse_line(&mut f2).unwrap();
-        self.kothmaara = parse_line(&mut f2).unwrap();
-
-        if self.kothmaara > 20 {
-            self.kothmaara = 1;
-        }
-
-        for temp in 1u8..=20u8 {
-            self.kothpel[temp as usize] = temp; //{ ettei siell� ole nollia }
-        }
-
-        for temp in 1..=self.kothmaara {
-            self.kothpel[temp as usize] = parse_line(&mut f2).unwrap();
-        }
-
-        defaultkeys(&mut self.k);
-
-        for temp in 1..=5 {
-            self.k[temp as usize] = parse_line(&mut f2).unwrap();
-        }
-
-        self.windplace = parse_line(&mut f2).unwrap();
-    }
-
-    async fn setup_menu(&mut self) {
-        let mut index = [1, 1, 1, 1, 1];
-        let mut screen: u8 = 0;
-        let mut out = false;
-
-        loop {
-            self.g.new_screen(1, 0).await;
-
-            self.g.font_color(240);
-
-            let (str1, entries, length) = match screen {
-                0 => (self.l.lstr(175), 6, 221),
-                1 => (self.l.lstr(176), 4, 221),
-                2 => (self.l.lstr(177), 11, 221),
-                3 => (self.l.lstr(178), 5, 221),
-                _ => unreachable!(),
-            };
-
-            self.g.write_font(30, 6, str1);
-
-            for temp in 0..=entries {
-                let str1 = match screen {
-                    1 => match temp {
-                        1 => {
-                            if self.languagenumber < 255 {
-                                self.l.lnames[(self.languagenumber - 1) as usize].clone()
-                            } else {
-                                b"Undecided".to_vec()
-                            }
-                        }
-                        2 => {
-                            if self.beeppi {
-                                self.l.lstr(6).to_vec()
-                            } else {
-                                self.l.lstr(7).to_vec()
-                            }
-                        }
-                        3 => self.l.lstr(13 + self.gdetail as u32).to_vec(),
-                        4 => {
-                            let mut f3 = BufReader::new(
-                                self.s.open_file(format!("NAMES{}.SKI", self.namenumber)),
-                            );
-                            let mut str2 = String::new();
-                            f3.read_line(&mut str2).unwrap();
-                            self.g.font_color(241);
-                            self.g.write_font(40, 78, &str2.into_bytes());
-
-                            let mut s = vec![0; self.namenumber.len_utf8()];
-                            self.namenumber.encode_utf8(&mut s);
-                            s
-                        }
-                        _ => b"".to_vec(),
-                    },
-
-                    2 => match temp {
-                        1 => self
-                            .l
-                            .lstr(if self.trainrounds == 0 {
-                                9
-                            } else {
-                                self.trainrounds as u32
-                            })
-                            .to_vec(),
-                        2 => self.l.lstr(if self.lct { 180 } else { 185 }).to_vec(),
-                        3 => self.l.lstr(if self.diff { 181 } else { 186 }).to_vec(),
-                        4 => self.l.lstr(if self.diffwc { 181 } else { 186 }).to_vec(),
-                        5 => self
-                            .l
-                            .lstr(if self.compactlist { 182 } else { 187 })
-                            .to_vec(),
-                        6 => self.l.lstr(if self.inv_back { 183 } else { 188 }).to_vec(),
-                        7 => self
-                            .l
-                            .lstr(if self.automatichrr { 182 } else { 185 })
-                            .to_vec(),
-                        8 => self.l.lstr(if self.goals { 180 } else { 186 }).to_vec(),
-                        9 => {
-                            if self.seecomps > NUM_PL as u8 {
-                                self.l.lstr(self.seecomps as u32).to_vec()
-                            } else {
-                                [b"#" as &[u8], &txt(self.seecomps as i32)].concat()
-                            }
-                        }
-                        11 => self.l.lstr(if self.kosystem { 182 } else { 185 }).to_vec(),
-                        _ => b"".to_vec(),
-                    },
-
-                    3 => match temp {
-                        1 => self.l.lstr(if self.comphrs { 183 } else { 187 }).to_vec(),
-                        2 => self
-                            .l
-                            .lstr(if self.nosamename { 185 } else { 180 })
-                            .to_vec(),
-                        _ => b"".to_vec(),
-                    },
-
-                    _ => b"".to_vec(),
-                };
-
-                self.u.setup_item(temp, screen, entries, &str1);
-            }
-
-            // {$IFNDEF REG}
-            //   if (screen<3) then
-            //    begin
-            //     fontcolor(241);
-            //     writefont(10,185,lstr(208)+' '+lstr(209));
-            //     fontcolor(240);
-            //    end;
-            // {$ENDIF}
-
-            self.g.draw_screen().await;
-
-            index[screen as usize] = self
-                .u
-                .make_menu(
-                    35,
-                    40,
-                    length,
-                    10,
-                    entries as i32,
-                    index[screen as usize],
-                    243,
-                    0,
-                    0,
-                )
-                .await;
-
-            match screen {
-                0 => match index[screen as usize] {
-                    1 | 2 | 3 => screen = index[screen as usize] as u8,
-                    4 => self.u.configure_keys(&mut self.k).await,
-                    5 => self.u.set_goals().await,
-                    6 => {
-                        self.u.write_extras();
-                        self.u.hill_maker(0).await;
-                        self.u.read_extras();
-                    }
-                    0 => out = true,
-                    _ => unreachable!(),
-                },
-
-                1 => match index[screen as usize] {
-                    1 => self.i.welcome_screen(&mut self.languagenumber).await,
-                    2 => self.beeppi = !self.beeppi,
-                    3 => {
-                        self.gdetail += 1;
-                        if self.gdetail > 1 {
-                            self.gdetail = 0;
-                        }
-                    }
-                    4 => {
-                        let mut n: char;
-                        let mut ch = 0;
-                        loop {
-                            self.u.getch(255, 70, 245).await;
-                            ch = self.s.get_ch();
-                            if let Some(chr) = char::from_u32(ch as u32) {
-                                n = chr;
-                                if ch != 27 && self.s.file_exists(format!("NAMES{}.SKI", n)) {
-                                    break;
-                                }
-                            }
-                        }
-                        if ch != 27 {
-                            self.namenumber = n;
-                            self.i.load_names(
-                                self.namenumber,
-                                self.jmaara,
-                                &mut self.teamlineup,
-                                true,
-                            );
-                        }
-                    }
-                    0 => screen = 0,
-                    _ => unreachable!(),
-                },
-
-                2 => match index[screen as usize] {
-                    1 => {
-                        self.trainrounds += 1;
-                        if self.trainrounds > 3 {
-                            self.trainrounds = 0;
-                        }
-                    }
-                    2 => self.lct = !self.lct,
-                    3 => self.diff = !self.diff,
-                    4 => self.diffwc = !self.diffwc,
-                    5 => self.compactlist = !self.compactlist,
-                    6 => self.inv_back = !self.inv_back,
-                    7 => self.automatichrr = !self.automatichrr,
-                    8 => self.goals = !self.goals,
-                    9 => {
-                        self.i.choose_seecomps(&mut self.seecomps).await;
-                    }
-                    10 => {
-                        self.u.choose_wind_place(&mut self.windplace).await;
-                    }
-                    11 => self.kosystem = !self.kosystem,
-                    0 => screen = 0,
-                    _ => unreachable!(),
-                },
-
-                3 => match index[screen as usize] {
-                    1 => self.comphrs = !self.comphrs,
-                    2 => self.nosamename = !self.nosamename,
-                    3 | 4 => {
-                        self.g.fill_box(69, 79, 251, 131, 242);
-                        self.g.fill_box(70, 80, 250, 130, 244);
-                        self.g.fill_area(70, 80, 250, 130, 63);
-                        let mut str1 = self.l.lstr(if index[screen as usize] == 4 {
-                            191
-                        } else {
-                            190
-                        });
-                        self.g
-                            .write_font(80, 90, &[&str1 as &[u8], &self.l.lstr(192)].concat());
-                        self.g.write_font(80, 110, self.l.lstr(193));
-
-                        self.u
-                            .getch(88 + self.g.font_len(self.l.lstr(193)), 110, 243)
-                            .await;
-
-                        if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1) {
-                            self.reset_hiscore(4 - index[screen as usize] as u8);
-                        }
-                    }
-
-                    5 => {
-                        self.reset_config();
-                    }
-
-                    0 => screen = 0,
-                    _ => unreachable!(),
-                },
-
-                _ => unreachable!(),
-            }
-
-            if out {
-                break;
-            }
-        }
-
-        self.write_config(); //{ pistet��n muutokset levylle }
-    }
-
     pub fn alku(&mut self) {
         writeln(b"Ported to SDL2 by Suomipelit (https://suomipelit.github.io)");
         writeln(b"");
@@ -4718,441 +5141,5 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 draw,
             );
         }
-    }
-
-    //{ h0 = main menusta,muuten kertoo mik� highlightataan }
-    fn dolist(&self, high: u8, phase: u8) {
-        // TODO
-    }
-
-    //{ vaiheet: 0 - WCquali  1 - WC   2 - 4hills }
-    fn donewheader(&self, vaihe: u8) -> Vec<u8> {
-        match vaihe {
-            4 => {
-                if self.osakilpailu == self.cup_hills {
-                    [
-                        &self.l.lstr(90) as &[u8],
-                        b" ",
-                        &self.l.lstr(27 + self.cup_style as u32),
-                    ]
-                    .concat()
-                } else {
-                    [
-                        &self.l.lstr(27 + self.cup_style as u32) as &[u8],
-                        b" ",
-                        &self.l.lstr(87),
-                        b" ",
-                        &txt(self.osakilpailu),
-                        b" ",
-                        &self.l.lstr(8),
-                        b" ",
-                        &txt(self.cup_hills),
-                    ]
-                    .concat()
-                }
-            }
-
-            3 => {
-                match self.cup_style {
-                    0 | 2 => {
-                        if self.osakilpailu == 12 || self.osakilpailu == self.cup_hills {
-                            self.l.lstr(85).to_vec()
-                        } else {
-                            let mut temp3 = self.osakilpailu;
-                            if self.osakilpailu > 4 {
-                                temp3 = self.osakilpailu - 8; //{ joko yksin��n tai osana WC:t� }
-                            }
-                            [
-                                &self.l.lstr(84) as &[u8],
-                                b" ",
-                                &txt(temp3),
-                                b" ",
-                                &self.l.lstr(83),
-                                b" - ",
-                                &self.act_hill.name,
-                                b" K",
-                                &txt(self.act_hill.kr),
-                            ]
-                            .concat()
-                        }
-                    }
-                    1 => {
-                        if self.osakilpailu == self.cup_hills {
-                            [&self.l.lstr(90) as &[u8], b" ", &self.l.lstr(28)].concat()
-                        } else {
-                            [
-                                &self.l.lstr(28) as &[u8],
-                                b" ",
-                                &self.l.lstr(87),
-                                b" ",
-                                &txt(self.osakilpailu),
-                                b" ",
-                                &self.l.lstr(8),
-                                b" ",
-                                &txt(self.cup_hills),
-                            ]
-                            .concat()
-                        }
-                    }
-                    _ => panic!("Invalid cup style: {}", self.cup_style),
-                }
-            }
-            0 | 1 | 2 => {
-                let str1 = if vaihe == 0 {
-                    self.l.lstr(82)
-                } else {
-                    self.l.lstr(81)
-                };
-                let mut str2 = if self.cup_style == 2 {
-                    [&txt(self.osakilpailu) as &[u8], b" ", &self.l.lstr(83)].concat()
-                } else {
-                    [
-                        &txt(self.osakilpailu) as &[u8],
-                        b" ",
-                        &self.l.lstr(8),
-                        b" ",
-                        &txt(self.cup_hills),
-                    ]
-                    .concat()
-                };
-                str2 = [
-                    &str2 as &[u8],
-                    b" - ",
-                    &self.act_hill.name,
-                    b" K",
-                    &txt(self.act_hill.kr),
-                ]
-                .concat();
-                if self.kierros > 0 {
-                    str2 = [&str2 as &[u8], b" - R ", &txt(self.kierros)].concat();
-                }
-                [&str1 as &[u8], b" ", &str2].concat()
-            }
-            _ => panic!("Invalid vaihe: {}", vaihe),
-        }
-    }
-
-    fn compactsign(&self) {
-        self.g.font_color(241);
-        self.g.write_font(30, 190, self.l.lstr(86));
-    }
-
-    //{ what: 0 - WCStats, 1 - normal, 2 - 4H }
-    fn updatestats(&mut self, what: u8) {
-        let mut who: i32;
-        let mut victim: i32;
-        let mut str1: Vec<u8>;
-
-        for temp in 1..=NUM_PL {
-            who = if what == 0 {
-                self.mcluett[temp]
-            } else {
-                self.luett[temp]
-            } as i32;
-
-            if who > NUM_PL as i32 - self.i.pmaara.get() as i32 {
-                //{ oma j�tk� }
-                victim = NUM_PL as i32 + 1 - who;
-
-                match what {
-                    0 => {
-                        if self.cup_style == 0 {
-                            //{ WC pohjaisia statseja }
-                            self.stats[victim as usize][self.osakilpailu as usize].wc_pos =
-                                self.sija[who as usize];
-                            if self.osakilpailu == self.cup_hills {
-                                if self.sija[who as usize] == 1 {
-                                    self.i.profile.borrow_mut()
-                                        [self.i.profileorder.borrow()[victim as usize] as usize]
-                                        .wcswon += 1;
-                                }
-                                self.i.profile.borrow_mut()
-                                    [self.i.profileorder.borrow()[victim as usize] as usize]
-                                    .wcs += 1;
-                            }
-
-                            if self.mcpisteet[who as usize]
-                                >= self.i.profile.borrow()
-                                    [self.i.profileorder.borrow()[victim as usize] as usize]
-                                    .bestpoints as i32
-                            {
-                                self.i.profile.borrow_mut()
-                                    [self.i.profileorder.borrow()[victim as usize] as usize]
-                                    .bestpoints = self.mcpisteet[who as usize] as u16;
-                                str1 = if self.osakilpailu == self.cup_hills {
-                                    [&txt(self.sija[who as usize] as i32) as &[u8], b"."].concat()
-                                } else {
-                                    b"-".to_vec()
-                                };
-                                self.i.profile.borrow_mut()
-                                    [self.i.profileorder.borrow()[victim as usize] as usize]
-                                    .bestresult = [
-                                    &txt(self.mcpisteet[who as usize]) as &[u8],
-                                    b" (",
-                                    &str1,
-                                    b")",
-                                ]
-                                .concat();
-                            }
-                        }
-                    }
-                    1 => {
-                        //{ perus kisanaikaisia statseja }
-                        self.stats[victim as usize][self.osakilpailu as usize].comp_pos =
-                            self.sija[who as usize];
-                        if self.kierros == 1 {
-                            self.stats[victim as usize][self.osakilpailu as usize].round1_pos =
-                                self.sija[who as usize];
-                        }
-                        if self.cup_style == 0 && self.kierros == 2 && self.sija[who as usize] == 1
-                        {
-                            self.i.profile.borrow_mut()
-                                [self.i.profileorder.borrow()[victim as usize] as usize]
-                                .legswon += 1;
-                        }
-                    }
-
-                    2 => {
-                        //{ fourhills tulos talteen }
-                        self.stats[victim as usize][0].round_pts[1] = self.fourpts[who as usize];
-                        self.stats[victim as usize][0].comp_pos = self.sija[who as usize];
-                    }
-
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    async fn updaterecords(&mut self, mut sortby: u8) {
-        let mut final_: bool = false;
-        let mut cscreen: bool = false;
-        let mut str1: Vec<u8>;
-        let mut who: i32;
-        let mut temp2: i32;
-        let mut oldhi = Hiscore::default();
-
-        if self.osakilpailu == self.cup_hills {
-            final_ = true;
-        }
-
-        for t1 in 1..=self.i.pmaara.get() as i32 {
-            who = NUM_PL as i32 + 1 - t1;
-
-            //{ pari profilesin parasta tulosta }
-
-            if ((self.cup_style == 0 && self.osakilpailu == 12) || (self.cup_style == 2 && final_))
-                && self.fourpts[who as usize]
-                    >= self.i.profile.borrow()[self.i.profileorder.borrow()[t1 as usize] as usize]
-                        .best4points as i32
-            {
-                self.i.profile.borrow_mut()[self.i.profileorder.borrow()[t1 as usize] as usize]
-                    .best4points = self.fourpts[who as usize] as u16;
-                self.i.profile.borrow_mut()[self.i.profileorder.borrow()[t1 as usize] as usize]
-                    .best4result = [
-                    &txtp(self.fourpts[who as usize]) as &[u8],
-                    b" (",
-                    &txt(self.sija[who as usize] as i32),
-                    b".)",
-                ]
-                .concat();
-            }
-
-            if self.cup_style == 0
-                && self.mcpisteet[who as usize]
-                    >= self.i.profile.borrow()
-                        [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
-                        .bestpoints as i32
-            {
-                self.i.profile.borrow_mut()
-                    [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
-                    .bestpoints = self.mcpisteet[who as usize] as u16;
-                str1 = if final_ {
-                    [&txt(self.sija[who as usize] as i32) as &[u8], b"."].concat()
-                } else {
-                    b"-".to_vec()
-                };
-                self.i.profile.borrow_mut()
-                    [self.i.profileorder.borrow()[NUM_PL + 1 - who as usize] as usize]
-                    .bestresult = [
-                    &txt(self.mcpisteet[who as usize]) as &[u8],
-                    b" (",
-                    &str1,
-                    b")",
-                ]
-                .concat();
-            }
-
-            if self.cup_style == 1 && final_ {
-                self.i.load_custom(
-                    &self.setfile,
-                    &mut sortby,
-                    &mut self.hill_order,
-                    &mut self.cup_hills,
-                );
-                oldhi = self.i.top.borrow()[42].clone();
-                temp2 = self.sorthighs(4 + sortby).await as i32;
-
-                if temp2 == 1 && self.setfile != b"TEMP" {
-                    cscreen = true;
-                }
-
-                if temp2 > 0 {
-                    self.i
-                        .write_custom(&self.setfile, sortby, &self.hill_order, self.cup_hills);
-                }
-            }
-        }
-
-        if !self.cupslut {
-            match self.cup_style {
-                0 => {
-                    if self.osakilpailu == 12 {
-                        self.sorthighs(2).await;
-                    }
-                    if final_ {
-                        self.sorthighs(0).await;
-                    }
-                }
-                1 => {
-                    if cscreen {
-                        self.i
-                            .newcrecordscreen(
-                                &self.setfile,
-                                &self.i.top.borrow()[42],
-                                &oldhi,
-                                sortby,
-                            )
-                            .await;
-                    }
-                }
-                2 => {
-                    if final_ {
-                        self.sorthighs(2).await;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    //{ vaihe: 0 - WC, 1 - TC, 2 - 4H, 3 - KOTH, 4 - CC_MC, 5 - CC_4P }
-    async fn sorthighs(&mut self, vaihe: u8) -> u8 {
-        //{ highstart: 0 - WC, 20 - TC, 30 - 4H, 35 - KOTH, 41 - CC  }
-
-        let mut localnosamename: bool = self.nosamename;
-        let mut leave: bool = false;
-        let mut who: i32;
-        let mut players: i32 = self.i.pmaara.get() as i32;
-        let mut pts: i32;
-        let mut highstart: u8 = 0;
-        let mut highlength: u8 = 20;
-        let mut victimname: Vec<u8>;
-        let mut return_: u8 = 0;
-        let mut datestr: Vec<u8> = dayandtime(self.today, self.now);
-
-        match vaihe {
-            1 => {
-                players = self.jmaara as i32;
-                highstart = 20;
-                highlength = 10;
-            }
-            2 => {
-                highstart = 30;
-                highlength = 5;
-            }
-            4 | 5 => {
-                highstart = 41;
-                localnosamename = true; //{ ei milloinkaan useampia nimi� }
-            }
-            _ => {}
-        }
-
-        for t1 in 1..=players {
-            for t2 in 1..=highlength {
-                if vaihe == 1 {
-                    who = NUM_TEAMS as i32 + 1 - t1;
-                    victimname = self.i.jnimet.borrow()[who as usize].clone();
-                } else {
-                    who = NUM_PL as i32 + 1 - t1;
-                    victimname = self.i.nimet.borrow()[who as usize].clone();
-                }
-
-                pts = match vaihe {
-                    0 | 1 | 4 => self.mcpisteet[who as usize],
-                    2 | 5 => self.fourpts[who as usize],
-                    _ => 0,
-                };
-
-                if pcomp(pts, self.sija[who as usize] as i32)
-                    > pcomp(
-                        self.i.top.borrow()[(t2 + highstart) as usize].score,
-                        self.i.top.borrow()[(t2 + highstart) as usize].pos as i32,
-                    )
-                {
-                    leave = true; //{ tekeek� nimet vai ei }
-
-                    if localnosamename {
-                        for t3 in 1..=t2 - 1 {
-                            if self.i.top.borrow()[(t3 + highstart) as usize].name == victimname {
-                                leave = false;
-                            }
-                        }
-                        if leave {
-                            //{ ei ollut parempaa samaa nime� }
-                            let mut top = self.i.top.borrow_mut();
-                            for t3 in t2..=highlength {
-                                if top[(t3 + highstart) as usize].name == victimname {
-                                    for t4 in t3..=highlength - 1 {
-                                        top[(t4 + highstart) as usize] =
-                                            top[(t4 + highstart + 1) as usize].clone();
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if leave {
-                        if t2 < highlength {
-                            let mut top = self.i.top.borrow_mut();
-                            for t3 in ((t2 + 1)..=highlength).rev() {
-                                top[(t3 + highstart) as usize] =
-                                    top[(t3 + highstart - 1) as usize].clone();
-                            }
-                        }
-
-                        if vaihe > 2 && self.cup_hills == 1 {
-                            datestr = [
-                                b"(",
-                                &txtp(self.stats[t1 as usize][1].round_len[1]) as &[u8],
-                                b"m-",
-                                &txtp(self.stats[t1 as usize][1].round_len[2]),
-                                b"m)",
-                            ]
-                            .concat();
-                        }
-
-                        {
-                            let mut top = self.i.top.borrow_mut();
-                            top[(t2 + highstart) as usize].score = pts;
-                            top[(t2 + highstart) as usize].name = victimname;
-                            top[(t2 + highstart) as usize].pos = self.sija[who as usize];
-                            top[(t2 + highstart) as usize].time = datestr.clone();
-                        }
-
-                        return_ = t2; //{ pyrkii palauttamaan lis�tyn pelaajan sijan }
-
-                        if vaihe < 4 {
-                            self.g.new_screen(1, 0).await;
-                            self.dolist(t2, vaihe);
-                            self.u.wait_for_key3(305, 6).await;
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-        return_
     }
 }

@@ -41,6 +41,125 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
         self.m.tulosta();
         self.draw_screen().await;
     }
+    pub fn alert_box(&self) {
+        self.fill_box(59, 79, 261, 131, 242);
+        self.fill_box(60, 80, 260, 130, 244);
+
+        self.fill_area(60, 80, 260, 130, 63);
+    }
+
+    pub fn write_video(&self) {
+        let mut video = self.m.video.borrow_mut();
+        let graffa = self.m.graffa.borrow();
+        let source = &graffa[0..64000];
+        video.copy_from_slice(source);
+    }
+
+    pub async fn new_screen(&self, style: u8, color: u8) {
+        self.fill_box(0, 0, 319, 199, 0);
+
+        match style {
+            1 => {
+                //{ highscores ym. }
+                self.fill_box(0, 0, 319, 18, 245);
+                self.fill_box(0, 20, 319, 199, 243);
+            }
+            2 => {
+                //{ valitsem�ki }
+                self.fill_box(0, 0, 10, 199, 245);
+                self.fill_box(12, 0, 307, 199, 243);
+                self.fill_box(309, 0, 319, 199, 245);
+            }
+            3 => {
+                //{ kingofthehill }
+                self.fill_box(0, 0, 168, 98, 245);
+                self.fill_box(0, 100, 168, 199, 244);
+                self.fill_box(170, 0, 319, 199, 243);
+            }
+            4 => {
+                //{ hiscore2 }
+                self.fill_box(0, 0, 319, 18, 245);
+                self.fill_box(0, 20, 319, 118, 243);
+                self.fill_box(0, 120, 319, 138, 245);
+                self.fill_box(0, 140, 319, 199, 243);
+            }
+            5 => {
+                self.fill_box(0, 0, 319, 199, 243);
+            }
+            6 => {
+                //{ welcomescreen }
+                self.fill_box(0, 0, 50, 199, 245);
+                self.fill_box(52, 0, 267, 199, 243);
+                self.fill_box(269, 0, 319, 199, 245);
+            }
+            7 => {
+                self.fill_box(0, 0, 158, 199, 243);
+                self.fill_box(160, 0, 319, 199, 244);
+            }
+            _ => {}
+        }
+
+        self.fill_area(0, 0, 319, 199, 63);
+
+        //{ LOGO }
+        match style {
+            0 => {
+                self.draw_anim(20, 14, 61);
+            }
+            1 => {
+                self.draw_anim(5, 2, 62);
+            }
+            2 => {
+                self.draw_anim(30, 8, 62);
+            }
+            4 => {
+                self.draw_anim(5, 2, 62);
+                self.draw_anim(5, 122, 62);
+            }
+            6 => {
+                self.draw_anim(80, 6, 61);
+            }
+            _ => {}
+        }
+
+        self.p.siirra_standardi_paletti();
+
+        match style {
+            0 => {
+                self.p.muuta_logo(0); //{ logo sinisen s�vyiksi }
+            }
+            1 | 2 | 4 => {
+                self.p.muuta_menu(3, 0); //{ menu3 harmaaksi }
+            }
+            6 => {
+                self.p.muuta_logo(0);
+            }
+            _ => {}
+        }
+
+        match color {
+            1 => {
+                self.p.muuta_menu(1, 2); //{ menu1 violetiksi }
+            }
+            2 => {
+                self.p.muuta_menu(1, 4); //{ menu1 ruskeaksi KOTH }
+            }
+            3 => {
+                self.p.muuta_menu(1, 5); //{ menu1 punaiseksi WCRES }
+            }
+            4 => {
+                self.p.muuta_menu(1, 1); //{ menu1 mustaksi 4HILLS }
+            }
+            5 => {
+                self.p.muuta_menu(1, 3); //{ menu1 turkoosiksi? STATS }
+            }
+            _ => {}
+        }
+
+        self.p.aseta_paletti();
+        self.draw_screen().await;
+    }
+
     pub fn close_graph(&self) {
         unimplemented!()
     }
@@ -167,12 +286,6 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
         self.write_font(xx - self.font_len(s), yy, s);
     }
 
-    pub fn write_font(&self, xx: i32, yy: i32, s: impl AsBytes) {
-        if (xx > 0) && (yy > 0) {
-            self.do_font(xx, yy, s.as_bytes(), true);
-        }
-    }
-
     fn do_font(&self, xx: i32, yy: i32, s: &[u8], draw: bool) -> i32 {
         let mut p = 0; //{ siirtym� }
 
@@ -226,6 +339,12 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
         }
 
         p
+    }
+
+    pub fn write_font(&self, xx: i32, yy: i32, s: impl AsBytes) {
+        if (xx > 0) && (yy > 0) {
+            self.do_font(xx, yy, s.as_bytes(), true);
+        }
     }
 
     pub fn font_len(&self, s: impl AsBytes) -> i32 {
@@ -306,125 +425,6 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
 
     pub fn balk(&self, st: u8) {
         unimplemented!()
-    }
-
-    pub async fn new_screen(&self, style: u8, color: u8) {
-        self.fill_box(0, 0, 319, 199, 0);
-
-        match style {
-            1 => {
-                //{ highscores ym. }
-                self.fill_box(0, 0, 319, 18, 245);
-                self.fill_box(0, 20, 319, 199, 243);
-            }
-            2 => {
-                //{ valitsem�ki }
-                self.fill_box(0, 0, 10, 199, 245);
-                self.fill_box(12, 0, 307, 199, 243);
-                self.fill_box(309, 0, 319, 199, 245);
-            }
-            3 => {
-                //{ kingofthehill }
-                self.fill_box(0, 0, 168, 98, 245);
-                self.fill_box(0, 100, 168, 199, 244);
-                self.fill_box(170, 0, 319, 199, 243);
-            }
-            4 => {
-                //{ hiscore2 }
-                self.fill_box(0, 0, 319, 18, 245);
-                self.fill_box(0, 20, 319, 118, 243);
-                self.fill_box(0, 120, 319, 138, 245);
-                self.fill_box(0, 140, 319, 199, 243);
-            }
-            5 => {
-                self.fill_box(0, 0, 319, 199, 243);
-            }
-            6 => {
-                //{ welcomescreen }
-                self.fill_box(0, 0, 50, 199, 245);
-                self.fill_box(52, 0, 267, 199, 243);
-                self.fill_box(269, 0, 319, 199, 245);
-            }
-            7 => {
-                self.fill_box(0, 0, 158, 199, 243);
-                self.fill_box(160, 0, 319, 199, 244);
-            }
-            _ => {}
-        }
-
-        self.fill_area(0, 0, 319, 199, 63);
-
-        //{ LOGO }
-        match style {
-            0 => {
-                self.draw_anim(20, 14, 61);
-            }
-            1 => {
-                self.draw_anim(5, 2, 62);
-            }
-            2 => {
-                self.draw_anim(30, 8, 62);
-            }
-            4 => {
-                self.draw_anim(5, 2, 62);
-                self.draw_anim(5, 122, 62);
-            }
-            6 => {
-                self.draw_anim(80, 6, 61);
-            }
-            _ => {}
-        }
-
-        self.p.siirra_standardi_paletti();
-
-        match style {
-            0 => {
-                self.p.muuta_logo(0); //{ logo sinisen s�vyiksi }
-            }
-            1 | 2 | 4 => {
-                self.p.muuta_menu(3, 0); //{ menu3 harmaaksi }
-            }
-            6 => {
-                self.p.muuta_logo(0);
-            }
-            _ => {}
-        }
-
-        match color {
-            1 => {
-                self.p.muuta_menu(1, 2); //{ menu1 violetiksi }
-            }
-            2 => {
-                self.p.muuta_menu(1, 4); //{ menu1 ruskeaksi KOTH }
-            }
-            3 => {
-                self.p.muuta_menu(1, 5); //{ menu1 punaiseksi WCRES }
-            }
-            4 => {
-                self.p.muuta_menu(1, 1); //{ menu1 mustaksi 4HILLS }
-            }
-            5 => {
-                self.p.muuta_menu(1, 3); //{ menu1 turkoosiksi? STATS }
-            }
-            _ => {}
-        }
-
-        self.p.aseta_paletti();
-        self.draw_screen().await;
-    }
-
-    pub fn alert_box(&self) {
-        self.fill_box(59, 79, 261, 131, 242);
-        self.fill_box(60, 80, 260, 130, 244);
-
-        self.fill_area(60, 80, 260, 130, 63);
-    }
-
-    pub fn write_video(&self) {
-        let mut video = self.m.video.borrow_mut();
-        let graffa = self.m.graffa.borrow();
-        let source = &graffa[0..64000];
-        video.copy_from_slice(source);
     }
 
     // Originally in SJ3HELP.PAS

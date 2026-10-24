@@ -43,107 +43,6 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
         t
     }
 
-    pub fn piirra(&self) {
-        self.g.fill_box(
-            self.tuulix.get() as u16 + 4,
-            self.tuuliy.get() as u16 + 1,
-            self.tuulix.get() as u16 + 38,
-            self.tuuliy.get() as u16 + 2,
-            248,
-        );
-        self.g.fill_box(
-            self.tuulix.get() as u16 + 21,
-            self.tuuliy.get() as u16 + 1,
-            self.tuulix.get() as u16 + 21,
-            self.tuuliy.get() as u16 + 2,
-            240,
-        );
-        self.g
-            .put_pixel(self.tuulix.get() + 21, self.tuuliy.get() + 9, 247); //{ piste; oli 252 }
-
-        if self.value.get() > 0 {
-            self.g.fill_box(
-                (self.tuulix.get() + 22) as u16,
-                (self.tuuliy.get() + 1) as u16,
-                (self.tuulix.get() + 22 + self.value.get() / 3) as u16,
-                (self.tuuliy.get() + 2) as u16,
-                236,
-            );
-        }
-        if self.value.get() < 0 {
-            self.g.fill_box(
-                (self.tuulix.get() + 20 + self.value.get() / 3) as u16,
-                (self.tuuliy.get() + 1) as u16,
-                (self.tuulix.get() + 20) as u16,
-                (self.tuuliy.get() + 2) as u16,
-                237,
-            );
-        }
-        let s = txtp(self.value.get().abs());
-        if self.value.get() < 0 {
-            self.g
-                .write_font(self.tuulix.get() + 10, self.tuuliy.get() + 5, b"-");
-        }
-
-        self.g
-            .write_font(self.tuulix.get() + 15, self.tuuliy.get() + 5, &[s[0]]);
-        self.g
-            .write_font(self.tuulix.get() + 24, self.tuuliy.get() + 5, &[s[2]]);
-    }
-
-    pub fn hae(&self) {
-        self.siirra();
-        self.value.set(round(
-            (libm::cos(PI * self.tkulma.get() as f64 / 180.0) * self.voim.get() as f64) as f32,
-        ));
-
-        trace::record(
-            "Wind",
-            &[
-                ("tkulma", self.tkulma.get().into()),
-                ("value", self.value.get().into()),
-            ],
-        );
-    }
-
-    pub fn alusta(&self, place: u8) {
-        let temp1 = random(180) as i32; //{ Tuulen rajoja }
-        let temp2 = random(120) as i32;
-        self.windy.set(temp2); //{ ns. tuulisuusindeksi }
-
-        self.traja1.set(temp1 - temp2);
-        self.traja2.set(temp1 + temp2);
-        self.tkulma
-            .set((random(temp2 as u32 * 2) as i32 + self.traja1.get()) as f32);
-        self.voim.set(random(50) as i32);
-        if random(2) == 0 {
-            self.tsuun.set(true);
-        } else {
-            self.tsuun.set(false);
-        }
-
-        self.aseta_paikka(place);
-    }
-
-    pub fn siirra(&self) {
-        if (self.tsuun.get()) && (self.tkulma.get() > self.traja2.get() as f32) {
-            self.tsuun.set(false);
-        }
-        if !self.tsuun.get() && (self.tkulma.get() < self.traja1.get() as f32) {
-            self.tsuun.set(true);
-        }
-        if random(50) == 0 {
-            self.tsuun.set(!self.tsuun.get());
-        }
-        if self.tsuun.get() {
-            self.tkulma
-                .set((self.tkulma.get() as f64 + random(4) as f64 / 5.0) as f32);
-        } else {
-            self.tkulma
-                .set((self.tkulma.get() as f64 - random(4) as f64 / 5.0) as f32);
-        }
-    }
-
     pub fn tuo(&self, mut x: i32, mut y: i32) {
         match self.tpaikka.get() {
             11 => {
@@ -200,5 +99,106 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
         }
         self.tuulix.set(tuulix);
         self.tuuliy.set(tuuliy);
+    }
+
+    pub fn alusta(&self, place: u8) {
+        let temp1 = random(180) as i32; //{ Tuulen rajoja }
+        let temp2 = random(120) as i32;
+        self.windy.set(temp2); //{ ns. tuulisuusindeksi }
+
+        self.traja1.set(temp1 - temp2);
+        self.traja2.set(temp1 + temp2);
+        self.tkulma
+            .set((random(temp2 as u32 * 2) as i32 + self.traja1.get()) as f32);
+        self.voim.set(random(50) as i32);
+        if random(2) == 0 {
+            self.tsuun.set(true);
+        } else {
+            self.tsuun.set(false);
+        }
+
+        self.aseta_paikka(place);
+    }
+
+    pub fn siirra(&self) {
+        if (self.tsuun.get()) && (self.tkulma.get() > self.traja2.get() as f32) {
+            self.tsuun.set(false);
+        }
+        if !self.tsuun.get() && (self.tkulma.get() < self.traja1.get() as f32) {
+            self.tsuun.set(true);
+        }
+        if random(50) == 0 {
+            self.tsuun.set(!self.tsuun.get());
+        }
+        if self.tsuun.get() {
+            self.tkulma
+                .set((self.tkulma.get() as f64 + random(4) as f64 / 5.0) as f32);
+        } else {
+            self.tkulma
+                .set((self.tkulma.get() as f64 - random(4) as f64 / 5.0) as f32);
+        }
+    }
+
+    pub fn hae(&self) {
+        self.siirra();
+        self.value.set(round(
+            (libm::cos(PI * self.tkulma.get() as f64 / 180.0) * self.voim.get() as f64) as f32,
+        ));
+
+        trace::record(
+            "Wind",
+            &[
+                ("tkulma", self.tkulma.get().into()),
+                ("value", self.value.get().into()),
+            ],
+        );
+    }
+
+    pub fn piirra(&self) {
+        self.g.fill_box(
+            self.tuulix.get() as u16 + 4,
+            self.tuuliy.get() as u16 + 1,
+            self.tuulix.get() as u16 + 38,
+            self.tuuliy.get() as u16 + 2,
+            248,
+        );
+        self.g.fill_box(
+            self.tuulix.get() as u16 + 21,
+            self.tuuliy.get() as u16 + 1,
+            self.tuulix.get() as u16 + 21,
+            self.tuuliy.get() as u16 + 2,
+            240,
+        );
+        self.g
+            .put_pixel(self.tuulix.get() + 21, self.tuuliy.get() + 9, 247); //{ piste; oli 252 }
+
+        if self.value.get() > 0 {
+            self.g.fill_box(
+                (self.tuulix.get() + 22) as u16,
+                (self.tuuliy.get() + 1) as u16,
+                (self.tuulix.get() + 22 + self.value.get() / 3) as u16,
+                (self.tuuliy.get() + 2) as u16,
+                236,
+            );
+        }
+        if self.value.get() < 0 {
+            self.g.fill_box(
+                (self.tuulix.get() + 20 + self.value.get() / 3) as u16,
+                (self.tuuliy.get() + 1) as u16,
+                (self.tuulix.get() + 20) as u16,
+                (self.tuuliy.get() + 2) as u16,
+                237,
+            );
+        }
+        let s = txtp(self.value.get().abs());
+        if self.value.get() < 0 {
+            self.g
+                .write_font(self.tuulix.get() + 10, self.tuuliy.get() + 5, b"-");
+        }
+
+        self.g
+            .write_font(self.tuulix.get() + 15, self.tuuliy.get() + 5, &[s[0]]);
+        self.g
+            .write_font(self.tuulix.get() + 24, self.tuuliy.get() + 5, &[s[2]]);
     }
 }

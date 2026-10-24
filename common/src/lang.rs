@@ -24,8 +24,32 @@ impl<'s, P: Platform> LangModule<'s, P> {
         self.lnames.len()
     }
 
-    pub fn init(&mut self) {
-        self.reset_language();
+    pub fn lstr(&self, index: u32) -> Rc<Vec<u8>> {
+        return self.plstr.borrow().get(&index).unwrap().clone();
+    }
+
+    pub fn lch(&self, index: u32, num: u32) -> u8 {
+        // In Pascal, strings are 1-indexed => subtract 1.
+        assert!(num >= 1);
+        self.lstr(index)[(num - 1) as usize]
+    }
+
+    pub fn lrstr(&self, start: u32, stop: u32) -> Rc<Vec<u8>> {
+        self.lstr(start + random(stop - start + 1))
+    }
+
+    fn reset_language(&mut self) {
+        let f = BufReader::new(self.s.open_file("LANGBASE.SKI"));
+        let mut lines = f.split(b'\n');
+        loop {
+            let Some(Ok(mut line)) = lines.next() else {
+                return;
+            };
+            if line.starts_with(b"*") {
+                line = lines.next().unwrap().unwrap();
+                self.lnames.push(line);
+            }
+        }
     }
 
     pub fn load_language(&self, languageindex: u8) {
@@ -60,31 +84,7 @@ impl<'s, P: Platform> LangModule<'s, P> {
         }
     }
 
-    pub fn lstr(&self, index: u32) -> Rc<Vec<u8>> {
-        return self.plstr.borrow().get(&index).unwrap().clone();
-    }
-
-    pub fn lch(&self, index: u32, num: u32) -> u8 {
-        // In Pascal, strings are 1-indexed => subtract 1.
-        assert!(num >= 1);
-        self.lstr(index)[(num - 1) as usize]
-    }
-
-    pub fn lrstr(&self, start: u32, stop: u32) -> Rc<Vec<u8>> {
-        self.lstr(start + random(stop - start + 1))
-    }
-
-    fn reset_language(&mut self) {
-        let f = BufReader::new(self.s.open_file("LANGBASE.SKI"));
-        let mut lines = f.split(b'\n');
-        loop {
-            let Some(Ok(mut line)) = lines.next() else {
-                return;
-            };
-            if line.starts_with(b"*") {
-                line = lines.next().unwrap().unwrap();
-                self.lnames.push(line);
-            }
-        }
+    pub fn init(&mut self) {
+        self.reset_language();
     }
 }
