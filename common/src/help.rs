@@ -1,5 +1,5 @@
 use crate::platform::Platform;
-use crate::rs_util::{clrscr, textbackground, textcolor, window, write, writeln};
+use crate::rs_util::{clrscr, textbackground, textcolor, val_code, window, write, writeln};
 
 /// The original `round` takes a single, so its argument is rounded to f32 first.
 /// Halves are rounded away from zero.
@@ -83,8 +83,7 @@ pub fn txt(mut jokuluku: i32) -> Vec<u8> {
 }
 
 pub fn num(jokuluku: &[u8]) -> i32 {
-    let s = String::from_utf8_lossy(jokuluku);
-    s.parse().unwrap_or(-1)
+    val_code(jokuluku).unwrap_or(-1)
 }
 
 pub fn upstr(str1: &[u8]) -> Vec<u8> {

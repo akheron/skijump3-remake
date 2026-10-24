@@ -3,7 +3,6 @@ use std::cell::Cell;
 use std::future::{poll_fn, Future};
 use std::io::{BufRead, BufReader, IsTerminal, Read, Write};
 use std::pin::pin;
-use std::str::FromStr;
 use std::task::Poll;
 
 pub fn read_line(f: &mut BufReader<impl Read>) -> std::io::Result<Vec<u8>> {
@@ -15,38 +14,152 @@ pub fn read_line(f: &mut BufReader<impl Read>) -> std::io::Result<Vec<u8>> {
     Ok(line)
 }
 
-/// `ReadLn` of a number in Pascal: skips blank lines, and gives 0 at the end
-/// of the file
-pub fn parse_line<T>(f: &mut BufReader<impl Read>) -> eyre::Result<T>
-where
-    T: FromStr,
-    T::Err: std::error::Error + Send + Sync + 'static,
-{
-    loop {
-        let mut line = String::new();
-        if f.read_line(&mut line)? == 0 {
-            return Ok("0".parse()?);
+/// `ReadLn` of a number in Free Pascal: skips blank lines, reads the text up
+/// to the next space or line end, and gives 0 at the end of the file. An
+/// error is the runtime error 106 of Pascal.
+pub fn parse_line<T: PascalNumber>(f: &mut BufReader<impl Read>) -> eyre::Result<T> {
+    let mut token = Vec::new();
+    while token.len() < 255 {
+        let Some(&c) = f.fill_buf()?.first() else {
+            break;
+        };
+        if c > b' ' {
+            token.push(c);
+        } else if !token.is_empty() {
+            break;
         }
-        let number = line.trim();
-        if !number.is_empty() {
-            return Ok(number.parse()?);
-        }
+        f.consume(1);
     }
+    read_line(f)?;
+    if token.is_empty() {
+        return Ok(T::from_val(b"0").unwrap());
+    }
+    T::from_val(&token).ok_or_else(|| eyre::eyre!("Invalid numeric format"))
 }
+
+pub trait PascalNumber: Sized {
+    /// `Val` into this type, truncated as with `{$R-}`
+    fn from_val(text: &[u8]) -> Option<Self>;
+}
+
+macro_rules! pascal_number {
+    ($val:ident: $($t:ty),*) => {
+        $(impl PascalNumber for $t {
+            fn from_val(text: &[u8]) -> Option<Self> {
+                $val(text).map(|value| value as $t)
+            }
+        })*
+    };
+}
+pascal_number!(val_sint: i8, i16, i32, i64);
+pascal_number!(val_uint: u8, u16, u32, u64);
 
 /// `Val` of Pascal: 0 when the text is not a number
 pub fn val(text: &[u8]) -> i32 {
-    let text = text.trim_ascii_start();
-    std::str::from_utf8(text)
-        .ok()
-        .and_then(|text| text.parse().ok())
-        .unwrap_or(0)
+    val_code(text).unwrap_or(0)
 }
 
-/// `Val` of Pascal for a decimal number: `None` when its error code is not 0
+/// `Val` of Pascal into a longint: `None` when its error code is not 0
 pub fn val_code(text: &[u8]) -> Option<i32> {
-    let text = text.trim_ascii_start();
-    std::str::from_utf8(text).ok()?.parse().ok()
+    val_sint(text).map(|value| value as i32)
+}
+
+/// `Val` of Free Pascal into a signed integer. The caller truncates the result
+/// to its type, because Pascal does not check the range with `{$R-}`.
+fn val_sint(text: &[u8]) -> Option<i64> {
+    let (negative, base, digits) = init_val(text)?;
+    let max_new_value = if base == 10 {
+        i64::MAX as u64 + negative as u64
+    } else {
+        u64::MAX
+    };
+    let mut value: u64 = 0;
+    for &c in digits {
+        let u = digit_value(c);
+        let prev = value;
+        value = value.wrapping_mul(base);
+        if u >= base || max_new_value - u < value || prev > u64::MAX / base {
+            return None;
+        }
+        value += u;
+    }
+    let value = value as i64;
+    Some(if negative {
+        value.wrapping_neg()
+    } else {
+        value
+    })
+}
+
+/// `Val` of Free Pascal into an unsigned integer
+fn val_uint(text: &[u8]) -> Option<u64> {
+    let (negative, base, digits) = init_val(text)?;
+    if negative {
+        return None;
+    }
+    let mut value: u64 = 0;
+    for &c in digits {
+        let u = digit_value(c);
+        if u >= base || (u64::MAX - u) / base < value {
+            return None;
+        }
+        value = value * base + u;
+    }
+    Some(value)
+}
+
+/// `InitVal` of Free Pascal: the sign, the base and the digits after the
+/// leading zeros. `None` when there are no digits.
+fn init_val(text: &[u8]) -> Option<(bool, u64, &[u8])> {
+    let mut code = 0;
+    while code < text.len() && (text[code] == b' ' || text[code] == b'\t') {
+        code += 1;
+    }
+    let mut negative = false;
+    match text.get(code) {
+        Some(b'-') => {
+            negative = true;
+            code += 1;
+        }
+        Some(b'+') => code += 1,
+        _ => {}
+    }
+    let mut base = 10;
+    match text.get(code) {
+        Some(b'$' | b'X' | b'x') => {
+            base = 16;
+            code += 1;
+        }
+        Some(b'%') => {
+            base = 2;
+            code += 1;
+        }
+        Some(b'&') => {
+            base = 8;
+            code += 1;
+        }
+        Some(b'0') if matches!(text.get(code + 1), Some(b'x' | b'X')) => {
+            base = 16;
+            code += 2;
+        }
+        _ => {}
+    }
+    while code + 1 < text.len() && text[code] == b'0' {
+        code += 1;
+    }
+    if code >= text.len() {
+        return None;
+    }
+    Some((negative, base, &text[code..]))
+}
+
+fn digit_value(c: u8) -> u64 {
+    match c {
+        b'0'..=b'9' => (c - b'0') as u64,
+        b'A'..=b'F' => (c - b'A' + 10) as u64,
+        b'a'..=b'f' => (c - b'a' + 10) as u64,
+        _ => 16,
+    }
 }
 
 /// `Write(text:width)` of Pascal: the text right-aligned in `width` characters
@@ -294,7 +407,10 @@ fn cp437_char(c: u8) -> char {
 
 #[cfg(test)]
 mod tests {
-    use super::{cp437_char, dos_file_name, dos_name_bytes};
+    use super::{
+        cp437_char, dos_file_name, dos_name_bytes, parse_line, read_line, val_code, val_uint,
+    };
+    use std::io::BufReader;
 
     #[test]
     fn cp437_upper_half() {
@@ -310,5 +426,36 @@ mod tests {
             b"M\x8EKI.SJC"
         );
         assert_eq!(dos_name_bytes("A\u{20ac}.SJC"), b"A?.SJC");
+    }
+
+    #[test]
+    fn val_code_as_free_pascal() {
+        assert_eq!(val_code(b"  -12"), Some(-12));
+        assert_eq!(val_code(b"+007"), Some(7));
+        assert_eq!(val_code(b"$1F"), Some(31));
+        assert_eq!(val_code(b"0x1f"), Some(31));
+        assert_eq!(val_code(b"%101"), Some(5));
+        assert_eq!(val_code(b"&17"), Some(15));
+        assert_eq!(val_code(b"$FFFFFFFF"), Some(-1));
+        assert_eq!(val_code(b"4294967296"), Some(0));
+        assert_eq!(val_code(b"-9223372036854775808"), Some(0));
+        assert_eq!(val_code(b"9223372036854775808"), None);
+        assert_eq!(val_code(b"12 "), None);
+        assert_eq!(val_code(b"1x"), None);
+        assert_eq!(val_code(b"$"), None);
+        assert_eq!(val_code(b"-"), None);
+        assert_eq!(val_code(b""), None);
+        assert_eq!(val_uint(b"-1"), None);
+    }
+
+    #[test]
+    fn parse_line_as_free_pascal_readln() {
+        let mut f = BufReader::new(&b"\r\n  12 x\r\n300\n-1\nx 1\nnext"[..]);
+        assert_eq!(parse_line::<i16>(&mut f).unwrap(), 12);
+        assert_eq!(parse_line::<u8>(&mut f).unwrap(), 44);
+        assert!(parse_line::<u8>(&mut f).is_err());
+        assert!(parse_line::<i32>(&mut f).is_err());
+        assert_eq!(read_line(&mut f).unwrap(), b"next");
+        assert_eq!(parse_line::<i32>(&mut f).unwrap(), 0);
     }
 }

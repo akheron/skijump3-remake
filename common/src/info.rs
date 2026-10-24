@@ -1005,7 +1005,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 l1 += (tempb % temp2) as i32;
 
                 if temp < NUM_TEAMS + 1 - teamdiscount as usize {
-                    self.jnimet.borrow_mut()[temp] = s.clone();
+                    self.jnimet.borrow_mut()[temp] = s[..s.len().min(30)].to_vec(); // NameStr = string[30]
                     teamlineup[(temp - 1) * 4 + temp2 as usize] = tempb;
                 }
             }

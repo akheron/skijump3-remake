@@ -25,7 +25,6 @@ use crate::unit::{
 };
 use std::io::{BufReader, Write};
 use std::rc::Rc;
-use std::str::from_utf8;
 
 #[cfg(not(feature = "trace"))]
 const VERSION: &[u8] = b"3.13-remake0";
@@ -531,7 +530,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.setfile = b"TEMP".to_vec();
         let str1 = read_line(&mut f2).unwrap();
         let filename = [&str1 as &[u8], b".SJC"].concat();
-        if self.s.file_exists(from_utf8(&filename).unwrap()) {
+        if self.s.file_exists(dos_file_name(&filename)) {
             self.setfile = upstr(&str1);
         }
 
@@ -547,7 +546,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         {
             let mut jnimet = self.i.jnimet.borrow_mut();
             for temp in 1..=self.jmaara {
-                jnimet[NUM_TEAMS + 1 - temp as usize] = read_line(&mut f2).unwrap();
+                let mut name = read_line(&mut f2).unwrap();
+                name.truncate(30); // NameStr = string[30]
+                jnimet[NUM_TEAMS + 1 - temp as usize] = name;
             }
             if jnimet[NUM_TEAMS].is_empty() {
                 jnimet[NUM_TEAMS] = b"Team Finlando".to_vec();
@@ -6186,7 +6187,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.g.draw_screen().await;
 
         let oldstr = self.i.jnimet.borrow()[15 - num as usize].clone();
-        let newstr = self.u.getstr(xx, 42, 120, &oldstr, 242).await;
+        let mut newstr = self.u.getstr(xx, 42, 120, &oldstr, 242).await;
+        newstr.truncate(30); // NameStr = string[30]
         self.i.jnimet.borrow_mut()[15 - num as usize] = newstr;
 
         self.g

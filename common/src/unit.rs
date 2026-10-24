@@ -5,14 +5,13 @@ use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
 use crate::rs_util::{
-    clrscr, dos_file_name, gotoxy, halt, parse_line, random, read_line, textbackground, textcolor,
-    val, val_code, window, write, writeln,
+    clrscr, dos_file_name, dos_name_bytes, gotoxy, halt, parse_line, random, read_line,
+    textbackground, textcolor, val, val_code, window, write, writeln,
 };
 use crate::trace;
 use std::cell::{Cell, RefCell};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::rc::Rc;
-use std::str::from_utf8;
 
 pub const NUM_PL: usize = 75; //{ montako pelaajaa on ylip��t��n }
 pub const NUM_TEAMS: usize = 15;
@@ -489,7 +488,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.g.draw_screen().await;
 
         self.p.lataa_pcx(
-            &["FRONT", from_utf8(&act_hill.fr_index).unwrap(), ".PCX"].concat(),
+            &dos_file_name(&[b"FRONT", act_hill.fr_index.as_slice(), b".PCX"].concat()),
             1024 * 512,
             0,
             0,
@@ -507,7 +506,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         l -= 1500000;
 
         self.p.lataa_pcx(
-            &["BACK", from_utf8(&act_hill.bk_index).unwrap(), ".PCX"].concat(),
+            &dos_file_name(&[b"BACK", act_hill.bk_index.as_slice(), b".PCX"].concat()),
             1024 * 400,
             SIVUJA,
             act_hill.bk_mirror,
@@ -995,16 +994,16 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         l1 += valuestr(&h.name, index + 1) as i32;
         l1 += h.kr * 77;
-        let mut c = num(&h.fr_index); //{ t�m� yhteensopivuudenkin takia }
+        let mut c = num(&h.fr_index) as i16; //{ t�m� yhteensopivuudenkin takia }
         if c < 0 {
-            c = valuestr(&h.fr_index, index + 1) as i32; //{ jos indexiss� kirjaimia (v3.10) }
+            c = valuestr(&h.fr_index, index + 1) as i16; //{ jos indexiss� kirjaimia (v3.10) }
         }
-        l1 += c * 272;
-        c = num(&h.bk_index); //{ t�m� my�s }
+        l1 += c as i32 * 272;
+        c = num(&h.bk_index) as i16; //{ t�m� my�s }
         if c < 0 {
-            c = valuestr(&h.bk_index, index + 1) as i32;
+            c = valuestr(&h.bk_index, index + 1) as i16;
         }
-        l1 += c * 373;
+        l1 += c as i32 * 373;
         l1 += h.bk_bright as i32 * 313;
         l1 += h.bk_mirror as i32 * 5775;
         l1 += h.vx_final as i32 * 333;
@@ -1026,7 +1025,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             h.hr_time = b"Jan 1 2001 1:00".to_vec(); //{ nollataan hillrec }
 
             self.p.lataa_pcx(
-                &format!("FRONT{}.PCX", from_utf8(&h.fr_index).unwrap()),
+                &dos_file_name(&[b"FRONT", h.fr_index.as_slice(), b".PCX"].concat()),
                 1024 * 512,
                 0,
                 0,
@@ -1138,7 +1137,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             [b"FRONT", hill.fr_index.as_slice(), b".PCX"].concat()
         };
 
-        if !self.s.file_exists(&from_utf8(&str2).unwrap()) {
+        if !self.s.file_exists(dos_file_name(&str2)) {
             self.m.aseta_moodi(0x3);
             writeln(&[b"Error #345A: File ", str2.as_slice(), b" does not exist,"].concat());
             writeln(&[b"even though it's mentioned in the ", str1, b" file."].concat());
@@ -1169,40 +1168,45 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         };
         let temp = if nytmaki > NUM_WC_HILLS { 0 } else { nytmaki };
 
-        let mut f1 = BufReader::new(self.s.open_file(String::from_utf8(str1.clone()).unwrap()));
+        let mut f1 = BufReader::new(self.s.open_file(dos_file_name(&str1)));
         if self.findstart(&mut f1, temp) == 0 {
+            // ReadLn into a string[n] field of Hill_type keeps n characters
             hill.name = read_line(&mut f1).unwrap();
-            hill.kr = parse_line(&mut f1).unwrap();
+            hill.name.truncate(25);
+            hill.kr = parse_line::<i16>(&mut f1).unwrap() as i32;
             hill.fr_index = read_line(&mut f1).unwrap();
+            hill.fr_index.truncate(3);
             hill.bk_index = read_line(&mut f1).unwrap();
+            hill.bk_index.truncate(3);
             hill.bk_bright = parse_line(&mut f1).unwrap();
             hill.bk_mirror = parse_line(&mut f1).unwrap();
             hill.vx_final = parse_line(&mut f1).unwrap();
             let b: u8 = parse_line(&mut f1).unwrap();
             hill.pk = (b as f64 / 100.0) as f32;
-            let a: i32 = parse_line(&mut f1).unwrap();
+            let a: i16 = parse_line(&mut f1).unwrap();
             hill.pl_save = (a as f64 / 10000.0) as f32;
             hill.author = read_line(&mut f1).unwrap();
+            hill.author.truncate(30);
             l2 = parse_line(&mut f1).unwrap(); //{ checksum }
             hill.profile = parse_line(&mut f1).unwrap();
 
             l1 = l1.wrapping_add(valuestr(&hill.name, temp + 1) as i32);
             l1 = l1.wrapping_add(hill.kr * 77);
-            let mut c = num(&hill.fr_index); //{ tämä yhteensopivuudenkin takia }
+            let mut c = num(&hill.fr_index) as i16; //{ tämä yhteensopivuudenkin takia }
             if c < 0 {
-                c = valuestr(&hill.fr_index, temp + 1) as i32; //{ jos indexissä kirjaimia (v3.10) }
+                c = valuestr(&hill.fr_index, temp + 1) as i16; //{ jos indexissä kirjaimia (v3.10) }
             }
-            l1 = l1.wrapping_add(c * 272);
-            c = num(&hill.bk_index); //{ tämä myös }
+            l1 = l1.wrapping_add(c as i32 * 272);
+            c = num(&hill.bk_index) as i16; //{ tämä myös }
             if c < 0 {
-                c = valuestr(&hill.bk_index, temp + 1) as i32;
+                c = valuestr(&hill.bk_index, temp + 1) as i16;
             }
-            l1 = l1.wrapping_add(c * 373);
+            l1 = l1.wrapping_add(c as i32 * 373);
             l1 = l1.wrapping_add(hill.bk_bright as i32 * 313);
             l1 = l1.wrapping_add(hill.bk_mirror as i32 * 5775);
             l1 = l1.wrapping_add(hill.vx_final as i32 * 333);
             l1 = l1.wrapping_add(b as i32 % 55555);
-            l1 = l1.wrapping_add(a % 11111);
+            l1 = l1.wrapping_add(a as i32 % 11111);
             l1 = l1.wrapping_add(valuestr(&hill.author, temp + 2) as i32);
 
             l1 ^= 787371;
@@ -1210,15 +1214,17 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             if nytmaki > NUM_WC_HILLS {
                 //{ voi olla ettei näitä oo - v3.00}
                 let hr_name = read_line(&mut f1);
-                let hr_len = parse_line::<i32>(&mut f1);
+                let hr_len = parse_line::<i16>(&mut f1);
                 let hr_time = read_line(&mut f1);
                 let l3 = parse_line::<i32>(&mut f1);
                 match (hr_name, hr_len, hr_time, l3) {
                     (Ok(hr_name), Ok(hr_len), Ok(hr_time), Ok(l3)) if l3 != 0 => {
                         //{ kaikki ok }
                         hill.hr_name = hr_name;
-                        hill.hr_len = hr_len;
+                        hill.hr_name.truncate(30);
+                        hill.hr_len = hr_len as i32;
                         hill.hr_time = hr_time;
+                        hill.hr_time.truncate(22);
                         l4 = l4.wrapping_add(valuestr(&hill.hr_name, 13) as i32);
                         l4 = l4.wrapping_add(hill.hr_len * 3553);
                         if l3 != l4 {
@@ -1807,9 +1813,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         let temp = index - NUM_WC_HILLS;
 
-        let mut f1 = self.s.create_file(
-            String::from_utf8([&self.hillfile(temp) as &[u8], b".SJH"].concat()).unwrap(),
-        );
+        let mut f1 = self.s.create_file(dos_file_name(
+            &[&self.hillfile(temp) as &[u8], b".SJH"].concat(),
+        ));
         self.write_hill(&mut f1, h, 0, 1); //{ ainoa mesta jossa phase=1 }
         drop(f1);
     }
@@ -1824,7 +1830,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
                 self.num_extra_hills.set(self.num_extra_hills.get() + 1);
                 let filename = &mut filenames[self.num_extra_hills.get() as usize];
 
-                for &c in name.as_bytes().iter().take_while(|&&c| c != b'.') {
+                for c in dos_name_bytes(&name).into_iter().take_while(|&c| c != b'.') {
                     // string[12]
                     if filename.len() < 12 {
                         filename.push(c);
@@ -1975,7 +1981,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.getch(220, 110, 243).await;
 
         if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1).to_ascii_uppercase() {
-            self.s.remove_file(from_utf8(filestr).unwrap());
+            self.s.remove_file(dos_file_name(filestr));
             tempb = 0; //{ yep, deleted }
         }
 

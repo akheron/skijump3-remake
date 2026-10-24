@@ -609,8 +609,11 @@ impl<'si> Platform for SDLPortModule<'si> {
         self.key_pressed()
     }
     async fn wait_for_key_press(&self) -> (u8, u8) {
-        self.async_state.set(AsyncState::WaitForKeyPress);
-        SDLPortFuture { s: self }.await;
+        // After a close, the window is hidden and cannot get a key
+        if !self.close_requested.get() {
+            self.async_state.set(AsyncState::WaitForKeyPress);
+            SDLPortFuture { s: self }.await;
+        }
         (self.ch.get(), self.ch2.get())
     }
     fn putsaa(&self) {

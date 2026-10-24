@@ -242,6 +242,10 @@ impl Platform for WebPlatform {
     }
 
     async fn wait_for_key_press(&self) -> (u8, u8) {
+        // The close must save the files in one poll, so it cannot wait for a key
+        if self.close_requested.get() {
+            return (self.ch.get(), self.ch2.get());
+        }
         if self.keypresses.borrow().is_empty() {
             self.async_state.set(AsyncState::WaitForKeyPress);
             WebPortFuture { p: self }.await;
