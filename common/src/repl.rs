@@ -9,7 +9,7 @@ use crate::platform::Platform;
 use crate::rs_util::{dos_file_name, dos_name_bytes, parse_line, read_line};
 use crate::trace;
 use crate::tuuli::TuuliModule;
-use crate::unit::{valuestr, Hill, UnitModule, NUM_WC_HILLS};
+use crate::unit::{valuestr, Hill, UnitModule, NAME_STR_LEN, NUM_WC_HILLS, TIME_STR_LEN};
 use std::io::{BufRead, BufReader, Read};
 
 pub struct ReplModule<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
@@ -161,7 +161,9 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
             x = r.startx;
             y = r.starty;
 
-            for temp in 0..=r.maxturns as usize {
+            // See turn_index.
+            for temp in 0..=r.maxturns.min(1000) {
+                let temp = temp as usize;
                 x = (x + r.rd[0][temp] as i32 - 128) as i16 as i32;
                 y = (y + r.rd[1][temp] as i32 - 128) as i16 as i32;
                 xy[0][temp] = x;
@@ -217,14 +219,14 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
             sx = 0;
             sy = 0;
 
-            keulax = xy[0][r.flstart as usize];
-            keulay = xy[1][r.flstart as usize];
+            keulax = xy[0][turn_index(r.flstart)];
+            keulay = xy[1][turn_index(r.flstart)];
 
             x = r.startx;
             y = r.starty;
-            jumper_anim = r.rd[2][rturns as usize] as i32;
-            ski_anim = r.rd[3][rturns as usize] as i32;
-            wind = r.rd[4][rturns as usize] as i32 - 128;
+            jumper_anim = r.rd[2][turn_index(rturns)] as i32;
+            ski_anim = r.rd[3][turn_index(rturns)] as i32;
+            wind = r.rd[4][turn_index(rturns)] as i32 - 128;
 
             loop {
                 //{ replayluuppi }
@@ -267,12 +269,12 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
                         }
                     }
 
-                    x = xy[0][rturns as usize];
-                    y = xy[1][rturns as usize];
+                    x = xy[0][turn_index(rturns)];
+                    y = xy[1][turn_index(rturns)];
 
-                    jumper_anim = r.rd[2][rturns as usize] as i32;
-                    ski_anim = r.rd[3][rturns as usize] as i32;
-                    wind = r.rd[4][rturns as usize] as i32 - 128;
+                    jumper_anim = r.rd[2][turn_index(rturns)] as i32;
+                    ski_anim = r.rd[3][turn_index(rturns)] as i32;
+                    wind = r.rd[4][turn_index(rturns)] as i32 - 128;
 
                     deltax = self.m.x.get();
                     deltay = self.m.y.get();
@@ -302,7 +304,7 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
 
                     self.m.tulosta();
 
-                    self.draw_lumi(
+                    self.u.draw_lumi(
                         lumi,
                         deltax - self.m.x.get(),
                         deltay - self.m.y.get(),
@@ -606,13 +608,12 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
         r.suitcolor = parse_line(&mut f1).unwrap();
         r.skicolor = parse_line(&mut f1).unwrap();
 
-        // NameStr = string[30], TimeStr = string[22]
         r.author = read_line(&mut f1).unwrap();
-        r.author.truncate(30);
+        r.author.truncate(NAME_STR_LEN);
         r.name = read_line(&mut f1).unwrap();
-        r.name.truncate(30);
+        r.name.truncate(NAME_STR_LEN);
         r.when = read_line(&mut f1).unwrap();
-        r.when.truncate(22);
+        r.when.truncate(TIME_STR_LEN);
 
         let temp = parse_line::<i16>(&mut f1).unwrap();
         r.mcliivi = temp != 0;
@@ -812,7 +813,7 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
                             if num_extra_hills > 0 {
                                 while temp < num_extra_hills {
                                     temp += 1;
-                                    if self.u.hillfile(temp) == r.hillfilename {
+                                    if self.u.hillfile(temp).await == r.hillfilename {
                                         self.u.load_info(temp + NUM_WC_HILLS, &mut r.acthill).await;
                                         if r.acthill.profile == r.laskuri {
                                             temp = num_extra_hills + 1;
@@ -952,27 +953,13 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
             //{ freemem(TempVideo,64000); }
         }
     }
+}
 
-    // originally in SJ3UNIT.PAS
-    fn draw_lumi(
-        &self,
-        lumi: &mut LumiModule,
-        delx: i32,
-        dely: i32,
-        wind: i32,
-        lmaara: u16,
-        draw: bool,
-    ) {
-        if lmaara > 0 {
-            lumi.update(
-                self.m.video.borrow_mut(),
-                delx * 2,
-                dely * 2,
-                wind * 8,
-                draw,
-            );
-        }
-    }
+/// An index of `XY` and `RD`, which have the turns 0..1000. Pascal goes
+/// outside them when `MaxTurns` or `FLStart` of the file is not in 0..1000,
+/// and then the port uses the nearest turn instead.
+fn turn_index(turn: i32) -> usize {
+    turn.clamp(0, 1000) as usize
 }
 
 /// `Read` of a char from a text file in Free Pascal, which gives #26 at the

@@ -14,7 +14,7 @@ init_data "$out/run"
 frames=""; [ -n "$SJ3_FRAMES_FROM$SJ3_FRAMES_TO" ] && frames="$out/frames"
 cd "$out/run"
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy SJ3_FAST=1 SJ3_MAXFRAMES=${SJ3_MAXFRAMES:-} SJ3_SEED=$seed SJ3_KEYS="$keys" SJ3_FRAMES="$frames" \
-  timeout -s KILL "${SJ3_TIMEOUT:-300}" "$bin" > "$out/stdout.txt" 2>&1
+  timeout -s KILL "${SJ3_TIMEOUT:-300}" "$bin" < /dev/null > "$out/stdout.txt" 2>&1
 status=$?
 echo "exit=$status $(tail -1 Trace.txt | cut -d ' ' -f 2-)"
 exit $status

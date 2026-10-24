@@ -1,5 +1,5 @@
 use crate::platform::Platform;
-use crate::rs_util::{clrscr, textbackground, textcolor, val_code, window, write, writeln};
+use crate::rs_util::{clrscr, halt, textbackground, textcolor, val_code, window, write, writeln};
 
 /// The original `round` takes a single, so its argument is rounded to f32 first.
 /// Halves are rounded away from zero.
@@ -84,6 +84,25 @@ pub fn txt(mut jokuluku: i32) -> Vec<u8> {
 
 pub fn num(jokuluku: &[u8]) -> i32 {
     val_code(jokuluku).unwrap_or(-1)
+}
+
+/// `found` stands for `IORes = 0` of Pascal.
+pub async fn fileok(s: &impl Platform, found: bool, filename: &[u8]) {
+    if !found {
+        writeln(
+            &[
+                b"SJ3 error:  Can't find file " as &[u8],
+                filename,
+                b".  Where have you put it? ",
+            ]
+            .concat(),
+        );
+        // The game has no console input, so the Enter of `Readln` comes from
+        // the game window.
+        s.putsaa();
+        while s.wait_for_key_press().await.0 != 13 && !s.close_requested() {}
+        halt().await;
+    }
 }
 
 pub fn upstr(str1: &[u8]) -> Vec<u8> {

@@ -1,3 +1,4 @@
+use crate::help::fileok;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
@@ -199,7 +200,8 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
         }
     }
 
-    pub fn load_anim(&self, filename: &str) {
+    pub async fn load_anim(&self, filename: &str) {
+        fileok(self.s, self.s.file_exists(filename), filename.as_bytes()).await;
         let mut anim = self.anim.borrow_mut();
         let mut anim_p = self.anim_p.borrow_mut();
         let mut f1 = self.s.open_file(filename);

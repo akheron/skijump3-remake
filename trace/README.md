@@ -77,7 +77,7 @@ The last argument of `run-sdl.sh` is the random seed. The Pascal run writes:
 `run-rust.sh` runs the Rust binary in `trace/runs/w1-rust`, with the same data
 files in its data directory `trace/runs/w1-rust/run`. The replay must reach
 the `End` line in a key wait, in a frame or at the end of the game, with the
-same numbers of frames and lines. Then the last line of
+same numbers of frames and lines and the same exit code. Then the last line of
 `trace/runs/w1-rust/stdout.txt` is `Trace replay complete: N records and M
 frames match`. Otherwise the run panics, and `run-rust.sh` prints the panic.
 When the CRC of a frame differs, the Rust frame goes to

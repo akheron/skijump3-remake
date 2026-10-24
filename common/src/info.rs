@@ -1,17 +1,18 @@
 use crate::graph::GraphModule;
-use crate::help::{beep, nmstr, paraletter, round, toansi, txt, txtp, upstr};
+use crate::help::{beep, fileok, nmstr, paraletter, round, toansi, txt, txtp, upstr};
 use crate::lang::LangModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
 use crate::rs_util::{
-    dos_file_name, dos_name_bytes, pad_left, parse_line, random, read_line, val, val_code,
+    dos_file_name, dos_name_bytes, halt, invalid_input_error, pad_left, parse_line, random,
+    read_line, val, val_code, writeln, UncheckedText,
 };
 use crate::unit::{
     crypt, dayandtime, insert, svaluestr, valuestr, Date, Hill, Hiscore, Time, UnitModule,
-    MAX_CUSTOMS, NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
+    MAX_CUSTOMS, NAME_STR_LEN, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TIME_STR_LEN,
 };
 use std::cell::{Cell, RefCell};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufReader, Write};
 
 #[derive(Clone)]
 pub struct Profile {
@@ -154,24 +155,24 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         }
 
         if found {
-            let mut f2 = BufReader::new(self.s.open_file(&filename));
+            let mut f2 = UncheckedText::new(self.s.open_file(&filename));
             *sortby = 0;
             //{ ei niin väliä vaikkei löytyisikään }
 
-            *cuphills = parse_line(&mut f2).unwrap();
+            *cuphills = f2.readln_num::<i16>() as i32;
 
             temp = 0;
 
             loop {
-                nytmaki = parse_line(&mut f2).unwrap();
+                nytmaki = f2.readln_num::<i16>() as i32;
 
                 if nytmaki > NUM_WC_HILLS {
                     nytmaki = -1;
-                    str1 = read_line(&mut f2).unwrap();
+                    str1 = f2.readln_str(255);
 
                     if self.u.num_extra_hills.get() > 0 {
                         for temp2 in 1..=self.u.num_extra_hills.get() as i32 {
-                            if self.u.hillfile(temp2) == str1 {
+                            if self.u.hillfile(temp2).await == str1 {
                                 nytmaki = temp2 + NUM_WC_HILLS;
                             }
                         }
@@ -190,9 +191,9 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
 
             if temp >= 40 {
                 //{ se lopettava nolla pois }
-                nytmaki = parse_line(&mut f2).unwrap();
+                nytmaki = f2.readln_num::<i16>() as i32;
                 while nytmaki != 0 {
-                    nytmaki = parse_line(&mut f2).unwrap();
+                    nytmaki = f2.readln_num::<i16>() as i32;
                 }
             }
 
@@ -202,15 +203,15 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             }
 
             for _ in 1..=4 {
-                read_line(&mut f2).unwrap(); //{ v3.10 enkka pois alta }
+                f2.readln_str(255); //{ v3.10 enkka pois alta }
             }
 
-            *sortby = parse_line::<i32>(&mut f2).unwrap() as u8;
+            *sortby = f2.readln_num();
             if *sortby != 1 {
                 *sortby = 0;
             }
 
-            str1 = read_line(&mut f2).unwrap();
+            str1 = f2.readln_str(255);
             code = val_code(&str1).unwrap_or(1); //{ luetaan code }
 
             //{ v3.12 lisäys #1 start / ei lueta codea vaan lasketaan se }
@@ -218,32 +219,46 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             compare2 = compare2.wrapping_add(svaluestr(&upstr(setfile), 11) as i32 * 13 + 1);
 
             for temp in 1..=*cuphills {
-                compare2 =
-                    compare2.wrapping_add(self.u.hillcode(hillorder[temp as usize]).await % 193557);
+                let nytmaki = hillorder[temp as usize];
+                if f2.in_out_res
+                    && nytmaki > 0
+                    && nytmaki <= NUM_WC_HILLS + self.u.num_extra_hills.get() as i32
+                {
+                    // hillcode reads the hill with loadinfo, whose reset of the
+                    // hill file or of MOREHILL.SKI in hillfile is skipped, so
+                    // that its FileOk gets the read error.
+                    let filename: &[u8] = if nytmaki <= NUM_WC_HILLS {
+                        b"HILLBASE.SKI"
+                    } else {
+                        b"MOREHILL.SKI"
+                    };
+                    fileok(self.s, false, filename).await;
+                }
+                compare2 = compare2.wrapping_add(self.u.hillcode(nytmaki).await % 193557);
             }
 
             compare2 ^= 566727 + *sortby as i32 * 2;
 
             //{ v3.12 lisäys end }
 
-            read_line(&mut f2).unwrap();
+            f2.readln_str(255);
 
             for temp in 1..=20 {
-                if !f2.fill_buf().unwrap().is_empty() {
+                if !f2.eof() {
                     let mut top = self.top.borrow_mut();
                     let hi = &mut top[temp as usize + 41];
-                    hi.name = read_line(&mut f2).unwrap();
+                    hi.name = f2.readln_str(NAME_STR_LEN);
                     checksum = checksum.wrapping_add(svaluestr(&hi.name, temp) as i32);
-                    hi.pos = parse_line::<i32>(&mut f2).unwrap() as u8;
+                    hi.pos = f2.readln_num();
                     checksum = checksum.wrapping_add((hi.pos as i32 + temp) * 11);
-                    hi.score = parse_line(&mut f2).unwrap();
+                    hi.score = f2.readln_num();
                     checksum =
                         checksum.wrapping_add(hi.score.wrapping_add(temp + 1).wrapping_mul(3));
-                    hi.time = read_line(&mut f2).unwrap();
+                    hi.time = f2.readln_str(TIME_STR_LEN);
                 }
             }
 
-            str1 = read_line(&mut f2).unwrap();
+            str1 = f2.readln_str(255);
             compare = val(&str1);
 
             checksum ^= 131333;
@@ -256,8 +271,8 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
 
             //{ v3.12 muutos #2 start / yksi uusi checksum (sis. code) }
 
-            str1 = read_line(&mut f2).unwrap(); //{ luetaan se jos sitä on }
-                                                //{ tästä seuraa että v3.11:n SJC nollautuu v3.12:ssa! }
+            str1 = f2.readln_str(255); //{ luetaan se jos sitä on }
+                                       //{ tästä seuraa että v3.11:n SJC nollautuu v3.12:ssa! }
             compare = val(&str1);
 
             checksum ^= 131333;
@@ -270,6 +285,10 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             }
             //{ v3.12 muutos #2 end }
 
+            // close(f2) comes after {$I+}, so a read error raises here.
+            if f2.in_out_res {
+                invalid_input_error().await;
+            }
             drop(f2);
         }
 
@@ -284,63 +303,68 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         cuphills: i32,
     ) -> i32 {
         let mut code: i32;
-        let mut f2 = self
+        let f2 = self
             .s
-            .create_file(dos_file_name(&[setfile, b".SJC"].concat()));
+            .try_create_file(dos_file_name(&[setfile, b".SJC"].concat()));
 
         let mut checksum: i32 = 0;
-        let result: i32;
+        let mut result: i32 = 1;
 
-        code = 0; //{ SJC:n mäkijärkkäkoodi }
-        let setfile = upstr(setfile);
+        if let Some(mut f2) = f2 {
+            code = 0; //{ SJC:n mäkijärkkäkoodi }
+            let setfile = upstr(setfile);
 
-        writeln!(f2, "{}", cuphills).unwrap();
-        code = code.wrapping_add(svaluestr(&setfile, 11) as i32 * 13 + 1);
+            writeln!(f2, "{}", cuphills).unwrap();
+            code = code.wrapping_add(svaluestr(&setfile, 11) as i32 * 13 + 1);
 
-        for temp in 1..=cuphills as usize {
-            writeln!(f2, "{}", hillorder[temp]).unwrap();
-            code = code.wrapping_add(self.u.hillcode(hillorder[temp]).await % 193557);
-            if hillorder[temp] > NUM_WC_HILLS {
-                writeln_bytes(&mut f2, &[&self.u.hillfile(hillorder[temp] - NUM_WC_HILLS)]);
+            for temp in 1..=cuphills as usize {
+                writeln!(f2, "{}", hillorder[temp]).unwrap();
+                code = code.wrapping_add(self.u.hillcode(hillorder[temp]).await % 193557);
+                if hillorder[temp] > NUM_WC_HILLS {
+                    writeln_bytes(
+                        &mut f2,
+                        &[&self.u.hillfile(hillorder[temp] - NUM_WC_HILLS).await],
+                    );
+                }
             }
+
+            code ^= 566727 + sortby as i32 * 2;
+
+            writeln!(f2, "0").unwrap(); //{ endofhillsequence }
+
+            writeln!(f2, "v3.12 SJC").unwrap(); //{ vanha enkkastandardi }
+            writeln!(f2, "0").unwrap();
+            writeln!(f2, "0").unwrap();
+            writeln!(f2, "-").unwrap();
+
+            writeln!(f2, "{}", sortby).unwrap(); //{ uutta }
+
+            writeln!(f2, "{}", code).unwrap();
+            writeln!(f2, "0").unwrap();
+
+            for temp in 1..=20 {
+                let top = self.top.borrow();
+                let hi = &top[temp as usize + 41];
+                writeln_bytes(&mut f2, &[&hi.name]);
+                checksum = checksum.wrapping_add(svaluestr(&hi.name, temp) as i32);
+                writeln!(f2, "{}", hi.pos).unwrap();
+                checksum = checksum.wrapping_add((hi.pos as i32 + temp) * 11);
+                writeln!(f2, "{}", hi.score).unwrap();
+                checksum = checksum.wrapping_add(hi.score.wrapping_add(temp + 1).wrapping_mul(3));
+                writeln_bytes(&mut f2, &[&hi.time]);
+            }
+
+            checksum ^= 131333;
+            writeln!(f2, "{}", checksum).unwrap();
+            //{ v3.12 muutos #2 }
+            checksum ^= 131333;
+            checksum = (checksum.wrapping_add(5).wrapping_add(code)).wrapping_mul(2) ^ 356777;
+            writeln!(f2, "{}", checksum).unwrap();
+
+            result = 0;
+
+            drop(f2);
         }
-
-        code ^= 566727 + sortby as i32 * 2;
-
-        writeln!(f2, "0").unwrap(); //{ endofhillsequence }
-
-        writeln!(f2, "v3.12 SJC").unwrap(); //{ vanha enkkastandardi }
-        writeln!(f2, "0").unwrap();
-        writeln!(f2, "0").unwrap();
-        writeln!(f2, "-").unwrap();
-
-        writeln!(f2, "{}", sortby).unwrap(); //{ uutta }
-
-        writeln!(f2, "{}", code).unwrap();
-        writeln!(f2, "0").unwrap();
-
-        for temp in 1..=20 {
-            let top = self.top.borrow();
-            let hi = &top[temp as usize + 41];
-            writeln_bytes(&mut f2, &[&hi.name]);
-            checksum = checksum.wrapping_add(svaluestr(&hi.name, temp) as i32);
-            writeln!(f2, "{}", hi.pos).unwrap();
-            checksum = checksum.wrapping_add((hi.pos as i32 + temp) * 11);
-            writeln!(f2, "{}", hi.score).unwrap();
-            checksum = checksum.wrapping_add(hi.score.wrapping_add(temp + 1).wrapping_mul(3));
-            writeln_bytes(&mut f2, &[&hi.time]);
-        }
-
-        checksum ^= 131333;
-        writeln!(f2, "{}", checksum).unwrap();
-        //{ v3.12 muutos #2 }
-        checksum ^= 131333;
-        checksum = (checksum.wrapping_add(5).wrapping_add(code)).wrapping_mul(2) ^ 356777;
-        writeln!(f2, "{}", checksum).unwrap();
-
-        result = 0;
-
-        drop(f2);
 
         result
     }
@@ -948,16 +972,28 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         .await;
     }
 
-    pub fn load_names(&self, whatset: u8, teamdiscount: u8, teamlineup: &mut [u8], replaces: bool) {
+    pub async fn load_names(
+        &self,
+        whatset: u8,
+        teamdiscount: u8,
+        teamlineup: &mut [u8],
+        replaces: bool,
+    ) {
         let mut l1: i32 = 0;
         let mut s = b"".to_vec();
+
+        let filename = [b"NAMES" as &[u8], &[whatset], b".SKI"].concat();
+        fileok(
+            self.s,
+            self.s.file_exists(dos_file_name(&filename)),
+            &filename,
+        )
+        .await;
 
         let profile = self.profile.borrow();
         let mut nimet = self.nimet.borrow_mut();
 
-        let mut f4 = BufReader::new(self.s.open_file(dos_file_name(
-            &[b"NAMES" as &[u8], &[whatset], b".SKI"].concat(),
-        )));
+        let mut f4 = BufReader::new(self.s.open_file(dos_file_name(&filename)));
 
         read_line(&mut f4).unwrap(); //{ titlerivi pois }
 
@@ -1005,18 +1041,25 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 l1 += (tempb % temp2) as i32;
 
                 if temp < NUM_TEAMS + 1 - teamdiscount as usize {
-                    self.jnimet.borrow_mut()[temp] = s[..s.len().min(30)].to_vec(); // NameStr = string[30]
+                    self.jnimet.borrow_mut()[temp] = s[..s.len().min(NAME_STR_LEN)].to_vec();
                     teamlineup[(temp - 1) * 4 + temp2 as usize] = tempb;
                 }
             }
         }
 
+        let mut l2 = 0;
         if whatset == b'0' {
-            let l2: i32 = parse_line(&mut f4).unwrap(); //{ haetaan se names:n checksum }
-            l1 += 5661;
-            if l1 != l2 {
-                panic!("Error #92: Something wrong with the namefile. Shit.");
-            }
+            l2 = val(&read_line(&mut f4).unwrap()); //{ haetaan se names:n checksum }
+        }
+
+        drop(f4);
+
+        l1 = l1.wrapping_add(5661);
+
+        if whatset == b'0' && l1 != l2 {
+            writeln(b"Error #92: Something wrong with the namefile. Shit.");
+            self.s.wait_for_key().await;
+            halt().await;
         }
     }
 
@@ -1176,7 +1219,8 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         }
     }
 
-    pub fn load_profiles(&self) {
+    pub async fn load_profiles(&self) {
+        fileok(self.s, self.s.file_exists("PLAYERS.SKI"), b"PLAYERS.SKI").await;
         let mut f1 = BufReader::new(self.s.open_file("PLAYERS.SKI"));
 
         for temp in 0..=20 {
@@ -1533,7 +1577,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                             if num_extra_hills > 0 {
                                 while temp2 < num_extra_hills {
                                     temp2 += 1;
-                                    if self.u.hillfile(temp2) == p.besthillfile {
+                                    if self.u.hillfile(temp2).await == p.besthillfile {
                                         self.u.load_info(temp2 + NUM_WC_HILLS, &mut acthill).await;
                                         temp2 = num_extra_hills;
                                     }

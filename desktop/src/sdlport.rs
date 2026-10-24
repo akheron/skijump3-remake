@@ -675,6 +675,9 @@ impl<'si> Platform for SDLPortModule<'si> {
     fn create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::WritableFile<'a> {
         self.files.create(path.as_ref())
     }
+    fn try_create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Option<Self::WritableFile<'a>> {
+        self.files.try_create(path.as_ref())
+    }
 
     type ReadableFile<'a>
         = Cursor<Cow<'a, [u8]>>
@@ -773,6 +776,9 @@ impl Store for DirStore {
 }
 
 impl WritableStore for DirStore {
+    fn rewrite(&self, name: &str) -> bool {
+        fs::File::create(self.dir.join(name)).is_ok()
+    }
     fn write(&self, name: &str, content: &[u8]) {
         fs::write(self.dir.join(name), content).unwrap();
     }

@@ -18,6 +18,10 @@ pub trait Store {
 }
 
 pub trait WritableStore: Store {
+    /// Makes the file empty. False when the file cannot be written.
+    fn rewrite(&self, _name: &str) -> bool {
+        true
+    }
     fn write(&self, name: &str, content: &[u8]);
     fn remove(&self, name: &str);
 }
@@ -62,6 +66,12 @@ impl<D: WritableStore, A: Store> Overlay<D, A> {
             name: name.to_string(),
             content: Vec::new(),
         }
+    }
+
+    /// `create` for a `Rewrite` that can fail: `None` when the file cannot be
+    /// written
+    pub fn try_create(&self, name: &str) -> Option<OverlayFile<'_, D, A>> {
+        self.data.rewrite(name).then(|| self.create(name))
     }
 
     pub fn remove(&self, name: &str) {

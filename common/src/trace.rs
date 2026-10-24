@@ -48,6 +48,7 @@ mod imp {
         consumed_lines: usize,
         checked_frames: usize,
         console_untraced: bool,
+        exitcode: usize,
     }
 
     thread_local! {
@@ -140,10 +141,10 @@ mod imp {
                 .unwrap_or_else(|| panic!("No {name} in trace:{}", entry.trace_lineno))
         };
         let (frames, records, exitcode) = (field("frames"), field("records"), field("exitcode"));
-        let (checked_frames, consumed_lines, lines_after) = STATE.with(|s| {
+        let (checked_frames, consumed_lines, lines_after, expected_exitcode) = STATE.with(|s| {
             let s = s.borrow();
             let lines_after = s.entries.as_ref().unwrap().len();
-            (s.checked_frames, s.consumed_lines, lines_after)
+            (s.checked_frames, s.consumed_lines, lines_after, s.exitcode)
         });
         if lines_after > 0 {
             panic!(
@@ -151,9 +152,9 @@ mod imp {
                 entry.trace_lineno
             );
         }
-        if exitcode != 0 || frames != checked_frames || records != consumed_lines {
+        if exitcode != expected_exitcode || frames != checked_frames || records != consumed_lines {
             panic!(
-                "Replayed {consumed_lines} records and {checked_frames} frames, but trace:{} has: {}",
+                "Replayed {consumed_lines} records and {checked_frames} frames with exit code {expected_exitcode}, but trace:{} has: {}",
                 entry.trace_lineno, entry.line
             );
         }
@@ -161,8 +162,9 @@ mod imp {
         std::process::exit(0);
     }
 
-    /// Checks that the Pascal run also ends here.
-    pub fn finish() {
+    /// Checks that the Pascal run also ends here, with this exit code.
+    pub fn finish(exitcode: i32) {
+        STATE.with(|s| s.borrow_mut().exitcode = exitcode as usize);
         pop("End");
     }
 
@@ -444,7 +446,7 @@ mod noop {
     pub fn rendered_frames() -> i32 {
         0
     }
-    pub fn finish() {}
+    pub fn finish(_exitcode: i32) {}
 }
 
 #[cfg(not(feature = "trace"))]

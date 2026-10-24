@@ -57,7 +57,7 @@ fn main() {
     loop {
         if future.as_mut().poll(&mut ctx).is_ready() {
             if common::trace::active() {
-                common::trace::finish();
+                common::trace::finish(0);
             }
             break;
         }

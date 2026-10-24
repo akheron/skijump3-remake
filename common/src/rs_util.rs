@@ -37,6 +37,54 @@ pub fn parse_line<T: PascalNumber>(f: &mut BufReader<impl Read>) -> eyre::Result
     T::from_val(&token).ok_or_else(|| eyre::eyre!("Invalid numeric format"))
 }
 
+/// A text file that Pascal reads under `{$I-}`. A read error stays in
+/// `in_out_res`, and each later read is skipped: a number reads as 0, a string
+/// as empty, and `eof` is true.
+pub struct UncheckedText<R: Read> {
+    f: BufReader<R>,
+    pub in_out_res: bool,
+}
+
+impl<R: Read> UncheckedText<R> {
+    pub fn new(f: R) -> Self {
+        Self {
+            f: BufReader::new(f),
+            in_out_res: false,
+        }
+    }
+
+    pub fn readln_num<T: PascalNumber>(&mut self) -> T {
+        if !self.in_out_res {
+            if let Ok(value) = parse_line(&mut self.f) {
+                return value;
+            }
+            self.in_out_res = true;
+        }
+        T::from_val(b"0").unwrap()
+    }
+
+    /// `ReadLn` into a `string[max_len]`
+    pub fn readln_str(&mut self, max_len: usize) -> Vec<u8> {
+        if self.in_out_res {
+            return Vec::new();
+        }
+        match read_line(&mut self.f) {
+            Ok(mut line) => {
+                line.truncate(max_len);
+                line
+            }
+            Err(_) => {
+                self.in_out_res = true;
+                Vec::new()
+            }
+        }
+    }
+
+    pub fn eof(&mut self) -> bool {
+        self.in_out_res || self.f.fill_buf().map_or(true, |buf| buf.is_empty())
+    }
+}
+
 pub trait PascalNumber: Sized {
     /// `Val` into this type, truncated as with `{$R-}`
     fn from_val(text: &[u8]) -> Option<Self>;
@@ -179,11 +227,28 @@ pub fn random(max: u32) -> u32 {
 /// `Halt` of Pascal. A web page cannot end its program, so on the web the
 /// game stops here and `until_halt` returns.
 pub async fn halt() -> ! {
+    exit(0).await
+}
+
+/// The `EInOutError` that `{$I+}` code raises when a `{$I-}` read has left a
+/// read error in `InOutRes`. The game does not catch it, so the program ends
+/// with exit code 217.
+pub async fn invalid_input_error() -> ! {
+    let text = "An unhandled exception occurred:\nEInOutError: Invalid input\n";
+    #[cfg(target_family = "wasm")]
+    web_console::write(text);
+    let mut stdout = std::io::stdout();
+    let _ = stdout.write_all(text.as_bytes());
+    let _ = stdout.flush();
+    exit(217).await
+}
+
+async fn exit(exitcode: i32) -> ! {
     if trace::active() {
-        trace::finish();
+        trace::finish(exitcode);
     }
     #[cfg(not(target_family = "wasm"))]
-    std::process::exit(0);
+    std::process::exit(exitcode);
     #[cfg(target_family = "wasm")]
     {
         HALTED.with(|halted| halted.set(true));
@@ -409,6 +474,7 @@ fn cp437_char(c: u8) -> char {
 mod tests {
     use super::{
         cp437_char, dos_file_name, dos_name_bytes, parse_line, read_line, val_code, val_uint,
+        UncheckedText,
     };
     use std::io::BufReader;
 
@@ -446,6 +512,18 @@ mod tests {
         assert_eq!(val_code(b"-"), None);
         assert_eq!(val_code(b""), None);
         assert_eq!(val_uint(b"-1"), None);
+    }
+
+    #[test]
+    fn unchecked_text_skips_reads_after_an_error() {
+        let mut f = UncheckedText::new(&b"1\nx\n2\nname\n"[..]);
+        assert_eq!(f.readln_num::<i16>(), 1);
+        assert!(!f.eof());
+        assert_eq!(f.readln_num::<i16>(), 0);
+        assert!(f.in_out_res);
+        assert_eq!(f.readln_num::<i16>(), 0);
+        assert_eq!(f.readln_str(255), b"");
+        assert!(f.eof());
     }
 
     #[test]

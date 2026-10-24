@@ -32,6 +32,11 @@ pub trait Platform {
     where
         Self: 'a;
     fn create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::WritableFile<'a>;
+    /// `create_file` for a `Rewrite` whose `IOResult` the game checks: `None`
+    /// when the file cannot be written
+    fn try_create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Option<Self::WritableFile<'a>> {
+        Some(self.create_file(path))
+    }
 
     type ReadableFile<'a>: Read
     where

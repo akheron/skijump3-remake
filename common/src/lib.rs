@@ -46,7 +46,7 @@ async fn run<P: Platform>(port: &P) {
     let graph_module = GraphModule::new(&maki_module, &pcx_module, port);
 
     let mut lang_module = LangModule::new(port);
-    lang_module.init();
+    lang_module.init().await;
 
     let unit_module = UnitModule::new(&graph_module, &lang_module, &maki_module, &pcx_module, port);
     let list_module =

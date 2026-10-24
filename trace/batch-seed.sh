@@ -20,7 +20,7 @@ pascal=$(head -1 "$RUNS/$name.pascal.txt")
 rust=$(grep -o 'Trace replay complete: .*' "$RUNS/$name-rust/stdout.txt")
 [ -n "$rust" ] || rust=$(tail -1 "$RUNS/$name-rust/stdout.txt")
 jumps=$(grep -c ' JumpResult ' "$RUNS/$name/run/Trace.txt")
-counts=$(echo "$pascal" | sed -n 's/^exit=0 End frames=\([0-9]*\) records=\([0-9]*\) exitcode=0$/\2 records and \1 frames/p')
+counts=$(echo "$pascal" | sed -n 's/^exit=\([0-9]*\) End frames=\([0-9]*\) records=\([0-9]*\) exitcode=\1$/\3 records and \2 frames/p')
 files=$(grep '^files: ' "$RUNS/$name.rust.txt")
 case "$rust" in
   "Trace replay complete: $counts match") [ -n "$counts" ] && [ "$files" = "files: same" ] && result=PASS || result=FAIL ;;

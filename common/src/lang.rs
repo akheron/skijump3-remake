@@ -1,3 +1,4 @@
+use crate::help::fileok;
 use crate::platform::Platform;
 use crate::rs_util::{random, read_line, val};
 use std::cell::RefCell;
@@ -47,7 +48,8 @@ impl<'s, P: Platform> LangModule<'s, P> {
         self.lstr(start + random(stop - start + 1))
     }
 
-    fn reset_language(&mut self) {
+    async fn reset_language(&mut self) {
+        fileok(self.s, self.s.file_exists("LANGBASE.SKI"), b"LANGBASE.SKI").await;
         let f = BufReader::new(self.s.open_file("LANGBASE.SKI"));
         let mut lines = f.split(b'\n');
         loop {
@@ -115,7 +117,7 @@ impl<'s, P: Platform> LangModule<'s, P> {
         }
     }
 
-    pub fn init(&mut self) {
-        self.reset_language();
+    pub async fn init(&mut self) {
+        self.reset_language().await;
     }
 }

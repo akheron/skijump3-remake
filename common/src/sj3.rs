@@ -1,5 +1,5 @@
 use crate::graph::GraphModule;
-use crate::help::{beep, dowindow, nsqrt, pcomp, round, txt, txtp, upstr};
+use crate::help::{beep, dowindow, fileok, nsqrt, pcomp, round, txt, txtp, upstr};
 use crate::info::InfoModule;
 use crate::lang::LangModule;
 use crate::list::ListModule;
@@ -21,8 +21,8 @@ use crate::trace;
 use crate::tuuli::TuuliModule;
 use crate::unit::{
     crypt, dayandtime, defaultkeys, injured, insert, kword, loadgoal, makeletter, uncrypt,
-    valuestr, Date, Hill, Hiscore, Stat, Time, UnitModule, MAX_CUSTOMS, NUM_PL, NUM_TEAMS,
-    NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
+    valuestr, Date, Hill, Hiscore, Stat, Time, UnitModule, MAX_CUSTOMS, NAME_STR_LEN, NUM_PL,
+    NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
 };
 use std::io::{BufReader, Write};
 use std::rc::Rc;
@@ -476,8 +476,10 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
         }
     }
 
-    fn read_config(&mut self) {
+    async fn read_config(&mut self) {
         let mut temp: i32 = 0;
+
+        fileok(self.s, self.s.file_exists("CONFIG.SKI"), b"CONFIG.SKI").await;
 
         let mut f2 = BufReader::new(self.s.open_file("CONFIG.SKI"));
 
@@ -553,7 +555,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
             let mut jnimet = self.i.jnimet.borrow_mut();
             for temp in 1..=self.jmaara {
                 let mut name = read_line(&mut f2).unwrap();
-                name.truncate(30); // NameStr = string[30]
+                name.truncate(NAME_STR_LEN);
                 jnimet[NUM_TEAMS + 1 - temp as usize] = name;
             }
             if jnimet[NUM_TEAMS].is_empty() {
@@ -783,12 +785,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
                         if ch != 27 {
                             self.namenumber = ch;
-                            self.i.load_names(
-                                self.namenumber,
-                                self.jmaara,
-                                &mut self.teamlineup,
-                                true,
-                            );
+                            self.i
+                                .load_names(
+                                    self.namenumber,
+                                    self.jmaara,
+                                    &mut self.teamlineup,
+                                    true,
+                                )
+                                .await;
                         }
                     }
                     0 => screen = 0,
@@ -1160,7 +1164,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn writereplay(
+    async fn writereplay(
         &self,
         author: Vec<u8>,
         name: &[u8],
@@ -1181,6 +1185,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
         let mut f1: Vec<u8> = Vec::new();
         let mut t1: i32;
         let mut check: i32;
+
+        let filename = dos_file_name(&[replayfilename, b".SJR"].concat());
+        let Some(mut file) = self.s.try_create_file(&filename) else {
+            return 1;
+        };
         let result = 0;
 
         check = 0;
@@ -1195,7 +1204,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
         }
         *str1 = b"HILLBASE".to_vec();
         if self.nytmaki > NUM_WC_HILLS {
-            *str1 = self.u.hillfile(self.nytmaki - NUM_WC_HILLS);
+            *str1 = self.u.hillfile(self.nytmaki - NUM_WC_HILLS).await;
         }
         f1.write_all(str1).unwrap();
         writeln!(f1).unwrap();
@@ -1255,8 +1264,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
             }
         }
 
-        let filename = dos_file_name(&[replayfilename, b".SJR"].concat());
-        self.s.create_file(&filename).write_all(&f1).unwrap();
+        file.write_all(&f1).unwrap();
+        drop(file);
         trace::record(
             "ReplayWrite",
             &[
@@ -1679,7 +1688,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
                 self.m.tulosta();
 
-                self.draw_lumi(
+                self.u.draw_lumi(
+                    &mut self.lumi,
                     delta_x - self.m.x.get(),
                     delta_y - self.m.y.get(),
                     self.tuuli.value.get(),
@@ -1870,7 +1880,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                 self.g
                     .draw_anim(x - self.m.x.get(), y - self.m.y.get() - 1, ski_anim);
 
-                self.draw_lumi(
+                self.u.draw_lumi(
+                    &mut self.lumi,
                     delta_x - self.m.x.get(),
                     delta_y - self.m.y.get(),
                     self.tuuli.value.get(),
@@ -2442,7 +2453,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
                     self.m.tulosta();
 
-                    self.draw_lumi(
+                    self.u.draw_lumi(
+                        &mut self.lumi,
                         delta_x - self.m.x.get(),
                         delta_y - self.m.y.get(),
                         self.tuuli.value.get(),
@@ -2690,7 +2702,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                     profile[actprofile as usize].besthillfile = b"HILLBASE".to_vec();
                     if self.nytmaki > NUM_WC_HILLS as i32 {
                         profile[actprofile as usize].besthillfile =
-                            self.u.hillfile(self.nytmaki - NUM_WC_HILLS as i32);
+                            self.u.hillfile(self.nytmaki - NUM_WC_HILLS as i32).await;
                     }
                 }
             }
@@ -2940,7 +2952,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
                     self.m.tulosta();
 
-                    self.draw_lumi(
+                    self.u.draw_lumi(
+                        &mut self.lumi,
                         delta_x - self.m.x.get(),
                         delta_y - self.m.y.get(),
                         self.tuuli.value.get(),
@@ -3205,7 +3218,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
             }
 
             if !draw && self.gdetail == 0 {
-                self.draw_lumi(
+                self.u.draw_lumi(
+                    &mut self.lumi,
                     delta_x - self.m.x.get(),
                     delta_y - self.m.y.get(),
                     self.tuuli.value.get(),
@@ -3274,23 +3288,25 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                     )
                     .await as i32;
                 if temp == 0 {
-                    temp = self.writereplay(
-                        str1.clone(),
-                        &replayname,
-                        &mut str1,
-                        &replayfilename,
-                        &rd,
-                        rturns,
-                        rstartx,
-                        rstarty,
-                        rflstart,
-                        rflstop,
-                        wrx,
-                        wry,
-                        hp,
-                        mcliivi,
-                        actprofile,
-                    ) as i32;
+                    temp = self
+                        .writereplay(
+                            str1.clone(),
+                            &replayname,
+                            &mut str1,
+                            &replayfilename,
+                            &rd,
+                            rturns,
+                            rstartx,
+                            rstarty,
+                            rflstart,
+                            rflstop,
+                            wrx,
+                            wry,
+                            hp,
+                            mcliivi,
+                            actprofile,
+                        )
+                        .await as i32;
                 }
                 self.u.result_box(1, temp).await;
             }
@@ -3324,7 +3340,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                     hp,
                     mcliivi,
                     actprofile,
-                );
+                )
+                .await;
             }
         }
         //{$ENDIF}
@@ -6194,7 +6211,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
         let oldstr = self.i.jnimet.borrow()[15 - num as usize].clone();
         let mut newstr = self.u.getstr(xx, 42, 120, &oldstr, 242).await;
-        newstr.truncate(30); // NameStr = string[30]
+        newstr.truncate(NAME_STR_LEN);
         self.i.jnimet.borrow_mut()[15 - num as usize] = newstr;
 
         self.g
@@ -6535,7 +6552,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
         if pmaara == 4 || pmaara == 8 {
             //{ Ehkä vähän turha }
             self.i
-                .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, false);
+                .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, false)
+                .await;
 
             self.teamsready().await;
 
@@ -6553,7 +6571,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
         self.jcup = false;
 
         self.i
-            .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true);
+            .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true)
+            .await;
     }
 
     //{ cupstyle: 0 - SJ3 WC, 1 - Custom WC, 2 - Just 4Hills }
@@ -7055,7 +7074,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                 2 => {
                     //{ signupplayers; }
                     self.i
-                        .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, false);
+                        .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, false)
+                        .await;
                     self.i.profiles().await;
                     if self.i.pmaara.get() == 8 {
                         self.jmaara = 2;
@@ -7064,7 +7084,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                     }
                     self.i.jnimet.borrow_mut()[NUM_TEAMS - 1] = b"Team 2".to_vec();
                     self.i
-                        .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true);
+                        .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true)
+                        .await;
                 }
                 3 => {
                     self.setup_menu().await;
@@ -7113,7 +7134,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
         writeln_latin1(&[b"SJ3 v", VERSION, b" by Ville K\xF6n\xF6nen 2011"].concat());
 
         write(b"- Loading ANIM.SKI");
-        self.g.load_anim("ANIM.SKI");
+        self.g.load_anim("ANIM.SKI").await;
 
         self.eka = true;
         self.jcup = false;
@@ -7127,14 +7148,15 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
         self.read_records().await;
 
         write(b", CONFIG.SKI");
-        self.read_config();
+        self.read_config().await;
 
         write(b", PLAYERS.SKI");
-        self.i.load_profiles();
+        self.i.load_profiles().await;
 
         writeln(&[b", NAMES" as &[u8], &[self.namenumber], b".SKI"].concat());
         self.i
-            .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true);
+            .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true)
+            .await;
 
         write(b"  LANGBASE.SKI");
         if self.languagenumber != 255 {
@@ -7203,18 +7225,5 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
     pub async fn close_and_halt(&mut self) -> ! {
         self.close().await;
         halt().await;
-    }
-
-    // originally in SJ3UNIT.PAS
-    fn draw_lumi(&mut self, delx: i32, dely: i32, wind: i32, lmaara: u16, draw: bool) {
-        if lmaara > 0 {
-            self.lumi.update(
-                self.m.video.borrow_mut(),
-                delx * 2,
-                dely * 2,
-                wind * 8,
-                draw,
-            );
-        }
     }
 }

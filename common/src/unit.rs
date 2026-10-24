@@ -1,6 +1,7 @@
 use crate::graph::GraphModule;
-use crate::help::{beep, cwrite, cwriteln, num, round, txt, txtp};
+use crate::help::{beep, cwrite, cwriteln, fileok, num, round, txt, txtp};
 use crate::lang::LangModule;
+use crate::lumi::LumiModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
@@ -29,6 +30,11 @@ pub const WC_POINTS: [u8; 31] = [
     7, 6, 5, 4, 3, 2, 1,
 ];
 pub const TEAM_POINTS: [i32; 9] = [0, 400, 350, 300, 250, 200, 150, 100, 50];
+
+/// The lengths of `NameStr = string[30]` and `TimeStr = string[22]`. A
+/// longer text is cut to this length when it is stored in one.
+pub const NAME_STR_LEN: usize = 30;
+pub const TIME_STR_LEN: usize = 22;
 
 #[derive(Clone, Default)]
 pub struct Hiscore {
@@ -425,6 +431,26 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
 
         write_goals(self.s, &goals);
+    }
+
+    pub fn draw_lumi(
+        &self,
+        lumi: &mut LumiModule,
+        delx: i32,
+        dely: i32,
+        wind: i32,
+        lmaara: u16,
+        draw: bool,
+    ) {
+        if lmaara > 0 {
+            lumi.update(
+                self.m.video.borrow_mut(),
+                delx * 2,
+                dely * 2,
+                wind * 8,
+                draw,
+            );
+        }
     }
 
     pub fn kothchallenge(&self, x: i32, mut kothpack: u8) {
@@ -1115,8 +1141,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         result
     }
 
-    pub fn hillfile(&self, nyt: i32) -> Vec<u8> {
+    pub async fn hillfile(&self, nyt: i32) -> Vec<u8> {
         if nyt <= self.num_extra_hills.get() as i32 {
+            fileok(self.s, self.s.file_exists("MOREHILL.SKI"), b"MOREHILL.SKI").await;
             let mut f2 = BufReader::new(self.s.open_file("MOREHILL.SKI"));
 
             let mut str1 = b"ERROR.SJH".to_vec();
@@ -1164,9 +1191,15 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         let str1 = if nytmaki <= NUM_WC_HILLS {
             b"HILLBASE.SKI".to_vec()
         } else {
-            [&self.hillfile(nytmaki - NUM_WC_HILLS) as &[u8], b".SJH"].concat()
+            [
+                &self.hillfile(nytmaki - NUM_WC_HILLS).await as &[u8],
+                b".SJH",
+            ]
+            .concat()
         };
         let temp = if nytmaki > NUM_WC_HILLS { 0 } else { nytmaki };
+
+        fileok(self.s, self.s.file_exists(dos_file_name(&str1)), &str1).await;
 
         let mut f1 = BufReader::new(self.s.open_file(dos_file_name(&str1)));
         if self.findstart(&mut f1, temp) == 0 {
@@ -1814,7 +1847,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         let temp = index - NUM_WC_HILLS;
 
         let mut f1 = self.s.create_file(dos_file_name(
-            &[&self.hillfile(temp) as &[u8], b".SJH"].concat(),
+            &[&self.hillfile(temp).await as &[u8], b".SJH"].concat(),
         ));
         self.write_hill(&mut f1, h, 0, 1); //{ ainoa mesta jossa phase=1 }
         drop(f1);
@@ -1851,6 +1884,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
     //{ t�ll� ladataan mnimet ja kri -taulut kuntoon }
     pub async fn load_hill_info(&self) {
+        fileok(self.s, self.s.file_exists("MOREHILL.SKI"), b"MOREHILL.SKI").await;
         {
             let mut f1 = BufReader::new(self.s.open_file("MOREHILL.SKI"));
             self.num_extra_hills.set(parse_line(&mut f1).unwrap());
@@ -2044,7 +2078,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
                         150,
                     );
                     self.g
-                        .write_font(cols[1], 5 + temp * 8, &self.hillfile(start + temp));
+                        .write_font(cols[1], 5 + temp * 8, &self.hillfile(start + temp).await);
                     self.g.write_font(cols[2], 5 + temp * 8, &str1);
                 }
             }
@@ -2085,7 +2119,8 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
             if index < 0 && index.abs() + start <= self.num_extra_hills.get() as i32 {
                 //{ delete? }
-                let filestr = [&self.hillfile(index.abs() + start) as &[u8], b".SJH"].concat();
+                let filestr =
+                    [&self.hillfile(index.abs() + start).await as &[u8], b".SJH"].concat();
 
                 if self.might_delete(&filestr).await == 0 {
                     self.check_extra_hills();
@@ -2113,7 +2148,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
                 if index <= temp2 {
                     //{ uusi }
                     self.load_info(start + index + NUM_WC_HILLS, &mut h).await;
-                    filestr = self.hillfile(start + index);
+                    filestr = self.hillfile(start + index).await;
                     edit = true;
                 }
 
