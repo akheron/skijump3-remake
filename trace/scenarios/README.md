@@ -6,7 +6,6 @@ first key wait after the last key.
 
 | Scenario | Frames | Description |
 | --- | --- | --- |
-| `koth` | 845 | King of the Hill: challenge 1 chosen with item 2 and played to the end (the human jumper presses Esc before each jump); then `choosekoth` with 4 jumpers, item 4 (Lahti), wind on, one round, played to the end; then `0` (writes `CONFIG.SKI`). |
 | `teamcup` | 2352 | Main menu item 2 makes 8 jumpers, then a full team cup. The team names `SUOMI` and `NORJA` are typed with Del, letters and Backspace. The human jumpers press Esc before each jump. |
 
 A key with frame 999999 goes to a wait that does not poll: a result list, the

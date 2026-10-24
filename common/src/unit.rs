@@ -311,6 +311,33 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         write_goals(self.s, &goals);
     }
 
+    pub fn kothchallenge(&self, x: i32, mut kothpack: u8) {
+        let mut y: i32;
+
+        self.g.font_color(246);
+        self.g.write_font(x, 110, &*self.l.lstr(130));
+
+        y = 120;
+
+        if kothpack == 0 {
+            kothpack = 7;
+        }
+
+        for temp in 1..=7 {
+            self.g.font_color(241);
+            if temp == kothpack as i32 || kothpack == 255 {
+                self.g.font_color(240);
+            }
+
+            self.g.write_font(x, y, &self.kothtitle(temp));
+
+            y += 8;
+            if temp == 6 {
+                y += 8; //{ ylimääräiset }
+            }
+        }
+    }
+
     pub async fn load_hill(&self, keula_x: &mut i32, nytmaki: i32, act_hill: &Hill) -> u8 {
         let mut res: u8 = 0;
         self.p.lataa_pcx("LOAD.PCX", 320 * 200, 0, 0);

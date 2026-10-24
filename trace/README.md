@@ -140,6 +140,8 @@ completes, and the data files of the two runs are the same.
 | `a_training_kuopio` | 1 | -1 | Training in Kuopio: one 121 m jump that lands with `T`. The run ends after the comment screen. |
 | `tops` | 1 | -1 | Main menu item 4 through its 3 pages with PgDn, Home, Right, Space, Left, PgUp, PgDn, PgDn, Enter; then item 5 (one page) and Esc. |
 | `fourhills_hiscore` | 1 | -1 | The setup menu turns off the hill records of the computer jumpers and resets the hiscores to zero (`K` to the question). Four Hills, made with `multicomp.py` after the first jumps: the human jumper jumps 113 m in the qualification in Oberstdorf, which is a hill record, and 109 m in the first round, and does not start after that. At the end of the cup the human jumper gets onto the Four Hills list (`sorthighs`, `dolist`). In the main menu, item 4 shows the 3 pages of lists, and item 5 the hill records with the A.H.I. The run ends in the main menu. |
+| `koth` | 1 | -1 | King of the Hill: challenge 1 chosen with item 2 and played to the end (the human jumper presses Esc before the jump and drops out in the first round); then `choosekoth` with 4 jumpers, item 4 (Lahti), wind on, one round, played to the end; then `0` (writes `CONFIG.SKI`). The run ends in the jump menu. |
+| `koth_win` | 1 | -1 | King of the Hill challenge 6 (7 jumpers, one round, wind). The human jumper jumps with telemark in each round and wins the challenge, so `kothlista` adds a win to the challenge on the top list and sets the King of the Hill level of the profile to 6. Then `0` leaves the menu (writes `CONFIG.SKI`), and the game quits from the main menu, which writes `HISCORE.SKI`, `CONFIG.SKI`, `PLAYERS.SKI` and `SENDME.TXT`. |
 
 ## Write a key script
 

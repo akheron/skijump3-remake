@@ -4976,6 +4976,231 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
     }
 
+    fn kothjarj(&mut self) {
+        let mut t2: i32;
+        let mut score1: i32;
+        let mut score2: i32;
+
+        let players = self.kothmaara as i32 + self.i.pmaara.get() as i32;
+
+        for t1 in 1..=players {
+            //{ Jokainen hyppääjä käydään läpi }
+            t2 = 1;
+            loop {
+                //{ Verrataan jokaiseen }
+                score1 = self.pisteet[self.mcluett[t1 as usize] as usize];
+                score2 = self.pisteet[self.luett[t2 as usize] as usize];
+
+                if self.mcpisteet[self.mcluett[t1 as usize] as usize] > 0 {
+                    //{ pelaaja on jo laulukuorossa }
+                    score1 = -self.mcpisteet[self.mcluett[t1 as usize] as usize] * 100;
+                }
+
+                if self.mcpisteet[self.luett[t2 as usize] as usize] > 0 {
+                    //{ pelaaja on jo laulukuorossa }
+                    score2 = -self.mcpisteet[self.luett[t2 as usize] as usize] * 100;
+                }
+
+                if score1 > score2 {
+                    for t3 in (t2..=players).rev() {
+                        self.luett[t3 as usize] = self.luett[t3 as usize - 1];
+                    }
+
+                    self.luett[t2 as usize] = self.mcluett[t1 as usize];
+                    t2 = 100;
+                } else if t2 == players {
+                    self.luett[t1 as usize] = self.mcluett[t1 as usize];
+                }
+
+                t2 += 1;
+
+                if t2 > players {
+                    break;
+                }
+            }
+        }
+    }
+
+    async fn kothlista(&mut self) {
+        let mut temp: i32;
+        let mut temp2: i32;
+        let mut who: i32;
+        let mut leave: bool = false;
+        let mut extra: Vec<u8>;
+        let mut str1: Vec<u8>;
+
+        // { fillline(14,'"'); }
+
+        self.kothjarj();
+
+        let players = self.kothmaara as i32 + self.i.pmaara.get() as i32;
+
+        for temp in 1..=players - 1 {
+            //{ tasapisteissä arvotaan }
+            if self.pisteet[self.luett[temp as usize] as usize]
+                == self.pisteet[self.luett[temp as usize + 1] as usize]
+                && random(2) == 0
+                && self.mcpisteet[self.luett[temp as usize] as usize] == 0
+                && self.mcpisteet[self.luett[temp as usize + 1] as usize] == 0
+            {
+                // { beep(2); }
+                self.luett.swap(temp as usize, temp as usize + 1);
+            }
+        }
+
+        temp = players + 1 - self.mcpisteet[0];
+
+        self.mcpisteet[self.luett[temp as usize] as usize] = temp;
+
+        for temp in 1..=NUM_PL + 1 {
+            self.luett[temp] = 0;
+        }
+
+        self.kothjarj();
+
+        let remaining = players - self.mcpisteet[0];
+        let names: Vec<(String, String)> = (1..=remaining)
+            .map(|t| (format!("jumper{t}"), format!("score{t}")))
+            .collect();
+        let mut fields: Vec<(&str, trace::Value)> = vec![
+            ("round", self.mcpisteet[0].into()),
+            (
+                "out",
+                (self.luett[(players + 1 - self.mcpisteet[0]) as usize] as i32).into(),
+            ),
+        ];
+        for (t, (jumper, score)) in names.iter().enumerate() {
+            let pel = self.luett[t + 1] as usize;
+            fields.push((jumper, (pel as i32).into()));
+            fields.push((score, self.pisteet[pel].into()));
+        }
+        trace::record("KothRound", &fields);
+
+        // {  for a:=1 to 50 do pisteet[a]:=1000; }
+
+        str1 = [b" " as &[u8], &self.l.lstr(95)].concat();
+
+        if players - self.mcpisteet[0] == 1 {
+            str1 = b"!".to_vec();
+        }
+
+        self.ls
+            .reset_list(
+                self.i.pmaara.get() as i32,
+                NUM_PL as i32,
+                4,
+                &[&self.l.lstr(31) as &[u8], &str1].concat() as &[u8],
+                self.inv_back,
+            )
+            .await;
+
+        temp = 1;
+
+        loop {
+            // {    DrawScreen;
+            //      ch:=readkey; }
+
+            temp2 = 0;
+            extra = b"X".to_vec();
+
+            if temp == players + 1 - self.mcpisteet[0] {
+                str1 = self.l.lrstr(101, 105).to_vec();
+
+                temp2 = self.ls.entry(0, 0, 3, &str1, 0, 0, 0, b"X").await;
+
+                // {       drawscreen; readkey; }
+            }
+
+            if temp2 >= 0 {
+                if temp >= players {
+                    extra = b"L".to_vec(); //{ vikaa viedään }
+                }
+
+                if temp == 1 && players - self.mcpisteet[0] == 1 {
+                    extra.push(b'K'); //{ is KING OF THE HILL }
+                }
+
+                who = self.luett[temp as usize] as i32;
+
+                let name = self.i.nimet.borrow()[who as usize].clone();
+                temp = self
+                    .ls
+                    .entry(
+                        temp,
+                        temp,
+                        who,
+                        &name,
+                        self.pisteet[who as usize],
+                        self.cstats[1][who as usize],
+                        self.cstats[2][who as usize],
+                        &extra,
+                    )
+                    .await;
+
+                leave = false;
+            }
+
+            if temp < 0 || temp2 < 0 {
+                leave = true;
+            }
+
+            if leave {
+                break;
+            }
+        }
+
+        // {     DrawScreen; }
+
+        if temp == -2 {
+            self.cupslut = true;
+        }
+
+        if players - self.mcpisteet[0] == 1
+            && self.luett[1] as i32 > NUM_PL as i32 - self.i.pmaara.get() as i32
+            && self.kothpack > 0
+            && !self.cupslut
+        {
+            //{ completion! }
+            {
+                let mut top = self.i.top.borrow_mut();
+                // Esc in the challenge menu sets kothpack to 255. Pascal then
+                // writes past the end of the top list; this skips the write.
+                if let Some(entry) = top.get_mut(35 + self.kothpack as usize) {
+                    entry.score += 1;
+                    entry.name = self.i.nimet.borrow()[self.luett[1] as usize].clone();
+                    entry.time = dayandtime(self.today, self.now);
+                    trace::record(
+                        "TopUpdate",
+                        &[
+                            ("index", (35 + self.kothpack as i32).into()),
+                            ("name", (&entry.name as &[u8]).into()),
+                            ("score", entry.score.into()),
+                            ("pos", entry.pos.into()),
+                            ("time", (&entry.time as &[u8]).into()),
+                        ],
+                    );
+                }
+            }
+
+            {
+                let actprofile =
+                    self.i.profileorder.borrow()[NUM_PL + 1 - self.luett[1] as usize] as usize;
+                let mut profile = self.i.profile.borrow_mut();
+                temp2 = profile[actprofile].kothlevel as i32;
+
+                if temp2 == 0 || (self.kothpack as i32) < temp2 {
+                    profile[actprofile].kothlevel = self.kothpack; //{ profilen kothlevel }
+                }
+            }
+
+            self.g.new_screen(1, 2).await;
+
+            self.dokothrecords(self.kothpack).await;
+
+            self.u.wait_for_key3(305, 6).await;
+        }
+    }
+
     //{ 0-esittely, 1-tuloksien kanssa }
     async fn showpairs(&mut self, phase: u8) {
         let draw_stuff = |column: u8, row: u8, item: u8, who: i32| {
@@ -5233,6 +5458,431 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         self.treeni = false;
         self.startgate = 0; //{ varmuuden vuoksi }
+    }
+
+    fn getkoth(&mut self) {
+        match self.kothpack {
+            1 => {
+                self.kothmaara = 20;
+                for temp in 1..=self.kothmaara {
+                    self.kothpel[temp as usize] = temp;
+                }
+                self.kothwind = false;
+                self.kothrounds = 2;
+                self.kothmaki = 0;
+            }
+            2 => {
+                self.kothmaara = 14;
+                for temp in 1..=self.kothmaara {
+                    self.kothpel[temp as usize] = temp * 3 - 1;
+                }
+                self.kothwind = true;
+                self.kothrounds = 1;
+                self.kothmaki = 0;
+            }
+            3 => {
+                self.kothmaara = 10;
+                for temp in 1..=self.kothmaara {
+                    self.kothpel[temp as usize] = temp * 4 - 1;
+                }
+                self.kothwind = false;
+                self.kothrounds = 2;
+                self.kothmaki = 0;
+            }
+            4 => {
+                self.kothmaara = 8;
+                for temp in 1..=self.kothmaara {
+                    self.kothpel[temp as usize] = temp * 5 + 1;
+                }
+                self.kothwind = true;
+                self.kothrounds = 1;
+                self.kothmaki = 0;
+            }
+            5 => {
+                self.kothmaara = 7;
+                for temp in 1..=self.kothmaara {
+                    self.kothpel[temp as usize] = temp * 6 + 13;
+                }
+                self.kothwind = false;
+                self.kothrounds = 2;
+                self.kothmaki = 0;
+            }
+            6 => {
+                self.kothmaara = 6;
+                for temp in 1..=self.kothmaara {
+                    self.kothpel[temp as usize] = temp * 7 + 15;
+                }
+                self.kothwind = true;
+                self.kothrounds = 1;
+                self.kothmaki = 0;
+            }
+            _ => {}
+        }
+    }
+
+    async fn startkoth(&mut self) {
+        let mut realindex: i32;
+
+        self.koth = true;
+        self.cupslut = false;
+        self.startgate = 0;
+
+        if self.kothmaki == 0 {
+            self.nytmaki = random(NUM_WC_HILLS as u32) as i32 + 1;
+        } else {
+            self.nytmaki = self.kothmaki;
+        }
+
+        if self.nytmaki > 0 {
+            self.jumpalku();
+        }
+
+        if self.kothwind {
+            self.tuuli.alusta(self.windplace);
+        } else {
+            self.tuuli.voim.set(0);
+        }
+
+        // {  if (not cupslut) and (preview1) then preview(nytmaki); }
+
+        let kothmaara = self.kothmaara as i32;
+        let pmaara = self.i.pmaara.get() as i32;
+
+        for temp in 1..=kothmaara {
+            self.mcluett[temp as usize] = self.kothpel[temp as usize];
+        }
+
+        for temp in 1..=pmaara {
+            self.mcluett[(kothmaara + temp) as usize] = (NUM_PL as i32 + 1 - temp) as u8;
+        }
+
+        for temp in 1..=NUM_PL {
+            self.mcpisteet[temp] = 0;
+        }
+
+        self.eka = true;
+
+        if !self.cupslut {
+            for kisa in 1..=kothmaara + pmaara - 1 {
+                //{ kisaluuppi }
+                self.mcpisteet[0] = kisa;
+
+                for temp in 1..=kothmaara + pmaara {
+                    if self.mcpisteet[self.mcluett[temp as usize] as usize] == 0 {
+                        self.pisteet[self.mcluett[temp as usize] as usize] = 0;
+                    }
+                }
+
+                for temp in 1..=NUM_PL {
+                    self.luett[temp] = 0;
+                }
+
+                // {  eka:=true; } { kaivanvertanenästä }
+                self.kierros = 1;
+                realindex = 0; //{ monta äijää oikeasti hypännyt }
+
+                for index in 1..=kothmaara + pmaara {
+                    if self.mcpisteet[self.mcluett[index as usize] as usize] == 0 && !self.cupslut {
+                        realindex += 1;
+                        self.hyppy(index, self.mcluett[index as usize] as i32, realindex)
+                            .await;
+                        self.eka = false;
+                    }
+                }
+
+                // {    eka:=true;  } { TSEKKAA TÄMÄ!!! }
+
+                realindex = 0;
+
+                if self.kothrounds == 2 {
+                    self.kierros = 2;
+
+                    for index in 1..=kothmaara + pmaara {
+                        if self.mcpisteet[self.mcluett[index as usize] as usize] == 0
+                            && !self.cupslut
+                        {
+                            realindex += 1;
+                            self.hyppy(index, self.mcluett[index as usize] as i32, realindex)
+                                .await;
+                            self.eka = false;
+                        }
+                    }
+                }
+
+                if !self.cupslut {
+                    self.kothlista().await;
+                }
+            }
+        }
+
+        self.koth = false;
+    }
+
+    async fn choosekoth(&mut self) {
+        let mut y: i32;
+
+        self.kothmaara = 0;
+
+        self.g.fill_box(170, 0, 319, 199, 243);
+        self.g.fill_area(170, 0, 319, 199, 63);
+
+        self.g.font_color(240);
+        self.g.write_font(180, 2, &*self.l.lstr(138));
+
+        self.g.font_color(241);
+        self.g.write_font(180, 9, &*self.l.lstr(139));
+        self.g.write_font(180, 16, &*self.l.lstr(140));
+
+        self.g.font_color(247);
+        self.g.write_font(180, 24, &*self.l.lstr(141));
+        self.g.write_font(295, 24, &*self.l.lstr(142));
+
+        let maxpel = NUM_PL as i32 - self.i.pmaara.get() as i32;
+
+        loop {
+            self.kothmaara += 1;
+            let k = self.kothmaara as usize;
+
+            loop {
+                y = self.kothmaara as i32 * 8 + 25;
+
+                self.g
+                    .fill_box(178, (y - 2) as u16, 315, (y + 8) as u16, 243);
+                self.g.font_color(240);
+                self.g.write_font(
+                    180,
+                    y,
+                    &self
+                        .g
+                        .nsh(&self.i.nimet.borrow()[self.kothpel[k] as usize], 110),
+                );
+                self.g.e_write_font(
+                    310,
+                    y,
+                    &[b"#" as &[u8], &txt(self.kothpel[k] as i32)].concat(),
+                );
+
+                self.g.draw_screen().await;
+
+                let (ch, ch2) = self.s.wait_for_key_press().await;
+                self.s.set_ch(ch);
+                self.s.set_ch2(ch2);
+
+                if self.s.get_ch() == 13 {
+                    //{ tsekataan ettei sitä pelaajaa ole jo }
+                    for temp in 1..k {
+                        if self.kothpel[temp] == self.kothpel[k] {
+                            if (self.kothpel[k] as i32) < maxpel {
+                                self.kothpel[k] += 1;
+                            }
+                            if self.beeppi {
+                                beep(self.s, 2);
+                            }
+                            self.s.set_ch(1);
+                        }
+                    }
+                }
+
+                if self.s.get_ch() == 0 {
+                    let ch2 = self.s.get_ch2();
+                    if ch2 == 71 {
+                        self.kothpel[k] = 1;
+                    }
+                    if ch2 == 79 {
+                        self.kothpel[k] = maxpel as u8;
+                    }
+                    if (ch2 == 72 || ch2 == 75) && self.kothpel[k] > 1 {
+                        self.kothpel[k] -= 1;
+                    }
+                    if (ch2 == 80 || ch2 == 77) && (self.kothpel[k] as i32) < maxpel {
+                        self.kothpel[k] += 1;
+                    }
+                    if ch2 == 73 && self.kothpel[k] > 10 {
+                        self.kothpel[k] -= 10;
+                    }
+                    if ch2 == 81 && (self.kothpel[k] as i32) < maxpel - 9 {
+                        self.kothpel[k] += 10;
+                    }
+                }
+
+                if self.s.get_ch() == 9 {
+                    self.s.set_ch(27);
+                }
+
+                if self.s.get_ch() == 13 || self.s.get_ch() == 27 {
+                    break;
+                }
+            }
+
+            if self.s.get_ch() == 27 {
+                self.kothmaara -= 1;
+            }
+            if self.s.get_ch() == 13 {
+                self.g.font_color(246);
+                self.g.write_font(
+                    180,
+                    y,
+                    &self
+                        .g
+                        .nsh(&self.i.nimet.borrow()[self.kothpel[k] as usize], 110),
+                );
+                self.g.e_write_font(
+                    310,
+                    y,
+                    &[b"#" as &[u8], &txt(self.kothpel[k] as i32)].concat(),
+                );
+            }
+
+            if self.s.get_ch() == 27 || self.kothmaara == 20 {
+                break;
+            }
+        }
+    }
+
+    async fn newkingofthehill(&mut self) {
+        let mut x: i32;
+        let mut y: i32;
+        let mut col1: u8;
+        let mut col2: u8;
+        let mut str1: Rc<Vec<u8>>;
+        let mut index: i32;
+
+        self.getkoth();
+
+        loop {
+            self.g.new_screen(3, 0).await;
+
+            self.g.font_color(246);
+
+            if self.kothmaara > 0 {
+                for temp in 1..=self.kothmaara as usize {
+                    let pel = self.kothpel[temp];
+                    self.g.write_font(
+                        180,
+                        20 + temp as i32 * 8,
+                        &[
+                            &self.g.nsh(&self.i.nimet.borrow()[pel as usize], 110) as &[u8],
+                            b" #",
+                            &txt(pel as i32),
+                        ]
+                        .concat(),
+                    );
+                }
+            } else {
+                self.g.write_font(180, 30, &*self.l.lstr(9));
+            }
+
+            x = 10;
+            y = 10;
+
+            self.g.font_color(240);
+
+            self.g.write_font(180, 10, &*self.l.lstr(120));
+
+            col1 = 240;
+            col2 = 246;
+            if self.kothpack > 0 {
+                col1 = 241;
+                col2 = 241;
+            }
+
+            self.g
+                .write_font(x, y, &[b"1 - " as &[u8], &self.l.lstr(121)].concat());
+            y += 10;
+
+            self.g
+                .write_font(x, y, &[b"2 - " as &[u8], &self.l.lstr(122)].concat());
+            y += 10;
+
+            self.g.font_color(col1);
+            self.g
+                .write_font(x, y, &[b"3 - " as &[u8], &self.l.lstr(123)].concat());
+            y += 10;
+
+            self.g
+                .write_font(x, y, &[b"4 - " as &[u8], &self.l.lstr(124)].concat());
+            self.g.font_color(col2);
+            self.g
+                .write_font(x + 70, y, &self.g.nsh(&self.u.hillname(self.kothmaki), 80));
+            y += 10;
+            self.g.font_color(col1);
+
+            self.g
+                .write_font(x, y, &[b"5 - " as &[u8], &self.l.lstr(125)].concat());
+            str1 = self.l.lstr(7);
+            if self.kothwind {
+                str1 = self.l.lstr(6);
+            }
+            self.g.font_color(col2);
+            self.g.write_font(x + 70, y, &*str1);
+            y += 10;
+
+            self.g.font_color(col1);
+            self.g
+                .write_font(x, y, &[b"6 - " as &[u8], &self.l.lstr(126)].concat());
+            self.g.font_color(col2);
+            self.g
+                .write_font(x + 70, y, &*self.l.lstr(self.kothrounds as u32));
+            y += 20;
+
+            self.g.font_color(240);
+            self.g
+                .write_font(x, y, &[b"0 - " as &[u8], &self.l.lstr(127)].concat());
+
+            self.u.kothchallenge(x, self.kothpack);
+
+            self.g.draw_screen().await;
+
+            index = self.u.make_menu(10, 10, 160, 10, 6, 1, 245, 0, 3).await;
+
+            match index {
+                1 => self.startkoth().await,
+                2 => {
+                    //{ select challenge }
+                    self.u.kothchallenge(x, 255); //{ kaikki esiin }
+                    self.g.draw_screen().await;
+
+                    self.kothpack =
+                        self.u.make_menu(10, 121, 160, 8, 6, 1, 244, 0, 254).await as u8;
+                    // {$IFNDEF REG}
+                    //  if ((kothpack<1) or (kothpack>6)) then kothpack:=temp;
+                    // {$ENDIF}
+
+                    self.getkoth();
+                }
+                //{$IFDEF REG}
+                3 => {
+                    self.kothpack = 0;
+                    self.choosekoth().await;
+                } // { else if (beeppi) then beep(2); }
+                4 => {
+                    self.kothpack = 0;
+                    self.kothmaki = self.selecthill(1).await as i32;
+                } // { else if (beeppi) then beep(2); }
+                5 => {
+                    self.kothpack = 0;
+                    self.kothwind = !self.kothwind;
+                } // { else if (beeppi) then beep(2); }
+                6 => {
+                    self.kothpack = 0;
+                    match self.kothrounds {
+                        1 => self.kothrounds = 2,
+                        2 => self.kothrounds = 1,
+                        _ => {}
+                    }
+                } // { else if (beeppi) then beep(2);}
+                //{$ENDIF}
+                _ => {}
+            }
+
+            if index == 0 {
+                break;
+            }
+        }
+
+        // {  if (index=1) then startkoth; }
+
+        self.write_config(); //{ kirjoitetaan muutokset levylle }
     }
 
     //{ cupstyle: 0 - SJ3 WC, 1 - Custom WC, 2 - Just 4Hills }
@@ -5692,7 +6342,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 }
                 //{$ENDIF}
                 5 => {
-                    // newkingofthehill;
+                    self.newkingofthehill().await;
                 }
                 6 => {
                     self.training().await;
