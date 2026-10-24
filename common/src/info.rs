@@ -15,8 +15,8 @@ use std::io::{BufRead, BufReader, Write};
 
 #[derive(Clone)]
 pub struct Profile {
-    name: Vec<u8>,
-    realname: Vec<u8>,
+    pub name: Vec<u8>,
+    pub realname: Vec<u8>,
     pub suitcolor: u8,
     pub skicolor: u8,
     pub kothlevel: u8,

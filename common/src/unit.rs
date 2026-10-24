@@ -1547,6 +1547,137 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
     }
 
+    pub async fn replayinfo(
+        &self,
+        filename: &mut Vec<u8>,
+        author: &mut Vec<u8>,
+        name: &mut Vec<u8>,
+        nytmaki: i32,
+        hp: i32,
+    ) -> u8 {
+        let mut result = 0;
+        let mut index2 = 1;
+        let mut leave2 = false;
+        let xx = 18;
+        let mut yy;
+
+        *name = [b"Huge Jump in " as &[u8], &self.hillname(nytmaki)].concat();
+        *filename = b"TEMP".to_vec();
+
+        loop {
+            self.g.new_screen(1, 0).await;
+
+            self.g.font_color(240);
+
+            self.g.write_font(
+                30,
+                6,
+                &[
+                    &self.l.lstr(25) as &[u8],
+                    b": ",
+                    &txtp(hp),
+                    b"\xab at ",
+                    &self.hillname(nytmaki),
+                    b" K",
+                    &txt(self.hillkr(nytmaki)),
+                ]
+                .concat(),
+            );
+
+            for temp in 1..=5 {
+                yy = (temp * 16) + 26;
+
+                if temp < 5 {
+                    self.g.font_color(240);
+                } else {
+                    yy += 16;
+                }
+
+                let str1: Vec<u8> = match temp {
+                    1..=3 => self.l.lstr(290 + temp as u32).to_vec(),
+                    4 | 5 => self.l.lstr(291 + temp as u32).to_vec(),
+                    _ => Vec::new(),
+                };
+
+                self.g
+                    .write_font(xx, yy, &[&txt(temp) as &[u8], b". ", &str1].concat());
+                self.g.font_color(246);
+
+                let str1: Vec<u8> = match temp {
+                    1 => author.clone(),
+                    2 => name.clone(),
+                    3 => filename.clone(),
+                    _ => Vec::new(),
+                };
+
+                self.g.write_font(xx + 130, yy, &str1);
+            }
+
+            index2 = self.make_menu(15, 39, 135, 16, 4, index2, 243, 0, 0).await;
+
+            yy = (index2 * 16) + 26;
+
+            match index2 {
+                1 => *author = self.getstr(xx + 130, yy, 130, author, 242).await,
+                2 => *name = self.getstr(xx + 130, yy, 130, name, 242).await,
+                3 => {
+                    let str1 = self.getstr2(xx + 130, yy, 8, filename, 242).await;
+                    if str1 != b" " {
+                        *filename = str1;
+                    }
+                    //{       if (length(filename)>8) then filename:=copy(filename,1,8); }
+                }
+                4 => {
+                    leave2 = true;
+                    result = 1;
+                }
+                0 => {
+                    leave2 = true;
+
+                    if self
+                        .s
+                        .file_exists(dos_file_name(&[filename as &[u8], b".SJR"].concat()))
+                    {
+                        self.g.alert_box();
+
+                        self.g.write_font(
+                            80,
+                            90,
+                            &[filename as &[u8], b".SJR ", &self.l.lstr(345)].concat(),
+                        );
+                        self.g.write_font(
+                            80,
+                            110,
+                            &[
+                                &self.l.lstr(346) as &[u8],
+                                b" (",
+                                &[self.l.lch(6, 1)],
+                                b"/",
+                                &[self.l.lch(7, 1)],
+                                b"):",
+                            ]
+                            .concat(),
+                        );
+
+                        self.getch(190, 110, 243).await;
+
+                        if self.s.get_ch().to_ascii_uppercase() != self.l.lch(6, 1) {
+                            leave2 = false;
+                            index2 = 3;
+                        }
+                    }
+                }
+                _ => {}
+            }
+
+            if leave2 {
+                break;
+            }
+        }
+
+        result
+    }
+
     pub fn keyname(&self, chw: u16) -> Vec<u8> {
         let a = (chw >> 8) as u8;
         let b = (chw & 0xff) as u8;

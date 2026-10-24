@@ -1152,6 +1152,117 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn writereplay(
+        &self,
+        author: Vec<u8>,
+        name: &[u8],
+        str1: &mut Vec<u8>,
+        replayfilename: &[u8],
+        rd: &[[u8; 1001]; 5],
+        rturns: i32,
+        rstartx: i32,
+        rstarty: i32,
+        rflstart: i32,
+        rflstop: i32,
+        wrx: i32,
+        wry: i32,
+        hp: i32,
+        mcliivi: bool,
+        actprofile: u8,
+    ) -> u8 {
+        let mut f1: Vec<u8> = Vec::new();
+        let mut t1: i32;
+        let mut check: i32;
+        let result = 0;
+
+        check = 0;
+        writeln!(f1, "{rstartx}").unwrap();
+        writeln!(f1, "{rstarty}").unwrap();
+        check += rstartx * 2 + rstarty;
+        writeln!(f1, "{rturns}").unwrap();
+        check += rturns * 3;
+        writeln!(f1, "{}", self.nytmaki).unwrap();
+        if self.nytmaki <= NUM_WC_HILLS {
+            check += (self.nytmaki * 131) as i16 as i32;
+        }
+        *str1 = b"HILLBASE".to_vec();
+        if self.nytmaki > NUM_WC_HILLS {
+            *str1 = self.u.hillfile(self.nytmaki - NUM_WC_HILLS);
+        }
+        f1.write_all(str1).unwrap();
+        writeln!(f1).unwrap();
+        check += (valuestr(str1, 3) as i32 * 3) as u16 as i32;
+        writeln!(f1, "{}", self.act_hill.profile).unwrap();
+        check += self.act_hill.profile;
+        writeln!(f1, "{}", self.lmaara).unwrap();
+        writeln!(f1, "{hp}").unwrap();
+        check += ((hp + 2) * 69) as i16 as i32;
+        writeln!(f1, "{rflstart}").unwrap();
+        writeln!(f1, "{rflstop}").unwrap();
+        check += rflstart + rflstop;
+        writeln!(f1, "{wrx}").unwrap();
+        writeln!(f1, "{wry}").unwrap();
+        check += ((wrx + wry) * 2) as i16 as i32;
+        {
+            let profile = self.i.profile.borrow();
+            writeln!(f1, "{}", profile[actprofile as usize].suitcolor).unwrap();
+            writeln!(f1, "{}", profile[actprofile as usize].skicolor).unwrap();
+        }
+
+        f1.write_all(&author).unwrap();
+        writeln!(f1).unwrap();
+        check += valuestr(&author, 2) as i32;
+        f1.write_all(name).unwrap();
+        writeln!(f1).unwrap();
+        f1.write_all(&dayandtime(self.today, self.now)).unwrap();
+        writeln!(f1).unwrap();
+        writeln!(f1, "{}", mcliivi as i32).unwrap();
+        t1 = 0; //{ kisailmaisu tai 100-startgate }
+        if self.treeni {
+            t1 = 100 - self.startgate;
+        }
+        if self.wcup {
+            t1 = self.cup_style as i32 + 1;
+        }
+        if self.jcup {
+            t1 = 4;
+        }
+        if self.koth {
+            t1 = 5;
+        }
+        writeln!(f1, "{t1}").unwrap();
+        check += (t1 * 1412) as i16 as i32;
+
+        writeln!(f1, "{}", check ^ 3675433).unwrap();
+        writeln!(f1, "0").unwrap();
+
+        writeln!(f1).unwrap();
+        writeln!(f1, "--- Replay Data --- ").unwrap();
+
+        f1.write_all(b"*").unwrap();
+
+        for t1 in 0..=1000 {
+            for t2 in 0..=4 {
+                f1.write_all(&[rd[t2][t1]]).unwrap();
+            }
+        }
+
+        let filename = dos_file_name(&[replayfilename, b".SJR"].concat());
+        self.s.create_file(&filename).write_all(&f1).unwrap();
+        trace::record(
+            "ReplayWrite",
+            &[
+                ("name", filename.as_bytes().into()),
+                ("rturns", rturns.into()),
+                ("check", check.into()),
+                ("crc", (trace::crc32(&[&f1]) as i32).into()),
+            ],
+        );
+
+        result
+    }
+
     async fn hyppy(&mut self, index: i32, pel: i32, team: i32) {
         let mut tempb: u8 = 0;
         let mut temp: i32;
@@ -1207,7 +1318,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         let mut ok: bool;
         let mut out: bool;
-        let mut hillrecord: bool;
+        let mut hillrecord: bool = false;
 
         let mut kupat: u8;
         let mut clanding: u8;
@@ -1241,78 +1352,13 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         let mut rturns: i32;
         let mut rstartx: i32;
         let mut rstarty: i32;
-        let mut rflstart: i32;
-        let mut rflstop: i32;
+        let mut rflstart: i32 = 0;
+        let mut rflstop: i32 = 0;
         let mut rd: [[u8; 1001]; 5] = [[0; 1001]; 5];
 
         let mut top5: [u8; 7] = [0; 7];
 
         let mut actprofile: u8; //{ aktiivine profiili }
-
-        /*
-        function writereplay(author,name:string):byte;
-        var t1, t2 : integer;
-            check : longint;
-            result: byte;
-
-        begin
-
-         {$I-}
-         Assign(f1,replayfilename+'.SJR');
-         Rewrite(f1);
-         {$I+}
-         Result:=0;
-
-         if (IOResult=0) then
-          begin
-           check:=0;
-           writeln(f1,RStartX); writeln(f1,RStartY); inc(check,RStartx*2+RStarty);
-           writeln(f1,RTurns); inc(check,Rturns*3);
-           writeln(f1,nytmaki); if (nytmaki<=numwchills) then inc(check,smallint(nytmaki*131));
-           str1:='HILLBASE';
-           if (nytmaki>NumWCHills) then str1:=hillfile(nytmaki-NumWCHills);
-           writeln(f1,str1); inc(check,word(valuestr(str1,3)*3));
-           writeln(f1,Acthill.profile); inc(check,Acthill.profile);
-           writeln(f1,lmaara);
-           writeln(f1,hp);  inc(check,smallint((hp+2)*69));
-           writeln(f1,RFLStart);
-           writeln(f1,RFLStop);  inc(check,rflstart+rflstop);
-           writeln(f1,WRx); writeln(f1,WRy); inc(check,smallint((WRx+WRy)*2));
-           writeln(f1,Profile[actprofile].suitcolor);
-           writeln(f1,Profile[actprofile].skicolor);
-
-           writeln(f1,author); inc(check,valuestr(author,2));
-           writeln(f1,name);
-           writeln(f1,dayandtime(Today,Now));
-           writeln(f1,integer(mcliivi));
-           t1:=0; { kisailmaisu tai 100-startgate }
-           if (treeni) then t1:=100-startgate;
-           if (wcup) then t1:=cupstyle+1;
-           if (jcup) then t1:=4;
-           if (koth) then t1:=5;
-           writeln(f1,t1); inc(check,smallint(t1*1412));
-
-           writeln(f1,check xor 3675433);
-           writeln(f1,'0');
-
-           writeln(f1);
-           writeln(f1,'--- Replay Data --- ');
-
-           write(f1,'*');
-
-           for t1:=0 to 1000 do
-            for t2:=0 to 4 do
-             write(f1,char(RD[t2,t1]));
-
-           Close(f1);
-
-         end else result:=1;
-
-         writereplay:=result;
-
-        end;
-
-        */
 
         // IMPLEMENTATION
         trace::value("hyppy_alkaa", &format!("i32 {pel}"));
@@ -2361,6 +2407,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                         ("laskuri", laskuri.into()),
                         ("ssuunta", ssuunta.into()),
                         ("out", out.into()),
+                        ("jumperanim", jumper_anim.into()),
+                        ("skianim", ski_anim.into()),
                     ],
                 );
 
@@ -3196,32 +3244,83 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         self.m.lopeta();
 
-        // TODO: Replay writing stuff not converted
-        /*
-         { KIRJOITA REPLAY! }
+        //{ KIRJOITA REPLAY! }
 
-        {$IFDEF REG}
-          if (draw) and (not cjumper) then
-           begin
-            str1:=profile[actprofile].realname;
-            if (str1='') then str1:=profile[actprofile].name;
+        //{$IFDEF REG}
+        if draw && !cjumper {
+            str1 = self.i.profile.borrow()[actprofile as usize]
+                .realname
+                .clone();
+            if str1.is_empty() {
+                str1 = self.i.profile.borrow()[actprofile as usize].name.clone();
+            }
 
-            if (upcase(ch)=lch(298,2)) then
-             begin
-              temp:=replayinfo(replayfilename, str1, replayname, nytmaki, hp);
-              if (temp=0) then temp:=writereplay(str1, replayname);
-              resultbox(1,temp);
-             end;
+            if self.s.get_ch().to_ascii_uppercase() == self.l.lch(298, 2) {
+                temp = self
+                    .u
+                    .replayinfo(
+                        &mut replayfilename,
+                        &mut str1,
+                        &mut replayname,
+                        self.nytmaki,
+                        hp,
+                    )
+                    .await as i32;
+                if temp == 0 {
+                    temp = self.writereplay(
+                        str1.clone(),
+                        &replayname,
+                        &mut str1,
+                        &replayfilename,
+                        &rd,
+                        rturns,
+                        rstartx,
+                        rstarty,
+                        rflstart,
+                        rflstop,
+                        wrx,
+                        wry,
+                        hp,
+                        mcliivi,
+                        actprofile,
+                    ) as i32;
+                }
+                self.u.result_box(1, temp).await;
+            }
 
-            if (hillrecord) and (automatichrr) then
-             begin
-              replayfilename:='HR-'+copy(acthill.name,1,3);
-              replayname:='HILL RECORD AT '+acthill.name+' K'+txt(acthill.kr);
-              writereplay(str1,replayname);
-             end;
-           end;
-        {$ENDIF}
-                 */
+            if hillrecord && self.automatichrr {
+                replayfilename = [
+                    b"HR-" as &[u8],
+                    &self.act_hill.name[..self.act_hill.name.len().min(3)],
+                ]
+                .concat();
+                replayname = [
+                    b"HILL RECORD AT " as &[u8],
+                    &self.act_hill.name,
+                    b" K",
+                    &txt(self.act_hill.kr),
+                ]
+                .concat();
+                self.writereplay(
+                    str1.clone(),
+                    &replayname,
+                    &mut str1,
+                    &replayfilename,
+                    &rd,
+                    rturns,
+                    rstartx,
+                    rstarty,
+                    rflstart,
+                    rflstop,
+                    wrx,
+                    wry,
+                    hp,
+                    mcliivi,
+                    actprofile,
+                );
+            }
+        }
+        //{$ENDIF}
     }
 
     async fn showstats(&mut self) {
