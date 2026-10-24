@@ -88,7 +88,7 @@ async fn run<P: Platform>(port: &P) {
         sj3_module.close_and_halt().await;
     }
 
-    sj3_module.close();
+    sj3_module.close().await;
 }
 
 /// Runs `game` until it ends or until the platform asks to close. A close

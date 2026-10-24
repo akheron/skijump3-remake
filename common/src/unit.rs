@@ -1,13 +1,14 @@
 use crate::graph::GraphModule;
-use crate::help::{cwrite, cwriteln, num, round, txt, txtp};
+use crate::help::{beep, cwrite, cwriteln, num, round, txt, txtp};
 use crate::lang::LangModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
 use crate::rs_util::{
-    clrscr, gotoxy, parse_line, random, read_line, textbackground, textcolor, val, window, write,
-    writeln,
+    clrscr, dos_file_name, gotoxy, halt, parse_line, random, read_line, textbackground, textcolor,
+    val, val_code, window, write, writeln,
 };
+use crate::trace;
 use std::cell::{Cell, RefCell};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::rc::Rc;
@@ -246,6 +247,64 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         newstr
     }
 
+    pub async fn getstr2(
+        &self,
+        xx: i32,
+        yy: i32,
+        maxchars: i32,
+        oldstr: &[u8],
+        bkcolor: u8,
+    ) -> Vec<u8> {
+        let mut out = false;
+
+        let mut newstr = oldstr.to_vec();
+
+        loop {
+            let cx = self.g.font_len(&newstr);
+
+            self.g.fill_box(
+                (xx - 2) as u16,
+                (yy - 2) as u16,
+                (xx + (maxchars * 7) + 2) as u16,
+                (yy + 8) as u16,
+                bkcolor,
+            );
+            self.g.write_font(xx, yy, &newstr);
+
+            self.g.draw_screen().await;
+
+            self.givech(xx + cx, yy, bkcolor).await;
+            let ch = self.s.get_ch();
+
+            if self.s.get_ch2() == 83 {
+                newstr.clear();
+            }
+
+            match ch {
+                8 => {
+                    newstr.pop();
+                }
+                13 | 27 => out = true,
+                32..=254 => {
+                    if (newstr.len() as i32) < maxchars && self.g.font_len(&[ch]) > 0 {
+                        newstr.push(ch);
+                    }
+                }
+                _ => {}
+            }
+
+            if out {
+                break;
+            }
+        }
+
+        if self.s.get_ch() == 27 {
+            newstr = b" ".to_vec();
+        }
+
+        newstr
+    }
+
     pub fn get_now(&self) -> Time {
         let (hour, minute, second, sec100) = self.s.get_time();
         Time {
@@ -455,36 +514,51 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         );
 
         self.p.takaisin_alkuosa(1);
+
+        self.trace_profile(*keula_x, l);
+
         if l != act_hill.profile {
             //{ profiilichekkaus }
-            /*
-               alertbox;
+            self.g.alert_box();
 
-               str1:='RUN THE HILL MAKER AGAIN.';
+            str1 = b"RUN THE HILL MAKER AGAIN.".to_vec();
 
-               if (nytmaki<=NumWCHills) then
-                begin
-                 res:=1;
-                 str1:='EXITING CUP.';
-                end;
+            if nytmaki <= NUM_WC_HILLS {
+                res = 1;
+                str1 = b"EXITING CUP.".to_vec();
+            }
 
-               writefont(80,90,'THE PROFILE OF HILL #'+acthill.frindex);
-               writefont(80,102,'HAS BEEN CHANGED! NOT GOOD.');
-               writefont(80,114,str1);
-
-               writefont(80,130,'PRESS A KEY...');
-               drawscreen;
-
-               waitforkey;
-            */
-            panic!(
-                "The profile of hill #{} has been changed! Not good.",
-                from_utf8(&act_hill.fr_index).unwrap()
+            self.g.write_font(
+                80,
+                90,
+                &[b"THE PROFILE OF HILL #", &act_hill.fr_index as &[u8]].concat(),
             );
+            self.g.write_font(80, 102, b"HAS BEEN CHANGED! NOT GOOD.");
+            self.g.write_font(80, 114, &str1);
+
+            self.g.write_font(80, 130, b"PRESS A KEY...");
+            self.g.draw_screen().await;
+
+            self.s.wait_for_key().await;
         }
 
         self.p.savyta_paletti(1, act_hill.bk_bright);
         res
+    }
+
+    fn trace_profile(&self, keula_x: i32, l: i32) {
+        let profiilit: Vec<u8> = (0..=1300)
+            .flat_map(|x| (self.m.profiili(x) as i16).to_le_bytes())
+            .collect();
+        trace::record(
+            "HillProfile",
+            &[
+                ("keulax", keula_x.into()),
+                ("keulay", self.m.profiili(keula_x).into()),
+                ("profile", l.into()),
+                ("profiilicrc", (trace::crc32(&[&profiilit]) as i32).into()),
+            ],
+        );
     }
 
     pub async fn make_menu(
@@ -874,12 +948,12 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
     }
 
-    pub fn hillcode(&self, nytmaki: i32) -> i32 {
+    pub async fn hillcode(&self, nytmaki: i32) -> i32 {
         let mut temp: i32 = 0;
         let mut h = Hill::default();
 
         if nytmaki > 0 && nytmaki <= NUM_WC_HILLS + self.num_extra_hills.get() as i32 {
-            self.load_info(nytmaki, &mut h);
+            self.load_info(nytmaki, &mut h).await;
             temp = h
                 .profile
                 .wrapping_add(round((h.pl_save as f64 * 311.0) as f32))
@@ -1057,7 +1131,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
     }
 
-    fn check_file(&self, phase: i32, hill: &mut Hill, str1: &[u8]) {
+    async fn check_file(&self, phase: i32, hill: &mut Hill, str1: &[u8]) {
         let str2: Vec<u8> = if phase == 1 {
             [b"BACK", hill.bk_index.as_slice(), b".PCX"].concat()
         } else {
@@ -1065,6 +1139,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         };
 
         if !self.s.file_exists(&from_utf8(&str2).unwrap()) {
+            self.m.aseta_moodi(0x3);
             writeln(&[b"Error #345A: File ", str2.as_slice(), b" does not exist,"].concat());
             writeln(&[b"even though it's mentioned in the ", str1, b" file."].concat());
             writeln(b"Using FRONT1.PCX and BACK1.PCX.");
@@ -1073,10 +1148,18 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
             hill.bk_index = b"1".to_vec();
             hill.fr_index = b"1".to_vec();
+
+            self.s.wait_for_key().await;
+
+            self.m.aseta_moodi(0x13);
         }
     }
 
-    pub fn load_info(&self, nytmaki: i32, hill: &mut Hill) {
+    pub async fn load_info(&self, nytmaki: i32, hill: &mut Hill) {
+        let mut l1: i32 = 0;
+        let mut l2: i32 = 0;
+        let mut l4: i32 = 0;
+
         Self::default_hill(hill);
 
         let str1 = if nytmaki <= NUM_WC_HILLS {
@@ -1100,44 +1183,47 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             let a: i32 = parse_line(&mut f1).unwrap();
             hill.pl_save = (a as f64 / 10000.0) as f32;
             hill.author = read_line(&mut f1).unwrap();
-            let _l2: i32 = parse_line(&mut f1).unwrap(); //{ checksum }
+            l2 = parse_line(&mut f1).unwrap(); //{ checksum }
             hill.profile = parse_line(&mut f1).unwrap();
 
-            // TODO: checksum protection
-            /*
-            inc(l1,valuestr(hill.name,temp+1));
-            inc(l1,longint(hill.kr)*77);
-            c:=num(hill.frindex); { t�m� yhteensopivuudenkin takia }
-             if (c<0) then c:=valuestr(hill.frindex,temp+1); { jos indexiss� kirjaimia (v3.10) }
-            inc(l1,longint(c)*272);
-            c:=num(hill.bkindex); { t�m� my�s }
-             if (c<0) then c:=valuestr(hill.bkindex,temp+1);
-            inc(l1,longint(c)*373);
-            inc(l1,longint(hill.bkbright)*313);
-            inc(l1,longint(hill.bkmirror)*5775);
-            inc(l1,longint(hill.vxfinal)*333);
-            inc(l1,longint(b) mod 55555);
-            inc(l1,longint(a) mod 11111);
-            inc(l1,valuestr(hill.author,temp+2));
+            l1 = l1.wrapping_add(valuestr(&hill.name, temp + 1) as i32);
+            l1 = l1.wrapping_add(hill.kr * 77);
+            let mut c = num(&hill.fr_index); //{ tämä yhteensopivuudenkin takia }
+            if c < 0 {
+                c = valuestr(&hill.fr_index, temp + 1) as i32; //{ jos indexissä kirjaimia (v3.10) }
+            }
+            l1 = l1.wrapping_add(c * 272);
+            c = num(&hill.bk_index); //{ tämä myös }
+            if c < 0 {
+                c = valuestr(&hill.bk_index, temp + 1) as i32;
+            }
+            l1 = l1.wrapping_add(c * 373);
+            l1 = l1.wrapping_add(hill.bk_bright as i32 * 313);
+            l1 = l1.wrapping_add(hill.bk_mirror as i32 * 5775);
+            l1 = l1.wrapping_add(hill.vx_final as i32 * 333);
+            l1 = l1.wrapping_add(b as i32 % 55555);
+            l1 = l1.wrapping_add(a % 11111);
+            l1 = l1.wrapping_add(valuestr(&hill.author, temp + 2) as i32);
 
-            l1:=l1 xor 787371;
-            */
+            l1 ^= 787371;
+
             if nytmaki > NUM_WC_HILLS {
-                //{ voi olla ettei n�it� oo - v3.00}
+                //{ voi olla ettei näitä oo - v3.00}
                 let hr_name = read_line(&mut f1);
                 let hr_len = parse_line::<i32>(&mut f1);
                 let hr_time = read_line(&mut f1);
                 let l3 = parse_line::<i32>(&mut f1);
                 match (hr_name, hr_len, hr_time, l3) {
                     (Ok(hr_name), Ok(hr_len), Ok(hr_time), Ok(l3)) if l3 != 0 => {
+                        //{ kaikki ok }
                         hill.hr_name = hr_name;
                         hill.hr_len = hr_len;
                         hill.hr_time = hr_time;
-                        /* TODO: checksum protection
-                        inc(l4,valuestr(hill.hrname,13));
-                        inc(l4,longint(hill.hrlen)*3553);
-                        if (l3<>l4) then inc(l1);
-                        */
+                        l4 = l4.wrapping_add(valuestr(&hill.hr_name, 13) as i32);
+                        l4 = l4.wrapping_add(hill.hr_len * 3553);
+                        if l3 != l4 {
+                            l1 = l1.wrapping_add(1);
+                        }
                     }
                     _ => {
                         hill.hr_name = b"Nobody\xff".to_vec();
@@ -1149,41 +1235,316 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
         drop(f1);
 
-        self.check_file(0, hill, &str1);
+        self.check_file(0, hill, &str1).await;
+        self.check_file(1, hill, &str1).await;
 
-        /* TODO: checksum protection
-        if (l1<>l2) then { joku ei t�sm��! }
-         begin
-          if (nytmaki<NumWCHills) then
-           begin
-            AsetaMoodi($3);
-            writeln('Error #324A: Something''s wrong in the ',str1,' file.  ');
-            writeln('Maybe it''s been edited or something.  That won''t do.  Exiting.');
-            Waitforkey;
-            Halt;
-           end else
-            begin
-             sj3help.beep(1);
+        if l1 != l2 {
+            //{ joku ei täsmää! }
+            if nytmaki < NUM_WC_HILLS {
+                self.m.aseta_moodi(0x3);
+                writeln(
+                    &[
+                        b"Error #324A: Something's wrong in the ",
+                        &str1 as &[u8],
+                        b" file.  ",
+                    ]
+                    .concat(),
+                );
+                writeln(b"Maybe it's been edited or something.  That won't do.  Exiting.");
+                self.s.wait_for_key().await;
+                halt().await;
+            } else {
+                beep(self.s, 1);
 
-             AsetaMoodi($3);
+                self.m.aseta_moodi(0x3);
 
-             writeln('Warning #56B: Something doesn''t add up in the '+str1+' file. ');
-             writeln('Continuing with a default hill.');
-             writeln;
-             writeln('Press a key...');
+                writeln(
+                    &[
+                        b"Warning #56B: Something doesn't add up in the ",
+                        &str1 as &[u8],
+                        b" file. ",
+                    ]
+                    .concat(),
+                );
+                writeln(b"Continuing with a default hill.");
+                writeln(b"");
+                writeln(b"Press a key...");
 
-             waitforkey;
-             defaulthill(hill);
+                self.s.wait_for_key().await;
+                Self::default_hill(hill);
 
-             AsetaMoodi($13);
+                self.m.aseta_moodi(0x13);
+            }
+        }
 
-            end;
-         end;
-        */
+        trace::record(
+            "HillLoad",
+            &[
+                ("nytmaki", nytmaki.into()),
+                ("name", (&hill.name as &[u8]).into()),
+                ("kr", hill.kr.into()),
+                ("pk", hill.pk.into()),
+                ("plsave", hill.pl_save.into()),
+                ("profile", hill.profile.into()),
+                ("frindex", (&hill.fr_index as &[u8]).into()),
+                ("bkindex", (&hill.bk_index as &[u8]).into()),
+                ("bkbright", hill.bk_bright.into()),
+                ("bkmirror", hill.bk_mirror.into()),
+                ("vxfinal", hill.vx_final.into()),
+                ("checksum", (l1 == l2).into()),
+            ],
+        );
     }
 
-    fn edit_hill(&self, h2: &mut Hill, filestr: &mut Vec<u8>, change: bool) {
-        unimplemented!();
+    fn checkdiff(h1: &Hill, h2: &Hill) -> bool {
+        let mut tempb = false;
+
+        if h1.name != h2.name
+            || h1.author != h2.author
+            || h1.kr != h2.kr
+            || h1.fr_index != h2.fr_index
+            || h1.bk_index != h2.bk_index
+            || h1.bk_bright != h2.bk_bright
+            || h1.bk_mirror != h2.bk_mirror
+            || h1.vx_final != h2.vx_final
+            || h1.pk != h2.pk
+            || h1.pl_save != h2.pl_save
+            || h1.profile != h2.profile
+        {
+            tempb = true;
+        }
+
+        tempb
+    }
+
+    async fn getnum(&self, xx2: i32, yy: i32, thisnum: &mut u8, low: u8, high: u8) {
+        let str2 = self.getstr(xx2, yy, 30, &txt(*thisnum as i32), 242).await;
+        if let Some(mut temp) = val_code(&str2) {
+            if temp < low as i32 {
+                temp = low as i32;
+            }
+            if temp > high as i32 {
+                temp = high as i32;
+            }
+
+            *thisnum = temp as u8;
+        }
+    }
+
+    async fn getint(&self, xx2: i32, yy: i32, thisnum: &mut i32, low: i32, high: i32) {
+        let str2 = self.getstr(xx2, yy, 30, &txt(*thisnum), 242).await;
+        if let Some(mut temp) = val_code(&str2) {
+            if temp < low {
+                temp = low;
+            }
+            if temp > high {
+                temp = high;
+            }
+
+            *thisnum = temp;
+        }
+    }
+
+    async fn edit_hill(&self, h2: &mut Hill, filestr: &mut Vec<u8>, mut change: bool) {
+        let mut leave2 = false;
+        let mut index2 = 1;
+        let xx = 15;
+        let xx2 = 120;
+        let mut yy;
+
+        let oldhill = h2.clone();
+
+        loop {
+            self.g.new_screen(5, 0).await;
+
+            for temp in 1..=12 {
+                let mut str1: Vec<u8> = match temp {
+                    1 => b"HILL.NAME".to_vec(),
+                    2 => b"K.POINT".to_vec(),
+                    3 => b"FRONT INDEX".to_vec(),
+                    4 => b"BACK INDEX".to_vec(),
+                    5 => b"BACK BRIGHT".to_vec(),
+                    6 => b"MIRROR BACK".to_vec(),
+                    7 => b"VX.FINAL".to_vec(),
+                    8 => b"ADJUST.K".to_vec(),
+                    9 => b"AIR.P.PLUS".to_vec(),
+                    10 => b"AUTHOR".to_vec(),
+                    11 => b"FILENAME".to_vec(),
+                    _ => b"EXIT, DON'T SAVE".to_vec(),
+                };
+
+                yy = 10 + (temp - 1) * 13;
+
+                self.g.font_color(240);
+                if temp < 12 {
+                    str1.push(b':');
+                }
+                self.g
+                    .write_font(xx, yy, &[&txt(temp) as &[u8], b". ", &str1].concat());
+
+                let str1: &[u8] = match temp {
+                    2 => b"Critical Point (40-300\xab)",
+                    3 => b"FRONT*.PCX (000-ZZZ)",
+                    4 => b"BACK*.PCX (000-ZZZ)",
+                    5 => b"PERCENTS OF ORIGINAL (0-255)",
+                    6 => b"0-NO, 1-MIRROR (0-1)",
+                    7 => b"TAKE-OFF SPEED (60-145 KM/H)",
+                    8 => b"MOVE K-POINT ON HILL (50-150)",
+                    9 => b"+ 990 MBAR (0-30)",
+                    11 => b"     8 CHARS MAX",
+                    _ => b"",
+                };
+
+                self.g.font_color(241);
+                self.g.write_font(xx2 + 40, yy, str1);
+
+                let str1: Vec<u8> = match temp {
+                    1 => h2.name.clone(),
+                    2 => txt(h2.kr),
+                    3 => h2.fr_index.clone(),
+                    4 => h2.bk_index.clone(),
+                    5 => txt(h2.bk_bright as i32),
+                    6 => txt(h2.bk_mirror as i32),
+                    7 => txt(h2.vx_final as i32 - 40),
+                    8 => txt(round((h2.pk as f64 * 100.0) as f32)),
+                    9 => txt(round((h2.pl_save as f64 * 10000.0) as f32) - 3204),
+                    10 => h2.author.clone(),
+                    11 => filestr.clone(),
+                    _ => Vec::new(),
+                };
+
+                self.g.font_color(246);
+                self.g.write_font(xx2, yy, &str1);
+            }
+
+            let temp = 14;
+
+            yy = 10 + (temp - 1) * 13;
+
+            self.g.write_font(xx, yy, b"0. EXIT and SAVE");
+
+            index2 = self.make_menu(10, 8, 110, 13, 12, index2, 243, 0, 0).await;
+
+            yy = 10 + (index2 - 1) * 13;
+
+            // Name is string[25], Author string[30], and FrIndex and BkIndex
+            // string[3] in Hill_type, so an assignment to them truncates.
+            match index2 {
+                0 => {
+                    if !change {
+                        change = Self::checkdiff(&oldhill, h2);
+                    }
+                    if !change {
+                        *filestr = b"NULL".to_vec(); //{ ei tarvi tallentaa }
+                    }
+                    leave2 = true;
+
+                    if filestr != b"NULL" {
+                        if self
+                            .s
+                            .file_exists(dos_file_name(&[filestr as &[u8], b".SJH"].concat()))
+                        {
+                            self.g.alert_box();
+
+                            self.g.write_font(
+                                80,
+                                90,
+                                &[b"FILE ", filestr as &[u8], b".SJH ALREADY EXISTS."].concat(),
+                            );
+                            self.g.write_font(80, 110, b"WRITE OVER? (Y/N):");
+
+                            self.getch(190, 110, 243).await;
+
+                            if self.s.get_ch().to_ascii_uppercase() != b'Y' {
+                                leave2 = false;
+                                index2 = 11;
+                            }
+                        }
+                    }
+                }
+                1 => {
+                    h2.name = self.getstr(xx2, yy, 150, &h2.name, 242).await;
+                    h2.name.truncate(25);
+                }
+                2 => self.getint(xx2, yy, &mut h2.kr, 40, 300).await,
+                3 => {
+                    let str1 = h2.fr_index.clone();
+                    h2.fr_index = self.getstr(xx2, yy, 20, &h2.fr_index, 242).await;
+                    h2.fr_index.truncate(3);
+                    if !self.s.file_exists(dos_file_name(
+                        &[b"FRONT", &h2.fr_index as &[u8], b".PCX"].concat(),
+                    )) {
+                        self.g.alert_box();
+                        self.g.write_font(80, 90, b"INVALID FRONT INDEX VALUE.");
+                        self.g.write_font(
+                            80,
+                            100,
+                            &[b"FILE FRONT", &h2.fr_index as &[u8], b".PCX DOESN'T EXIST."]
+                                .concat(),
+                        );
+                        self.wait_for_key3(190, 110).await;
+                        h2.fr_index = str1;
+                    }
+                }
+                4 => {
+                    let str1 = h2.bk_index.clone();
+                    h2.bk_index = self.getstr(xx2, yy, 20, &h2.bk_index, 242).await;
+                    h2.bk_index.truncate(3);
+                    if !self.s.file_exists(dos_file_name(
+                        &[b"BACK", &h2.bk_index as &[u8], b".PCX"].concat(),
+                    )) {
+                        self.g.alert_box();
+                        self.g.write_font(80, 90, b"INVALID BACK INDEX VALUE.");
+                        self.g.write_font(
+                            80,
+                            100,
+                            &[b"FILE BACK", &h2.bk_index as &[u8], b".PCX DOESN'T EXIST."].concat(),
+                        );
+                        self.wait_for_key3(190, 110).await;
+                        h2.bk_index = str1;
+                    }
+                }
+                5 => self.getnum(xx2, yy, &mut h2.bk_bright, 0, 255).await,
+                6 => self.getnum(xx2, yy, &mut h2.bk_mirror, 0, 1).await,
+                7 => {
+                    let mut tempb = h2.vx_final.wrapping_sub(40);
+                    self.getnum(xx2, yy, &mut tempb, 60, 145).await;
+                    h2.vx_final = tempb.wrapping_add(40);
+                }
+                8 => {
+                    let mut temp = round((h2.pk as f64 * 100.0) as f32);
+                    self.getint(xx2, yy, &mut temp, 50, 150).await;
+                    h2.pk = (temp as f64 / 100.0) as f32;
+                }
+                9 => {
+                    let mut temp = round((h2.pl_save as f64 * 10000.0) as f32) - 3204;
+                    self.getint(xx2, yy, &mut temp, 0, 30).await;
+                    h2.pl_save = ((temp + 3204) as f64 / 10000.0) as f32;
+                }
+                10 => {
+                    h2.author = self.getstr(xx2, yy, 150, &h2.author, 242).await;
+                    h2.author.truncate(30);
+                }
+                11 => {
+                    let str1 = self.getstr2(xx2, yy, 8, filestr, 242).await;
+                    if str1 != b" " {
+                        *filestr = str1;
+                    }
+
+                    //{        if (length(filestr)>8) then filestr:=copy(filestr,1,8); }
+                }
+                12 => {
+                    leave2 = true;
+                    *h2 = oldhill.clone();
+                    *filestr = b"NULL".to_vec();
+                }
+                _ => {}
+            }
+
+            if leave2 {
+                break;
+            }
+        }
     }
 
     pub fn keyname(&self, chw: u16) -> Vec<u8> {
@@ -1304,9 +1665,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
     }
 
-    fn write_extra_hill_hr(&self, index: i32) {
+    async fn write_extra_hill_hr(&self, index: i32) {
         let mut h = Hill::default();
-        self.load_info(index, &mut h);
+        self.load_info(index, &mut h).await;
 
         let hd = self.hd.borrow();
         h.hr_name = hd[index as usize].hrname.clone();
@@ -1315,15 +1676,11 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         let temp = index - NUM_WC_HILLS;
 
-        let mut f1: Vec<u8> = vec![];
-        //     String::from_utf8([&self.hillfile(temp) as &[u8], b".SJH"].concat()).unwrap(),
-        // );
-        // if let Ok(mut f1) = f1 {
+        let mut f1 = self.s.create_file(
+            String::from_utf8([&self.hillfile(temp) as &[u8], b".SJH"].concat()).unwrap(),
+        );
         self.write_hill(&mut f1, h, 0, 1); //{ ainoa mesta jossa phase=1 }
-                                           // } else {
-                                           //     println!("Error #29: Couldn''t write file {}.SJH", temp);
-                                           //     println!("Maybe the disk is full or something.");
-                                           // }
+        drop(f1);
     }
 
     pub fn check_extra_hills(&self) {
@@ -1356,7 +1713,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
     }
 
     //{ t�ll� ladataan mnimet ja kri -taulut kuntoon }
-    pub fn load_hill_info(&self) {
+    pub async fn load_hill_info(&self) {
         // TODO
         /*
         procedure LoadHillInfo;  { t�ll� ladataan mnimet ja kri -taulut kuntoon }
@@ -1372,10 +1729,10 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             self.num_extra_hills.set(parse_line(&mut f1).unwrap());
         }
 
-        let mut hd = self.hd.borrow_mut();
         for temp in 1..=NUM_WC_HILLS + self.num_extra_hills.get() as i32 {
             let mut now_hill = Hill::default();
-            self.load_info(temp, &mut now_hill);
+            self.load_info(temp, &mut now_hill).await;
+            let mut hd = self.hd.borrow_mut();
             hd[temp as usize].name = now_hill.name.clone();
             hd[temp as usize].kr = now_hill.kr;
         }
@@ -1440,20 +1797,20 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
     }
 
-    pub fn write_extras(&self) {
+    pub async fn write_extras(&self) {
         for temp in 1..=self.num_extra_hills.get() {
-            self.write_extra_hill_hr(temp as i32 + NUM_WC_HILLS);
+            self.write_extra_hill_hr(temp as i32 + NUM_WC_HILLS).await;
         }
     }
 
-    pub fn read_extras(&self) {
-        let mut hd = self.hd.borrow_mut();
+    pub async fn read_extras(&self) {
         for temp in 1..=self.num_extra_hills.get() as i32 {
             let index = temp + NUM_WC_HILLS;
 
             let mut h = Hill::default();
-            self.load_info(index, &mut h);
+            self.load_info(index, &mut h).await;
 
+            let mut hd = self.hd.borrow_mut();
             hd[index as usize].hrname = h.hr_name;
             hd[index as usize].hrlen = h.hr_len;
             hd[index as usize].hrtime = h.hr_time;
@@ -1502,6 +1859,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         let mut start = 0; //{ sivulis�ys... }
 
         let cols = [/* unused */ 0, 100, 160];
+
+        let mut h = Hill::default();
+        let mut filestr = Vec::<u8>::new();
 
         let mut newfile = false;
 
@@ -1602,13 +1962,11 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
                 if self.might_delete(&filestr).await == 0 {
                     self.check_extra_hills();
-                    self.load_hill_info();
+                    self.load_hill_info().await;
                 }
             }
 
             if index > 0 {
-                let mut h = Hill::default();
-                let mut filestr = Vec::<u8>::new();
                 let mut edit = false;
 
                 if index == next {
@@ -1620,36 +1978,37 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
                 if index == create {
                     filestr = [b"NEW", &txt(index + start) as &[u8]].concat();
-                    h = Hill::default();
+                    Self::default_hill(&mut h);
                     edit = true;
                     newfile = true;
                 }
 
                 if index <= temp2 {
                     //{ uusi }
-                    self.load_info(start + index + NUM_WC_HILLS, &mut h);
+                    self.load_info(start + index + NUM_WC_HILLS, &mut h).await;
                     filestr = self.hillfile(start + index);
                     edit = true;
                 }
 
                 if edit {
-                    self.edit_hill(&mut h, &mut filestr, newfile);
+                    self.edit_hill(&mut h, &mut filestr, newfile).await;
 
                     if filestr != b"NULL" {
                         //{ sitten kirjoitetaan p��lle }
                         {
                             let mut f1 = self
                                 .s
-                                .create_file(String::from_utf8(filestr).unwrap() + ".SJH");
-                            self.write_hill(&mut f1, h.clone(), 0, 0);
+                                .create_file(dos_file_name(&[&filestr as &[u8], b".SJH"].concat()));
+                            self.write_hill(&mut f1, h.clone(), 0, 0); //{ file aukesi ok }
                         }
 
                         self.g.new_screen(5, 0).await;
+                        // The test of IOResult after rewrite clears it, so it is 0 here.
                         self.result_box(3, 0).await;
                     }
 
                     self.check_extra_hills();
-                    self.load_hill_info();
+                    self.load_hill_info().await;
                 }
             }
 

@@ -375,7 +375,7 @@ mod imp {
     }
 
     /// CRC-32 of zlib
-    fn crc32(chunks: &[&[u8]]) -> u32 {
+    pub fn crc32(chunks: &[&[u8]]) -> u32 {
         const TABLE: [u32; 256] = {
             let mut table = [0; 256];
             let mut n = 0;
@@ -438,6 +438,9 @@ mod noop {
     pub fn frame(_buffer: &[u8], _palette: &[[u8; 3]; 256]) {}
     pub fn value(_context: &str, _payload: &str) {}
     pub fn record(_context: &str, _fields: &[(&str, super::Value)]) {}
+    pub fn crc32(_chunks: &[&[u8]]) -> u32 {
+        0
+    }
     pub fn rendered_frames() -> i32 {
         0
     }

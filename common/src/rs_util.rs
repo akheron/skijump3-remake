@@ -43,6 +43,12 @@ pub fn val(text: &[u8]) -> i32 {
         .unwrap_or(0)
 }
 
+/// `Val` of Pascal for a decimal number: `None` when its error code is not 0
+pub fn val_code(text: &[u8]) -> Option<i32> {
+    let text = text.trim_ascii_start();
+    std::str::from_utf8(text).ok()?.parse().ok()
+}
+
 /// `Write(text:width)` of Pascal: the text right-aligned in `width` characters
 pub fn pad_left(text: &[u8], width: usize) -> Vec<u8> {
     let mut padded = vec![b' '; width.saturating_sub(text.len())];

@@ -195,15 +195,17 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
     }
 
-    fn make_send_me(&self) {
-        self.i.call_sendme(
-            VERSION,
-            REGNAME.as_bytes(),
-            REGNUMBER.as_bytes(),
-            self.today,
-            self.now,
-            self.u.vcode.get(),
-        );
+    async fn make_send_me(&self) {
+        self.i
+            .call_sendme(
+                VERSION,
+                REGNAME.as_bytes(),
+                REGNUMBER.as_bytes(),
+                self.today,
+                self.now,
+                self.u.vcode.get(),
+            )
+            .await;
     }
 
     fn write_records(&self) {
@@ -735,9 +737,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     4 => self.u.configure_keys(&mut self.k).await,
                     5 => self.u.set_goals().await,
                     6 => {
-                        self.u.write_extras();
+                        self.u.write_extras().await;
                         self.u.hill_maker(0).await;
-                        self.u.read_extras();
+                        self.u.read_extras().await;
                     }
                     0 => out = true,
                     _ => unreachable!(),
@@ -5460,8 +5462,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.cupslut = self.u.wait_for_key3(305, 6).await;
     }
 
-    fn jumpalku(&mut self) {
-        self.u.load_info(self.nytmaki, &mut self.act_hill);
+    async fn jumpalku(&mut self) {
+        self.u.load_info(self.nytmaki, &mut self.act_hill).await;
 
         for temp in 0..=NUM_PL {
             self.pisteet[temp] = 0;
@@ -5588,7 +5590,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             }
 
             if self.nytmaki > 0 {
-                self.jumpalku();
+                self.jumpalku().await;
             }
 
             // { kr:=kri[nytmaki]; }
@@ -5690,7 +5692,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
 
         if self.nytmaki > 0 {
-            self.jumpalku();
+            self.jumpalku().await;
         }
 
         if self.kothwind {
@@ -6278,7 +6280,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
             self.nytmaki = self.hill_order[self.osakilpailu as usize];
 
-            self.jumpalku();
+            self.jumpalku().await;
 
             // {    Stats[0,osakilpailu].Reason[1]:=nytmaki; }
 
@@ -6512,7 +6514,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             self.nytmaki = self.hill_order[self.osakilpailu as usize];
 
             self.tuuli.alusta(self.windplace);
-            self.jumpalku();
+            self.jumpalku().await;
             self.kierros = 0;
 
             for temp in 1..=NUM_PL {
@@ -6845,7 +6847,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         self.i.write_profiles();
         self.write_records();
-        self.make_send_me();
+        self.make_send_me().await;
     }
 
     fn check_param(&mut self) {
@@ -7023,17 +7025,17 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.u.check_extra_hills(); //{ lukee ylim. SJH:t ja kirjoittaa MOREHILL.SKI:n }
 
         write(b", MOREHILL.SKI");
-        self.u.load_hill_info(); //{ mnimet[],kri[] ja NumExtraHills kuntoon }
+        self.u.load_hill_info().await; //{ mnimet[],kri[] ja NumExtraHills kuntoon }
 
         write(b", Extra Hillrecords");
         if self.u.num_extra_hills.get() > 0 {
-            self.u.read_extras();
+            self.u.read_extras().await;
         }
 
         self.m.alusta();
     }
 
-    fn loppu(&mut self) {
+    async fn loppu(&mut self) {
         // This line of the Pascal source is in Latin-1, and the rest in CP437
         writeln_latin1(&[b"SJ3 v", VERSION, b" by Ville K\xF6n\xF6nen 2013"].concat());
 
@@ -7050,12 +7052,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         if self.u.num_extra_hills.get() > 0 {
             write(b", Extra Hillrecords");
-            self.u.write_extras();
+            self.u.write_extras().await;
         }
 
         self.s.putsaa();
 
-        self.make_send_me();
+        self.make_send_me().await;
 
         write(b", SENDME.TXT.");
 
@@ -7073,14 +7075,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         // terminal, so the remake exits without the wait.
     }
 
-    pub fn close(&mut self) {
+    pub async fn close(&mut self) {
         self.s.deinit_graphics();
 
-        self.loppu();
+        self.loppu().await;
     }
 
     pub async fn close_and_halt(&mut self) -> ! {
-        self.close();
+        self.close().await;
         halt().await;
     }
 

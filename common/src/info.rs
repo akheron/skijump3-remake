@@ -692,7 +692,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         self.p.aseta_paletti();
     }
 
-    fn writeprofile(&self, index: i32, phase: i32, inorder: i32) {
+    async fn writeprofile(&self, index: i32, phase: i32, inorder: i32) {
         //{ 0 - sivunäyttö, 1 - edit }
         let gety = |temp: i32| -> i32 {
             match temp {
@@ -801,7 +801,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                                 while temp2 < num_extra_hills {
                                     temp2 += 1;
                                     if self.u.hillfile(temp2) == p.besthillfile {
-                                        self.u.load_info(temp2 + NUM_WC_HILLS, &mut acthill);
+                                        self.u.load_info(temp2 + NUM_WC_HILLS, &mut acthill).await;
                                         temp2 = num_extra_hills;
                                     }
                                 }
@@ -1151,7 +1151,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         let mut leave2 = false;
         let mut index2 = 1;
 
-        self.writeprofile(index, 1, -1);
+        self.writeprofile(index, 1, -1).await;
 
         loop {
             index2 = self
@@ -1261,7 +1261,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             }
 
             if index2 > 0 {
-                self.writeprofile(index, 1, -1);
+                self.writeprofile(index, 1, -1).await;
             }
 
             if leave2 {
@@ -1303,7 +1303,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 temp = -1;
             }
 
-            self.writeprofile(index, 0, temp);
+            self.writeprofile(index, 0, temp).await;
 
             index = self
                 .u
@@ -1407,7 +1407,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         self.g.draw_screen().await;
     }
 
-    pub fn call_sendme(
+    pub async fn call_sendme(
         &self,
         version: &[u8],
         regname: &[u8],
@@ -1799,7 +1799,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                             &txt(self.u.hillkr(apu1)),
                         ],
                     );
-                    writeln!(f2, "C: {}", self.u.hillcode(apu1)).unwrap();
+                    writeln!(f2, "C: {}", self.u.hillcode(apu1).await).unwrap();
 
                     writeln_bytes(
                         &mut f2,

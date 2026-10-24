@@ -34,6 +34,9 @@ sc=$TRACE_DIR/scenarios
   echo "1 $sc/teamcup.keys -1"
   echo "1 $sc/teamcup_hiscore.keys -1"
   echo "1 $sc/teamwarning.keys -1"
+  echo "1 $sc/hillmaker.keys -1"
+  echo "1 $sc/extrahill.keys -1 $sc/extrahill"
+  echo "1 $sc/extrahill_error.keys -1 $sc/extrahill_error"
 } | xargs -P "${JOBS:-$(nproc)}" -L 1 "$TRACE_DIR/batch-seed.sh"
 status=$?
 [ $status = 0 ] && echo "All scenarios pass" || echo "Some scenarios fail"
