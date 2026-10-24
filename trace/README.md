@@ -135,7 +135,8 @@ completes, and the data files of the two runs are the same.
 | `hiscore_error` with `hiscore_short` | 1 | 100 | The extra data dir `trace/scenarios/hiscore_short` has a `HISCORE.SKI` with only its first 150 lines. At the end of the file, the strings that the game reads are empty and the numbers are 0, so the checksum is wrong, and the game does the same as in `hiscore_error`. |
 | `fourhills` | 1 | 3900 | Four Hills to the end of the cup, made with `multicomp.py` from the start keys `10 13 0`, `20 51 0`, `30 13 0` and `40 13 0`. The human jumper does not start. The end of the cup writes `PLAYERS.SKI`, `HISCORE.SKI` and `SENDME.TXT`. The run stops in the jump menu. |
 | `quit` | 1 | -1 | Turns the beeps on in the setup, answers `E` to the quit question, then `k`, so `Loppu` writes the files and the end text. The last key, 999999, is never read: without it, `putsaa` in `Loppu` polls after the last key and the run stops before `MakeSendMe`. |
-| `a_training_kuopio` | | | Training in Kuopio. Not in the regression set: the Rust replay gives a black frame 33, after training is chosen in the menu. |
+| `training` | 1 | -1 | Training: Kuopio with the start position changed with `+`, `+`, `-`, a 121.5 m telemark jump, `-` and a crash, Esc in the inrun; Lahti with Esc before the jump; Vikersund with Esc on the bar; then `0` to the jump menu. |
+| `a_training_kuopio` | 1 | -1 | Training in Kuopio: one 121 m jump that lands with `T`. The run ends after the comment screen. |
 
 ## Write a key script
 

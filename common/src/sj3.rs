@@ -23,6 +23,7 @@ use crate::unit::{
     Hill, Hiscore, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
 };
 use std::io::{BufReader, Write};
+use std::rc::Rc;
 use std::str::from_utf8;
 
 #[cfg(not(feature = "trace"))]
@@ -1460,6 +1461,27 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         keula_y = self.m.profiili(self.keula_x); //{ helpottaa vaan }
         pl = self.act_hill.pl_save; //{ plsave on m�enparametreja }
         maxspeed = self.act_hill.vx_final; //{ n�in voidaan lavaa vaihtaa... }
+
+        trace::record(
+            "JumpStart",
+            &[
+                ("pel", pel.into()),
+                ("team", team.into()),
+                ("nytmaki", self.nytmaki.into()),
+                ("kierros", self.kierros.into()),
+                ("startgate", self.startgate.into()),
+                ("maxspeed", maxspeed.into()),
+                ("kr", kr.into()),
+                ("KeulaX", self.keula_x.into()),
+                ("KeulaY", keula_y.into()),
+                ("pk", self.act_hill.pk.into()),
+                ("skill", skill.into()),
+                ("reflex", reflex.into()),
+                ("cjumper", cjumper.into()),
+                ("draw", draw.into()),
+                ("lmaara", (self.lmaara as i32).into()),
+            ],
+        );
 
         tyylip[1] = 195; //{ ennen 200, v3.0 195 }
         tyylip[6] = 200;
@@ -4613,6 +4635,148 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.this_is_a_hill_record = 0;
     }
 
+    //{ 0 - train, 1 - koth, 2 - morehills, 3 - morehills KOTH }
+    //{ uusi: 0 - train, 1 - koth }
+    async fn selecthill(&mut self, phase: u8) -> u8 {
+        let mut temp: i32;
+        let mut gothill: i32;
+        let mut hill: i32;
+        let mut str1: Rc<Vec<u8>>;
+        let mut items: i32;
+        let mut leave: bool;
+        let mut start: i32;
+
+        start = 0;
+
+        loop {
+            self.g.new_screen(2, 0).await;
+
+            self.g.font_color(240);
+
+            self.g.write_font(30, 31, &*self.l.lstr(151));
+            self.g.write_font(30, 41, &*self.l.lstr(152));
+            self.g.write_font(30, 51, &*self.l.lstr(153));
+
+            items = self.u.num_extra_hills.get() as i32 + NUM_WC_HILLS - start;
+            if items > 20 {
+                items = 20;
+            }
+
+            temp = 0;
+            for t in 1..=items {
+                temp = t;
+                hill = temp + start;
+
+                self.g.font_color(246);
+                self.g.e_write_font(
+                    130,
+                    (temp - 1) * 8 + 10,
+                    &[&txt(temp) as &[u8], b"."].concat(),
+                );
+
+                self.g.font_color(247);
+                self.g.write_font(
+                    145 + self.g.font_len(&self.u.hillname(hill)),
+                    (temp - 1) * 8 + 10,
+                    &[b"K" as &[u8], &txt(self.u.hillkr(hill))].concat(),
+                );
+                self.g.font_color(240);
+                self.g
+                    .write_font(140, (temp - 1) * 8 + 10, &self.u.hillname(hill));
+            }
+
+            if self.u.num_extra_hills.get() > 0 {
+                //{ * more hills * }
+                temp += 1;
+                items += 1;
+                self.g.font_color(247);
+                self.g
+                    .write_font(140, (temp - 1) * 8 + 10, &*self.l.lstr(156));
+                self.g.font_color(240);
+            }
+
+            temp += 2;
+            self.g.e_write_font(130, (temp - 1) * 8 + 10, b"0.");
+            str1 = self.l.lstr(154);
+            if phase == 1 {
+                str1 = self.l.lstr(155);
+            }
+            self.g.write_font(140, (temp - 1) * 8 + 10, &*str1);
+
+            self.g.draw_screen().await;
+
+            gothill = self.u.make_menu(110, 11, 170, 8, items, 1, 243, 0, 0).await;
+
+            leave = true;
+
+            if gothill == items && self.u.num_extra_hills.get() > 0 {
+                start += 20;
+                if start >= self.u.num_extra_hills.get() as i32 + NUM_WC_HILLS {
+                    start = 0;
+                }
+                leave = false;
+            }
+
+            if leave {
+                break;
+            }
+        }
+
+        temp = gothill + start;
+
+        if gothill <= 0 {
+            temp = gothill;
+        }
+
+        temp as u8
+    }
+
+    async fn training(&mut self) {
+        self.osakilpailu = 0;
+        self.kierros = -10;
+        self.treeni = true;
+        self.cupslut = false;
+        self.s.set_ch(1);
+        self.startgate = 15;
+
+        loop {
+            self.eka = true;
+
+            self.nytmaki = self.selecthill(0).await as i32;
+
+            if self.nytmaki == 0 {
+                self.cupslut = true;
+            }
+
+            if self.nytmaki > 0 {
+                self.jumpalku();
+            }
+
+            // { kr:=kri[nytmaki]; }
+            if self.s.get_ch() != 27 && self.nytmaki > 0 {
+                loop {
+                    self.tuuli.alusta(self.windplace);
+
+                    self.hyppy(1, NUM_PL as i32 + 1, 0).await;
+
+                    self.eka = false;
+                    if self.s.get_ch() == 27 || self.cupslut {
+                        break;
+                    }
+                }
+            }
+
+            self.s.set_ch(1);
+
+            if self.cupslut {
+                break;
+            }
+        }
+
+        self.treeni = false;
+        self.startgate = 0; //{ varmuuden vuoksi }
+    }
+
     //{ cupstyle: 0 - SJ3 WC, 1 - Custom WC, 2 - Just 4Hills }
     async fn cup(&mut self) {
         let mut temp2 = 0;
@@ -5073,7 +5237,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     // newkingofthehill;
                 }
                 6 => {
-                    // training;
+                    self.training().await;
                 }
                 _ => {}
             }

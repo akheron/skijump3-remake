@@ -118,6 +118,18 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
         }
 
         self.aseta_paikka(place);
+
+        trace::record(
+            "WindInit",
+            &[
+                ("windy", self.windy.get().into()),
+                ("voim", self.voim.get().into()),
+                ("traja1", self.traja1.get().into()),
+                ("traja2", self.traja2.get().into()),
+                ("tkulma", self.tkulma.get().into()),
+                ("tsuun", self.tsuun.get().into()),
+            ],
+        );
     }
 
     pub fn siirra(&self) {
