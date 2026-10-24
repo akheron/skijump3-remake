@@ -47,6 +47,7 @@ mod imp {
         rendered_frames: i32,
         consumed_lines: usize,
         checked_frames: usize,
+        console_untraced: bool,
     }
 
     thread_local! {
@@ -234,7 +235,16 @@ mod imp {
         }
     }
 
+    /// The Pascal run traces the end text only if SJ3_TRACE_ENDTEXT is set.
+    pub fn start_end_text() {
+        let traced = std::env::var_os("SJ3_TRACE_ENDTEXT").is_some_and(|value| !value.is_empty());
+        STATE.with(|s| s.borrow_mut().console_untraced = !traced);
+    }
+
     pub fn console(text: &[u8]) {
+        if STATE.with(|s| s.borrow().console_untraced) {
+            return;
+        }
         let entry = pop("Console");
         let escaped: String = text
             .iter()
@@ -417,6 +427,7 @@ mod noop {
     }
     pub fn file_written(_name: &str, _content: &[u8]) {}
     pub fn file_removed(_name: &str) {}
+    pub fn start_end_text() {}
     pub fn console(_text: &[u8]) {}
     pub fn date() -> (u16, u16, u16, u16) {
         unreachable!()

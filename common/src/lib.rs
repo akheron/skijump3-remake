@@ -29,6 +29,9 @@ use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::{Date, UnitModule};
 pub use platform::{Platform, TPalette};
+use std::future::{poll_fn, Future};
+use std::pin::pin;
+use std::task::Poll;
 
 pub async fn sj3<P: Platform>(port: &P) {
     let maki_module = MakiModule::new();
@@ -70,6 +73,29 @@ pub async fn sj3<P: Platform>(port: &P) {
     sj3_module.today = today;
     sj3_module.start = start;
 
-    sj3_module.alku().await;
-    sj3_module.main_menu().await;
+    // A close before alku has read the data files must not save, because the
+    // saved files would replace the player's files with the defaults.
+    if until_close_requested(port, sj3_module.alku()).await {
+        return;
+    }
+    let close_requested = until_close_requested(port, sj3_module.main_menu()).await;
+    if close_requested {
+        sj3_module.close_and_halt();
+    }
+
+    sj3_module.close();
+}
+
+/// Runs `game` until it ends or until the platform asks to close. A close
+/// stops the game at its next await. Returns true if the platform asked to
+/// close.
+async fn until_close_requested<P: Platform>(port: &P, game: impl Future<Output = ()>) -> bool {
+    let mut game = pin!(game);
+    poll_fn(|cx| {
+        if port.close_requested() {
+            return Poll::Ready(true);
+        }
+        game.as_mut().poll(cx).map(|()| false)
+    })
+    .await
 }

@@ -1,11 +1,12 @@
 use crate::graph::GraphModule;
-use crate::help::{round, txt, txtp};
+use crate::help::{beep, nmstr, round, toansi, txt, txtp, upstr};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
-use crate::rs_util::{dos_file_name, parse_line, random, read_line};
+use crate::rs_util::{dos_file_name, dos_name_bytes, pad_left, parse_line, random, read_line};
 use crate::unit::{
-    dayandtime, valuestr, Date, Hiscore, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
+    crypt, dayandtime, insert, svaluestr, valuestr, Date, Hiscore, Time, UnitModule, MAX_CUSTOMS,
+    NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
 };
 use std::cell::{Cell, RefCell};
 use std::io::{BufReader, Write};
@@ -129,7 +130,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         sortby: &mut u8,
         hillorder: &mut [i32],
         cuphills: &mut i32,
-    ) {
+    ) -> i32 {
         // TODO
         todo!();
     }
@@ -193,6 +194,29 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         }
         self.g.draw_screen().await;
         self.s.wait_for_key().await;
+    }
+
+    fn find_customs(&self, num_customs: &mut i32, filenames: &mut [Vec<u8>]) {
+        *num_customs = 0;
+        for temp in 0..=MAX_CUSTOMS as usize {
+            filenames[temp] = b"".to_vec();
+        }
+
+        for name in self.s.find_files("*.SJC") {
+            if *num_customs < MAX_CUSTOMS {
+                *num_customs += 1;
+
+                let name = dos_name_bytes(&name);
+                let dot = name.iter().position(|&c| c == b'.').unwrap_or(name.len());
+                // FileStr is string[8]
+                filenames[*num_customs as usize] = name[..dot.min(8)].to_vec();
+
+                if filenames[*num_customs as usize] == b"TEMP" {
+                    filenames[*num_customs as usize] = b"".to_vec();
+                    *num_customs -= 1;
+                }
+            }
+        }
     }
 
     pub fn load_names(&self, whatset: u8, teamdiscount: u8, teamlineup: &mut [u8], replaces: bool) {
@@ -477,6 +501,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             }
 
             if l1 != code {
+                beep(self.s, 1);
                 self.default_profile(temp as i32, 0);
             }
             /*
@@ -693,6 +718,522 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         }
     }
 
+    pub fn call_sendme(
+        &self,
+        version: &[u8],
+        regname: &[u8],
+        regnumber: &[u8],
+        today: Date,
+        now: Time,
+        vcode: u8,
+    ) {
+        let mut str1: Vec<u8> = Vec::new();
+        let mut sortby: u8 = 0;
+        let mut anywritten: bool;
+        let mut apu2: i32;
+        let mut laskuri: i32;
+        let mut ahi: i32;
+        let mut code: i32;
+        let mut num_customs: i32 = 0;
+        let mut files: Vec<Vec<u8>> = vec![Vec::new(); MAX_CUSTOMS as usize + 1];
+        let mut temphillorder = [0i32; 42];
+        let mut checkstrs: [Vec<u8>; 22] = Default::default();
+        let mut tempcuphills: i32 = 0;
+
+        let dotop = |fname: &str| {
+            let mut f2 = self.s.create_file(fname);
+
+            writeln_bytes(
+                &mut f2,
+                &[
+                    b"SJ3 v",
+                    version,
+                    b" - ",
+                    fname.as_bytes(),
+                    b" - created at ",
+                    &dayandtime(today, now),
+                ],
+            );
+            writeln!(f2).unwrap();
+            writeln!(
+                f2,
+                "            (please fill in the real full names below!)"
+            )
+            .unwrap();
+            writeln_bytes(
+                &mut f2,
+                &[&toansi(
+                    b"            (example: \"LARS76\" = Ville K\x94n\x94nen )",
+                )],
+            );
+            writeln_bytes(
+                &mut f2,
+                &[&toansi(
+                    b"            (         \"VILLE KONONEN\" = Ville K\x94n\x94nen )",
+                )],
+            );
+            writeln!(f2, ".:Jumpers:.").unwrap();
+            writeln!(f2).unwrap();
+            f2
+        };
+
+        //{ 1-sendme, 2-extras, 3-customs }
+        let findnames = |f2: &mut dyn Write,
+                         phase: u8,
+                         str1: &mut Vec<u8>,
+                         sortby: &mut u8,
+                         temphillorder: &mut [i32; 42],
+                         tempcuphills: &mut i32,
+                         num_customs: i32,
+                         files: &[Vec<u8>]| {
+            let mut writtenstr: Vec<Vec<u8>> = vec![Vec::new(); 201];
+            let mut numwritten: usize = 0;
+            let stop: i32;
+            let mut stop2: i32 = 1;
+
+            match phase {
+                1 => stop = 40 + self.num_profiles.get() as i32,
+                2 => stop = self.u.num_extra_hills.get() as i32,
+                _ => {
+                    stop = num_customs;
+                    stop2 = 20;
+                }
+            }
+
+            for temp1 in 1..=stop {
+                if phase == 3 {
+                    self.load_custom(&files[temp1 as usize], sortby, temphillorder, tempcuphills);
+                }
+
+                for temp2 in 1..=stop2 {
+                    let mut ok = true;
+                    match phase {
+                        1 => match temp1 {
+                            1..=20 => *str1 = self.top.borrow()[temp1 as usize].name.clone(),
+                            21..=40 => *str1 = self.u.hrname(temp1 - 20),
+                            41..=99 => {
+                                *str1 = self.profile.borrow()[(temp1 - 40) as usize].name.clone()
+                            }
+                            _ => {}
+                        },
+                        2 => *str1 = self.u.hrname(temp1 + 20),
+                        _ => *str1 = self.top.borrow()[(temp2 + 41) as usize].name.clone(),
+                    }
+
+                    for temp3 in 1..=numwritten {
+                        if *str1 == writtenstr[temp3] {
+                            ok = false; //{ on jo }
+                        }
+                    }
+
+                    if str1.last() == Some(&b'\xff') {
+                        ok = false; //{ computer jumper }
+                    }
+                    if *str1 == b"Nobody" && phase == 3 {
+                        ok = false; //{ customs default }
+                    }
+
+                    let mut realname: Vec<u8> = Vec::new();
+                    {
+                        let profile = self.profile.borrow();
+                        for temp3 in 1..=self.num_profiles.get() as usize {
+                            if *str1 == profile[temp3].name {
+                                realname = nmstr(&profile[temp3].realname);
+                            }
+                        }
+                    }
+
+                    if ok {
+                        writeln_bytes(f2, &[b"\"", &toansi(str1), b"\" = ", &toansi(&realname)]);
+                        if numwritten < 200 {
+                            numwritten += 1;
+                        }
+                        // writtenstr is a string[31]
+                        writtenstr[numwritten] = str1[..str1.len().min(31)].to_vec();
+                    }
+                }
+            }
+
+            writeln!(f2).unwrap();
+            writeln!(f2, "- - - - - - - - - - - - - - - - - - - - - - - - - ").unwrap();
+            *str1 = match phase {
+                1 => b"YWF".to_vec(),
+                2 => b"UWF".to_vec(),
+                _ => b"IWF".to_vec(),
+            };
+            *str1 = [str1 as &[u8], &txt(vcode as i32), b"ANYT"].concat();
+            writeln_bytes(f2, &[b"* DO NOT EDIT THIS FILE FROM HERE *   C: ", str1]);
+            writeln!(f2).unwrap();
+            write!(f2, "From: ").unwrap();
+
+            //{$IFDEF REG}
+            *str1 = [regname, b" #", regnumber].concat();
+            //{$ELSE}
+            //str1:='Some nice gentleman who hasn''t yet registered SJ3.';
+            //{$ENDIF}
+
+            writeln_bytes(f2, &[&toansi(str1)]);
+        };
+
+        let writehead = |f2: &mut dyn Write, phase: u8| {
+            let str2 = match phase {
+                1 => "World_Cup",
+                2 => "Hillrecords",
+                3 => "All_Hill_Index",
+                4 => "Profile_info",
+                5 => "Extra_hills",
+                _ => "Custom_Cups",
+            };
+
+            writeln!(f2).unwrap();
+            writeln!(f2, ".:{str2}:.").unwrap();
+            writeln!(f2).unwrap();
+        };
+
+        let mut f2 = dotop("SENDME.TXT");
+        findnames(
+            &mut f2,
+            1,
+            &mut str1,
+            &mut sortby,
+            &mut temphillorder,
+            &mut tempcuphills,
+            num_customs,
+            &files,
+        );
+
+        writehead(&mut f2, 1);
+        anywritten = false;
+
+        laskuri = svaluestr(&str1, 11) as i32;
+
+        for apu1 in 1..=20 {
+            let top = self.top.borrow();
+            if top[apu1].name.last() != Some(&b'\xff') {
+                anywritten = true;
+                str1 = crypt(top[apu1].score, apu1 as i32);
+                writeln_bytes(
+                    &mut f2,
+                    &[
+                        &pad_left(&txt(apu1 as i32), 2),
+                        b".",
+                        &pad_left(&toansi(&top[apu1].name), 25),
+                        &pad_left(&txt(top[apu1].pos as i32), 3),
+                        b".",
+                        &pad_left(&txt(top[apu1].score), 5),
+                        b" C: ",
+                        &str1,
+                    ],
+                );
+                laskuri += svaluestr(&str1, apu1 as i32) as i32;
+                laskuri += svaluestr(&top[apu1].name, top[apu1].pos as i32) as i32;
+            }
+        }
+
+        writeln!(f2).unwrap();
+        write!(f2, "Checksum: ").unwrap();
+
+        if anywritten {
+            writeln!(f2, "{}", ((laskuri / 2) + 20424) ^ 545033).unwrap();
+        } else {
+            writeln!(f2, "None.").unwrap();
+        }
+
+        laskuri = 0;
+        ahi = 0; //{ all hill index - prosentti }
+
+        writehead(&mut f2, 2);
+        anywritten = false;
+
+        for apu1 in 1..=NUM_WC_HILLS {
+            str1 = self.u.hrname(apu1);
+            apu2 = self.u.hillkr(apu1) * 10;
+
+            if str1.last() != Some(&b'\xff') {
+                anywritten = true;
+                str1 = crypt(self.u.hrlen(apu1), apu1);
+
+                let hillname = self.u.hillname(apu1);
+                writeln_bytes(
+                    &mut f2,
+                    &[
+                        &upstr(&hillname[..hillname.len().min(3)]),
+                        &pad_left(&toansi(&self.u.hrname(apu1)), 25),
+                        b" ",
+                        &pad_left(&txtp(self.u.hrlen(apu1)), 8),
+                        b" C: ",
+                        &str1,
+                    ],
+                );
+
+                laskuri += svaluestr(&str1, apu1) as i32;
+                laskuri += svaluestr(&self.u.hrname(apu1), apu1) as i32;
+
+                apu2 = self.u.hrlen(apu1);
+            }
+
+            ahi += apu2; //{ eli lisätään joko omalla enkalla tai kriittisellä }
+        }
+
+        writeln!(f2).unwrap();
+        write!(f2, "Checksum: ").unwrap();
+
+        if anywritten {
+            writeln!(f2, "{}", ((laskuri / 3) + 69721) ^ 408675).unwrap();
+        } else {
+            writeln!(f2, "None.").unwrap();
+        }
+
+        laskuri = 0;
+
+        for apu1 in 1..=NUM_WC_HILLS {
+            laskuri += self.u.hillkr(apu1) * 10;
+        }
+
+        writehead(&mut f2, 3);
+
+        ahi = round(((ahi as f64 / laskuri as f64) * 10000.0) as f32);
+        str1 = txt(ahi);
+        let index = str1.len() - 1;
+        insert(b".", &mut str1, index);
+        str1.extend_from_slice(b" %");
+
+        writeln_bytes(&mut f2, &[&pad_left(&str1, 10)]);
+
+        writeln!(f2).unwrap();
+        write!(f2, "Checksum: ").unwrap();
+
+        if ahi > 10000 {
+            writeln!(f2, "{}", ((ahi << 3) + 69721) ^ 408675).unwrap();
+        } else {
+            writeln!(f2, "None.").unwrap();
+        }
+
+        writehead(&mut f2, 4);
+
+        for apu1 in 1..=self.num_profiles.get() as usize {
+            let profile = &self.profile.borrow()[apu1];
+            laskuri = 0;
+
+            str1 = profile.name.clone();
+            writeln_bytes(&mut f2, &[&toansi(&str1)]);
+            laskuri = laskuri.wrapping_add(svaluestr(&str1, 3) as i32);
+
+            ahi = profile.totaljumps; //{ ahi temp-käytössä, älä pelästy }
+            writeln!(f2, " Total_jumps: {ahi}").unwrap();
+            laskuri = laskuri.wrapping_add(ahi.wrapping_add(3613));
+
+            ahi = profile.wcswon;
+            writeln!(f2, " WC_won: {ahi}").unwrap();
+            laskuri = laskuri.wrapping_add(ahi.wrapping_mul(311));
+
+            ahi = profile.legswon;
+            writeln!(f2, " Legs_won: {ahi}").unwrap();
+            laskuri = laskuri.wrapping_add(ahi.wrapping_mul(133));
+
+            str1 = profile.best4result.clone();
+            writeln_bytes(&mut f2, &[b" Best_4H: ", &str1]);
+            // str1[0] is the length of the Pascal string
+            let mut apu2 = 0;
+            while (if apu2 == 0 {
+                str1.len() as u8
+            } else {
+                str1[apu2 - 1]
+            }) != b' '
+                && apu2 < str1.len()
+            {
+                apu2 += 1;
+            }
+            laskuri = laskuri.wrapping_add(svaluestr(&str1[..apu2.saturating_sub(1)], 7) as i32);
+
+            let apu2 = profile.kothlevel as i32;
+            writeln!(f2, " KOTH_level: {apu2}").unwrap();
+            laskuri = laskuri.wrapping_add(apu2 * 1313);
+
+            write!(f2, " Checksum: ").unwrap();
+            if laskuri > 0 {
+                writeln!(f2, "{}", laskuri.wrapping_add(11278) ^ 591219).unwrap();
+            } else {
+                writeln!(f2, "None.").unwrap();
+            }
+        }
+
+        writeln!(f2, "End.").unwrap();
+
+        writeln!(f2).unwrap();
+        writeln!(f2, ".END_OF_SENDME.TXT").unwrap();
+        writeln!(f2).unwrap();
+        writeln!(
+            f2,
+            "NOTE: This file is generated for legacy reasons. You need to play"
+        )
+        .unwrap();
+        writeln!(
+            f2,
+            "      original DOS version in order to participate in Universal"
+        )
+        .unwrap();
+        writeln!(f2, "      Hiscores of SJ3! Please do not send this file.").unwrap();
+        writeln!(f2).unwrap();
+        writeln!(f2, "The Universal Hiscore List @ http://nomasi.com/sj3").unwrap();
+
+        drop(f2);
+
+        if self.u.num_extra_hills.get() > 0 {
+            //{      --- EXTRAS! ---      }
+            let mut f2 = dotop("EXTRAS.TXT");
+            findnames(
+                &mut f2,
+                2,
+                &mut str1,
+                &mut sortby,
+                &mut temphillorder,
+                &mut tempcuphills,
+                num_customs,
+                &files,
+            );
+
+            laskuri = 0;
+
+            writehead(&mut f2, 5);
+
+            for apu1 in 21..=self.u.num_extra_hills.get() as i32 + 20 {
+                str1 = self.u.hrname(apu1);
+                if str1.last() != Some(&b'\xff') {
+                    str1 = crypt(self.u.hrlen(apu1), apu1);
+
+                    writeln_bytes(
+                        &mut f2,
+                        &[
+                            &upstr(&self.u.hillname(apu1)),
+                            b" K",
+                            &txt(self.u.hillkr(apu1)),
+                        ],
+                    );
+                    writeln!(f2, "C: {}", self.u.hillcode(apu1)).unwrap();
+
+                    writeln_bytes(
+                        &mut f2,
+                        &[
+                            b" ",
+                            &pad_left(&toansi(&self.u.hrname(apu1)), 25),
+                            b" ",
+                            &pad_left(&txtp(self.u.hrlen(apu1)), 8),
+                            b" C: ",
+                            &str1,
+                        ],
+                    );
+
+                    laskuri += svaluestr(&str1, apu1) as i32;
+                    laskuri += svaluestr(&self.u.hrname(apu1), apu1) as i32;
+                }
+            }
+
+            if laskuri > 0 {
+                writeln!(f2).unwrap();
+                writeln!(f2, "Checksum: {}", ((laskuri / 3) + 69721) ^ 408675).unwrap();
+            } else {
+                writeln!(f2, "None.").unwrap();
+            }
+
+            writeln!(f2).unwrap();
+            writeln!(f2, ".END_OF_EXTRAS.TXT").unwrap();
+            writeln!(f2).unwrap();
+
+            drop(f2);
+        }
+
+        self.find_customs(&mut num_customs, &mut files);
+
+        if num_customs > 0 {
+            //{      --- CUSTOMS! ---      }
+            let mut f2 = dotop("CUSTOMS.TXT");
+            findnames(
+                &mut f2,
+                3,
+                &mut str1,
+                &mut sortby,
+                &mut temphillorder,
+                &mut tempcuphills,
+                num_customs,
+                &files,
+            );
+
+            writehead(&mut f2, 6);
+
+            for apu1 in 1..=num_customs as usize {
+                laskuri = 0;
+                code = self.load_custom(
+                    &files[apu1],
+                    &mut sortby,
+                    &mut temphillorder,
+                    &mut tempcuphills,
+                );
+
+                writeln_bytes(&mut f2, &[b"File: ", &upstr(&files[apu1])]);
+                writeln!(f2, "Sort: {sortby}").unwrap();
+                writeln!(f2, "Code: {code}").unwrap();
+
+                let top = self.top.borrow();
+                for apu2 in 1..=20 {
+                    if top[apu2 + 41].score > 0 {
+                        str1 = crypt(top[apu2 + 41].score, apu2 as i32);
+                        checkstrs[apu2] = str1.clone();
+                        laskuri += svaluestr(&str1, apu2 as i32) as i32;
+                        laskuri +=
+                            svaluestr(&toansi(&top[apu2 + 41].name), top[apu2 + 41].pos as i32)
+                                as i32;
+                    }
+                }
+
+                write!(f2, "Chsm: ").unwrap();
+                if laskuri > 0 {
+                    writeln!(
+                        f2,
+                        "{}",
+                        (laskuri + (code / 2) + (sortby as i32 * 4) + 14034) ^ 502667
+                    )
+                    .unwrap();
+                } else {
+                    writeln!(f2, "None.").unwrap();
+                }
+
+                for apu2 in 1..=20 {
+                    if top[apu2 + 41].score > 0 {
+                        str1 = checkstrs[apu2].clone();
+                        f2.write_all(
+                            &[
+                                &pad_left(&txt(apu2 as i32), 2) as &[u8],
+                                b".",
+                                &pad_left(&toansi(&top[apu2 + 41].name), 25),
+                                &pad_left(&txt(top[apu2 + 41].pos as i32), 3),
+                                b".",
+                                &pad_left(&txt(top[apu2 + 41].score), 7),
+                                b" C: ",
+                                &str1,
+                            ]
+                            .concat(),
+                        )
+                        .unwrap();
+                        if top[apu2 + 41].time.first() == Some(&b'(') {
+                            writeln_bytes(&mut f2, &[b" ", &top[apu2 + 41].time]);
+                        } else {
+                            writeln!(f2).unwrap();
+                        }
+                    }
+                }
+
+                writeln!(f2, "End.").unwrap();
+                writeln!(f2).unwrap();
+            }
+
+            writeln!(f2, ".END_OF_CUSTOMS.TXT").unwrap();
+            writeln!(f2).unwrap();
+
+            drop(f2);
+        }
+    }
+
     pub async fn draw_main_menu(&self) {
         self.g.fill_box(0, 0, 319, 199, 0);
         self.g.draw_screen().await;
@@ -760,4 +1301,9 @@ fn profile_code(p: &Profile) -> i32 {
     temp += (p.totaljumps + 5) as i32;
 
     temp
+}
+
+fn writeln_bytes(f: &mut (impl Write + ?Sized), parts: &[&[u8]]) {
+    f.write_all(&parts.concat()).unwrap();
+    writeln!(f).unwrap();
 }

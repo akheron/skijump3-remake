@@ -36,11 +36,11 @@ The scripts read these environment variables:
 | `RUNS` | `trace/runs` | Output of `batch-seed.sh`, `regress.sh`, `explore.sh` and `multicomp.py` |
 | `DATA` | | Directory of the data files that a run starts with. The default is `assets/` with `trace/data-init/` on top: its `CONFIG.SKI` has `reg=1` and `languagenumber=2` (Finnish). |
 | `DATA_EXTRA` | | Directory of files that go on top of the data files that a run starts with |
-| `SJ3_MAXFRAMES` | | Stop the Pascal run after this many frames |
+| `SJ3_MAXFRAMES` | | Stop the Pascal run after this many frames. -1 does not stop it. |
 | `SJ3_FRAMES_FROM` | | Dump the frames of a Pascal run from this frame on. A frame dump is 64000 bytes of pixels and 768 bytes of 6-bit palette. |
 | `SJ3_FRAMES_TO` | | Dump the frames of a Pascal run up to this frame |
 | `SJ3_TIMEOUT` | 300, 900 in `batch-seed.sh`, 4 in `explore.sh` | Kill a run after this many seconds |
-| `SJ3_TRACE_ENDTEXT` | | Trace the end text that the Pascal game writes to the console when it exits. The remake does not write it yet. |
+| `SJ3_TRACE_ENDTEXT` | | Trace the end text that the game writes to the console when it exits. Set it for both runs, or for neither. |
 | `JOBS` | number of CPUs | Parallel scenarios in `regress.sh` |
 | `FULL` | | Run `cpu_qual` with the seeds 2 to 10 in `regress.sh` |
 
@@ -130,10 +130,11 @@ completes, and the data files of the two runs are the same.
 | `setup_menu` | 1 | 5000 | Each item of the setup menu that works in the Rust port: the language, beeps and graphics detail; the name file with a set that does not exist and Esc; every item of the jumping settings; the computer jumpers and the place of the wind meter; the first two hiscore settings, and the two questions that reset the hiscores, answered with `E`; one key and the default keys; the length goals; and the list of the hill maker. Then it chooses the last language (Slovak) with item 0, the name file `NAMES1.SKI`, answers `S` (yes in Slovak) to both questions that reset the hiscores, resets the settings and leaves the setup menu, which writes `CONFIG.SKI`. The run ends in the main menu. A new hill in the hill maker is left out (not ported). |
 | `k4_start` | 1 | 2000 | World Cup. The human jumper starts with `T` (K[4]) on the bar and jumps 120.5 m with telemark. The run ends after the comment screen. |
 | `k4_start` with `wind11`, `wind12`, `wind13` | 1 | 2000 | `k4_start` with the wind meter at the place 11, 12 or 13: the extra data dirs `trace/scenarios/wind11` to `wind13` have a `CONFIG.SKI` with that place. |
-| `listkeys` | 1 | 972 | World Cup. The qualification list is paged with PgDn, Right, Left, Home, End (no effect), PgDn and PgUp. The run stops before the last key, F10: after F10 the Rust port does not call `WriteProfiles`. |
+| `listkeys` | 1 | -1 | World Cup. The qualification list is paged with PgDn, Right, Left, Home, End (no effect), PgDn and PgUp, then F10 goes to the jump menu. |
 | `hiscore_error` with `hiscore_error` | 1 | 100 | The extra data dir `trace/scenarios/hiscore_error` has a `HISCORE.SKI` with a changed name, so the checksum is wrong. The game writes new `HISCORE.SKI` and `CONFIG.SKI` files, waits for a key and exits. |
 | `hiscore_error` with `hiscore_short` | 1 | 100 | The extra data dir `trace/scenarios/hiscore_short` has a `HISCORE.SKI` with only its first 150 lines. At the end of the file, the strings that the game reads are empty and the numbers are 0, so the checksum is wrong, and the game does the same as in `hiscore_error`. |
-| `fourhills` | 1 | 3900 | Four Hills to the end of the cup, made with `multicomp.py` from the start keys `10 13 0`, `20 51 0`, `30 13 0` and `40 13 0`. The human jumper does not start. The run stops in the jump menu. Not in the regression set: at the end of `wcup`, the Rust port does not call `WriteProfiles`, `WriteRecords` and `MakeSendMe`, so the replay fails after the last jump. |
+| `fourhills` | 1 | 3900 | Four Hills to the end of the cup, made with `multicomp.py` from the start keys `10 13 0`, `20 51 0`, `30 13 0` and `40 13 0`. The human jumper does not start. The end of the cup writes `PLAYERS.SKI`, `HISCORE.SKI` and `SENDME.TXT`. The run stops in the jump menu. |
+| `quit` | 1 | -1 | Turns the beeps on in the setup, answers `E` to the quit question, then `k`, so `Loppu` writes the files and the end text. The last key, 999999, is never read: without it, `putsaa` in `Loppu` polls after the last key and the run stops before `MakeSendMe`. |
 | `a_training_kuopio` | | | Training in Kuopio. Not in the regression set: the Rust replay gives a black frame 33, after training is chosen in the menu. |
 
 ## Write a key script

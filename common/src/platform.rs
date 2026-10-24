@@ -54,4 +54,12 @@ pub trait Platform {
     fn param_str(&self, index: usize) -> String;
     /// `Wait` of the SDL port
     fn wait(&self, ms: u32);
+
+    /// `DeinitGraphics` of the SDL port: closes the game window
+    fn deinit_graphics(&self) {}
+    /// True after the player asked to close the game. Then the game runs the
+    /// close callback of the SDL port, `CloseAndHalt`.
+    fn close_requested(&self) -> bool {
+        false
+    }
 }

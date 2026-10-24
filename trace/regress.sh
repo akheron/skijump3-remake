@@ -17,9 +17,11 @@ sc=$TRACE_DIR/scenarios
   echo "1 $sc/setup_menu.keys 5000"
   echo "1 $sc/k4_start.keys 2000"
   for place in 11 12 13; do echo "1 $sc/k4_start.keys 2000 $sc/wind$place"; done
-  echo "1 $sc/listkeys.keys 972"
+  echo "1 $sc/listkeys.keys -1"
   echo "1 $sc/hiscore_error.keys 100 $sc/hiscore_error"
   echo "1 $sc/hiscore_error.keys 100 $sc/hiscore_short"
+  echo "1 $sc/fourhills.keys 3900"
+  echo "1 $sc/quit.keys -1"
 } | xargs -P "${JOBS:-$(nproc)}" -L 1 "$TRACE_DIR/batch-seed.sh"
 status=$?
 [ $status = 0 ] && echo "All scenarios pass" || echo "Some scenarios fail"

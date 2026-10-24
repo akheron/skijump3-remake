@@ -43,6 +43,7 @@ pub struct SDLPortModule<'a> {
     last_frame_instant: Cell<Instant>,
 
     sw_rendering: bool,
+    close_requested: Cell<bool>,
 
     // Originally in SJ3HELP.PAS
     pub ch: Cell<u8>,
@@ -107,6 +108,7 @@ impl<'a> SDLPortModule<'a> {
             last_frame_instant: Cell::new(Instant::now()),
 
             sw_rendering,
+            close_requested: Cell::new(false),
 
             ch: Cell::new(1),
             ch2: Cell::new(1),
@@ -505,6 +507,10 @@ impl<'a> SDLPortModule<'a> {
         self.window_resized.set(true);
     }
 
+    pub fn handle_quit(&self) {
+        self.close_requested.set(true);
+    }
+
     pub fn handle_keydown(&self, keycode: Option<Keycode>, keymod: Mod) {
         self.keypresses.borrow_mut().push((keycode, keymod));
     }
@@ -697,6 +703,13 @@ impl<'si> Platform for SDLPortModule<'si> {
             return;
         }
         thread::sleep(Duration::from_millis(ms as u64));
+    }
+
+    fn deinit_graphics(&self) {
+        self.canvas.borrow_mut().window_mut().hide();
+    }
+    fn close_requested(&self) -> bool {
+        self.close_requested.get()
     }
 }
 

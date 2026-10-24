@@ -64,7 +64,7 @@ fn main() {
                     sdl_port_module.handle_resized();
                 }
                 Event::Quit { .. } => {
-                    return;
+                    sdl_port_module.handle_quit();
                 }
                 Event::KeyDown {
                     keycode, keymod, ..

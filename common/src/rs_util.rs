@@ -1,5 +1,6 @@
 use crate::trace;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::cell::Cell;
+use std::io::{BufRead, BufReader, IsTerminal, Read, Write};
 use std::str::FromStr;
 
 pub fn read_line(f: &mut BufReader<impl Read>) -> std::io::Result<Vec<u8>> {
@@ -39,6 +40,13 @@ pub fn val(text: &[u8]) -> i32 {
         .unwrap_or(0)
 }
 
+/// `Write(text:width)` of Pascal: the text right-aligned in `width` characters
+pub fn pad_left(text: &[u8], width: usize) -> Vec<u8> {
+    let mut padded = vec![b' '; width.saturating_sub(text.len())];
+    padded.extend_from_slice(text);
+    padded
+}
+
 pub fn random(max: u32) -> u32 {
     if trace::active() {
         return trace::random(max);
@@ -70,6 +78,79 @@ pub fn writeln_latin1(text: &[u8]) {
     write_decoded(&[text, b"\n"].concat(), |c| c as char);
 }
 
+/// `TextColor` of the Crt unit. 16 and up blink.
+pub fn textcolor(color: u8) {
+    CRT.with(|crt| crt.text_color.set(color));
+    crt_escape(&format!(
+        "\x1b[0;{}{};{}m",
+        if color & 16 != 0 { "5;" } else { "" },
+        ansi_color(color, 30, 90),
+        ansi_color(CRT.with(|crt| crt.text_background.get()), 40, 40)
+    ));
+}
+
+/// `TextBackground` of the Crt unit
+pub fn textbackground(color: u8) {
+    CRT.with(|crt| crt.text_background.set(color & 7));
+    textcolor(CRT.with(|crt| crt.text_color.get()));
+}
+
+/// `Window` of the Crt unit: `GotoXY` and `ClrScr` use this part of the
+/// 80x25 screen.
+pub fn window(x1: u8, y1: u8, x2: u8, y2: u8) {
+    CRT.with(|crt| crt.window.set((x1, y1, x2, y2)));
+    gotoxy(1, 1);
+}
+
+/// `GotoXY` of the Crt unit
+pub fn gotoxy(x: u8, y: u8) {
+    let (x1, y1, _, _) = CRT.with(|crt| crt.window.get());
+    crt_escape(&format!("\x1b[{};{}H", y1 + y - 1, x1 + x - 1));
+}
+
+/// `ClrScr` of the Crt unit: fills the window with the background color
+pub fn clrscr() {
+    let (x1, y1, x2, y2) = CRT.with(|crt| crt.window.get());
+    for y in 1..=y2 - y1 + 1 {
+        gotoxy(1, y);
+        crt_escape(&" ".repeat((x2 - x1 + 1) as usize));
+    }
+    gotoxy(1, 1);
+}
+
+struct Crt {
+    window: Cell<(u8, u8, u8, u8)>,
+    text_color: Cell<u8>,
+    text_background: Cell<u8>,
+}
+
+thread_local! {
+    static CRT: Crt = const {
+        Crt {
+            window: Cell::new((1, 1, 80, 25)),
+            text_color: Cell::new(7),
+            text_background: Cell::new(0),
+        }
+    };
+}
+
+/// The ANSI color number of a DOS color: dark colors from `dark`, bright from
+/// `bright`
+fn ansi_color(color: u8, dark: u8, bright: u8) -> u8 {
+    const ANSI_ORDER: [u8; 8] = [0, 4, 2, 6, 1, 5, 3, 7];
+    let base = if color & 8 != 0 { bright } else { dark };
+    base + ANSI_ORDER[(color & 7) as usize]
+}
+
+/// The trace does not get the Crt output, so that it has only the text of
+/// the Pascal game.
+fn crt_escape(text: &str) {
+    let mut stdout = std::io::stdout();
+    if stdout.is_terminal() {
+        let _ = stdout.write_all(text.as_bytes());
+    }
+}
+
 /// The trace gets the bytes of the Pascal game, and the terminal gets UTF-8.
 fn write_decoded(text: &[u8], decode: fn(u8) -> char) {
     if trace::active() {
@@ -89,6 +170,14 @@ pub fn dos_file_name(name: &[u8]) -> String {
         .collect()
 }
 
+/// The CP437 bytes of a file name, the inverse of `dos_file_name`. A character
+/// that CP437 does not have becomes `?`.
+pub fn dos_name_bytes(name: &str) -> Vec<u8> {
+    name.chars()
+        .map(|c| (0..=255).find(|&b| cp437_char(b) == c).unwrap_or(b'?'))
+        .collect()
+}
+
 fn cp437_char(c: u8) -> char {
     const CP437_HIGH: &str = "\
         ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»\
@@ -102,12 +191,21 @@ fn cp437_char(c: u8) -> char {
 
 #[cfg(test)]
 mod tests {
-    use super::cp437_char;
+    use super::{cp437_char, dos_file_name, dos_name_bytes};
 
     #[test]
     fn cp437_upper_half() {
         assert_eq!(cp437_char(0x94), 'ö');
         assert_eq!(cp437_char(0xDB), '█');
         assert_eq!(cp437_char(0xFF), '\u{a0}');
+    }
+
+    #[test]
+    fn dos_name_bytes_inverts_dos_file_name() {
+        assert_eq!(
+            dos_name_bytes(&dos_file_name(b"M\x8EKI.SJC")),
+            b"M\x8EKI.SJC"
+        );
+        assert_eq!(dos_name_bytes("A\u{20ac}.SJC"), b"A?.SJC");
     }
 }

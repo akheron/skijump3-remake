@@ -1,10 +1,13 @@
 use crate::graph::GraphModule;
-use crate::help::{num, round, txt, txtp};
+use crate::help::{cwrite, cwriteln, num, round, txt, txtp};
 use crate::lang::LangModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
-use crate::rs_util::{parse_line, random, read_line, val, writeln};
+use crate::rs_util::{
+    clrscr, gotoxy, parse_line, random, read_line, textbackground, textcolor, val, window, write,
+    writeln,
+};
 use std::cell::{Cell, RefCell};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::rc::Rc;
@@ -772,6 +775,24 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         } else {
             self.hd.borrow()[nytmaki as usize].name.clone()
         }
+    }
+
+    pub fn hillcode(&self, nytmaki: i32) -> i32 {
+        let mut temp: i32 = 0;
+        let mut h = Hill::default();
+
+        if nytmaki > 0 && nytmaki <= NUM_WC_HILLS + self.num_extra_hills.get() as i32 {
+            self.load_info(nytmaki, &mut h);
+            temp = h
+                .profile
+                .wrapping_add(round((h.pl_save as f64 * 311.0) as f32))
+                .wrapping_add(h.vx_final as i32 * 131)
+                .wrapping_add(round(h.pk) * 17)
+                .wrapping_add(h.kr * 11)
+                .wrapping_add(svaluestr(&h.name, 1) as i32);
+        }
+
+        temp
     }
 
     //{ phase: 0 - tavallinen, 1 - ei profiilin checkkausta (HR:t) }
@@ -1713,6 +1734,185 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.g.write_font(150, 180, self.l.lstr(40));
         self.g.draw_screen().await;
     }
+
+    pub fn regendtext(&self, _regname: &[u8], _regnumber: &[u8]) {
+        gotoxy(2, 10);
+        cwrite(8, b"- YOU RULE!!!");
+        writeln(b"  This version is registered to Everyone. ");
+        textcolor(15);
+        cwriteln(8, b"   Thanks for all the support!!!");
+    }
+
+    pub fn lopputext(&self, version: &[u8], a1: Time, a2: Time) {
+        textcolor(0);
+        gotoxy(69, 2);
+        write(b" \xdb\xdf \xdb");
+        gotoxy(69, 3);
+        write(b" \xdb  \xdb");
+        gotoxy(69, 4);
+        write(b"\xdc\xdb \xdc\xdb");
+
+        textcolor(4);
+        gotoxy(75, 2);
+        write(b"\xdf\xdb");
+        gotoxy(75, 3);
+        write(b"\xfe\xdb");
+        gotoxy(75, 4);
+        write(b"\xdc\xdb");
+
+        let temp1 = a1.second as i32 + a1.minute as i32 * 60 + a1.hour as i32 * 3600;
+        let mut temp2 = a2.second as i32 + a2.minute as i32 * 60 + a2.hour as i32 * 3600;
+
+        if temp2 < temp1 {
+            temp2 += 86400;
+        }
+
+        let diff = temp2 - temp1;
+
+        let hour = diff / 3600;
+        let minute = (diff / 60) - (hour * 60);
+        let second = diff - (diff / 60) * 60;
+
+        gotoxy(2, 2);
+        cwrite(15, &[b"- You played SJ3 v", version, b" for"].concat());
+
+        if hour > 0 {
+            write(format!(" {hour} hour").as_bytes());
+            if hour > 1 {
+                write(b"s");
+            }
+
+            if minute > 0 && second > 0 {
+                write(b",");
+            } else if minute > 0 || second > 0 {
+                write(b" and");
+            }
+        }
+
+        if minute > 0 {
+            write(format!(" {minute} minute").as_bytes());
+            if minute > 1 {
+                write(b"s");
+            }
+            if second > 0 {
+                write(b" and");
+            }
+        }
+
+        if second > 0 {
+            write(format!(" {second} second").as_bytes());
+            if second > 1 {
+                write(b"s");
+            }
+        }
+
+        if hour == 0 && minute == 0 && second == 0 {
+            write(b" no time at all");
+        }
+        writeln(b". ");
+
+        gotoxy(2, 4);
+        cwriteln(8, b"- Play original DOS version if you aim for the");
+        cwrite(8, b"   Universal Hall of Fame.");
+
+        gotoxy(2, 7);
+        cwriteln(
+            15,
+            b"- Be sure to check out the Official Ski Jump International",
+        );
+        write(b"   webpage located at  ");
+        cwrite(8, b"http://www.nomasi.com/sj3/");
+
+        window(1, 16, 80, 19);
+        textbackground(1);
+        clrscr();
+        writeln(b"");
+        cwriteln(9, b"   Quote of the moment: ");
+        cwrite(15, b"   ");
+
+        match random(40) {
+            0 => writeln(b"Drama, excitement, speed, life, Ski Jump International."),
+            1 => writeln(b"\"I traded K.I.T.T for Ski Jump International\" - M. Knight"),
+            2 => writeln(b"\"Ski Jump International is out there\" - F. Mulder"),
+            3 => writeln(b"NSA, CIA, FBI, INTERPOL, SJ3 = ass-kicking action all the way"),
+            4 => writeln(b"Ski Jump International - for the love of flying since 1994"),
+            5 => writeln(b"\"Only nuclear testing is more fun than SJ3\" - J. Chirac"),
+            6 => writeln(
+                b"\"Our new phone had SJ3 in it and nobody used it for talking\" - J. Ollila",
+            ),
+            7 => writeln(b"\"Only exploiting Nigeria is more addictive than SJ3\" - Shell Inc."),
+            8 => writeln(b"\"Only exploiting the Amazonas is more fun than SJ3\" - Texaco"),
+            9 => writeln(b"\"There shall be no tobacco advertising in SJ3\" - European Union"),
+            10 => writeln(b"S.J.3. - four letters that deliver pure enjoyment"),
+            11 => writeln(b"Genesis, Exodus, Leviticus, Numeri, Deuterononium, SJ3"),
+            12 => writeln(b"\"SJ3 was not the reason for our comeback\" - Spice Girls"),
+            13 => writeln(b"\"SJ3 can be explained with modern science\" - D. Scully"),
+            14 => writeln(b"\"There is no cleaner sport than SJ3\" - J. Samaranch"),
+            15 => writeln(
+                b"\"We have warned SJ3 for it's refusal to allow weapons inspectors\" - USA",
+            ),
+            16 => writeln(
+                b"\"SJ3 is a neo-communist plot and it must be stopped at any cost\" - J. Helms",
+            ),
+            17 => {
+                writeln(b"\"Half of USA's 396 Billion Dollar defense budget is spent on SJ3 regs\"")
+            }
+            18 => writeln(b"\"I made SJ3 out of fertilizer and window cleaner\" - MacGyver"),
+            19 => {
+                writeln(b"\"Salt Lake City offered $700 000 in bribes to get into SJ3\" - D. Pound")
+            }
+            20 => {
+                writeln(b"\"SJ3 played a key part in our struggle for independence\" - X. Gusmao")
+            }
+            21 => {
+                writeln(b"\"We'll bomb and invade any nation that uses pirate SJ3's!\" - G.W.Bush")
+            }
+            22 => writeln(b"Engineered with love and tradition from 1994 - SJ3"),
+            23 => {
+                writeln(b"VX ANTHRAX AK-47 NWO FNORD G-7 NSA SJ3 PGP PRISM BLANKET IRA PLUTONIUM")
+            }
+            24 => {
+                writeln(b"\"SJ3 is the only reason why I still use a Microsoft OS\" - L. Torvalds")
+            }
+            25 => writeln(b"\"SJ3 is banned in China for it's pro-Tibetian views\" - J. Zemin"),
+            26 => writeln(b"\"SJ3 is the last beacon of free press in Russia\" - V. Guzinsky"),
+            27 => writeln(b"SJ3 - no sex, no drugs, no violence - just the love of flying"),
+            28 => writeln(b"\"I am still the greatest, but SJ3 is getting damn close\" - M. Ali"),
+            29 => writeln(b"\"I pity the fool who doesn't play SJ3\" - Mr.T"),
+            30 => writeln(b"S is for Serenity, J is for Joy and 3 is for ... a Free Palestine!"),
+            31 => writeln(
+                b"\"We didn't join the Euro as we can buy SJ3 with any currency\" - DK, SE & UK",
+            ),
+            32 => writeln(b"H2O, CO2, O2, SJ3 - stuff I can't live without"),
+            33 => writeln(b"Sex, drugs & SJ3"),
+            34 => writeln(
+                b"\"The downloads of SJ3 are monitored because of its suspicious content\" - NSA",
+            ), //{ max length }
+            35 => writeln(
+                b"SJ3 - almost as addictive as Coca-Cola and almost as fattening as McDonald's",
+            ),
+            36 => writeln(b"\"SJ3 is more magic than me\" - D. Blaine"),
+            37 => writeln(
+                b"\"New Europe doesn't need democratic decisions, it needs SJ3.\" - D. Rumsfeld",
+            ),
+            38 => {
+                writeln(b"\"As soon as I own SJ3, it will start to love me too.\" - S. Berlusconi")
+            }
+            39 => writeln(
+                b"\"I have never overstated anyones weapons or games.  SJ3 is god.\" - T. Blair",
+            ),
+            40 => {
+                writeln(b"\"SJ3 inspired me to admit that we are illegal occupiers.\" - A. Sharon")
+            }
+            _ => {}
+        }
+
+        textcolor(7);
+
+        window(1, 1, 80, 25);
+
+        gotoxy(1, 22);
+    }
 }
 
 pub fn loadgoal<P: Platform>(s: &P, num: i32) -> i32 {
@@ -1916,7 +2116,7 @@ fn delete(str0: &mut Vec<u8>, index: usize) {
 }
 
 /// `Insert(source, s, index)` of Pascal, which appends past the end
-fn insert(source: &[u8], s: &mut Vec<u8>, index: usize) {
+pub fn insert(source: &[u8], s: &mut Vec<u8>, index: usize) {
     let at = index.clamp(1, s.len() + 1) - 1;
     s.splice(at..at, source.iter().copied());
 }
@@ -1928,6 +2128,26 @@ pub fn valuestr(str0: &[u8], arvo: i32) -> u16 {
         word1 = word1.wrapping_add(
             (str0[index - 1] as i32).wrapping_mul(((index as i32) % 5).wrapping_add(41)) as u16,
         );
+    }
+
+    word1
+        .wrapping_mul((arvo % 7 + 1) as u16)
+        .wrapping_add(arvo as u16)
+}
+
+pub fn svaluestr(str0: &[u8], arvo: i32) -> u16 {
+    let mut word1: u16 = 0;
+
+    for index in 1..=str0.len() {
+        match str0[index - 1] {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' => {
+                word1 = word1.wrapping_add(
+                    (str0[index - 1] as i32).wrapping_mul(((index as i32) % 5).wrapping_add(41))
+                        as u16,
+                ); //{ v3.10 }
+            }
+            _ => word1 = word1.wrapping_add(3),
+        }
     }
 
     word1

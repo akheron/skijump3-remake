@@ -1,5 +1,5 @@
 use crate::graph::GraphModule;
-use crate::help::{nsqrt, pcomp, round, txt, txtp, upstr};
+use crate::help::{beep, dowindow, nsqrt, pcomp, round, txt, txtp, upstr};
 use crate::info::InfoModule;
 use crate::lang::LangModule;
 use crate::list::ListModule;
@@ -9,7 +9,8 @@ use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
 use crate::regfree::{REGNAME, REGNUMBER};
 use crate::rs_util::{
-    dos_file_name, halt, parse_line, random, read_line, write, writeln, writeln_latin1,
+    clrscr, dos_file_name, halt, parse_line, random, read_line, textbackground, write, writeln,
+    writeln_latin1,
 };
 use crate::table::{
     find_landing, jump_risk, lasku_anim, lasku_asento, lento_anim, parru_anim, ponn_anim,
@@ -32,7 +33,7 @@ const VERSION_FULL: &[u8] = b"3.13-remake0";
 #[cfg(feature = "trace")]
 const VERSION: &[u8] = b"3.13";
 #[cfg(feature = "trace")]
-const VERSION_FULL: &[u8] = b"3.13-sp4";
+const VERSION_FULL: &[u8] = b"3.13-SP4";
 
 pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
     g: &'g GraphModule<'m, 'p, 's, P>,
@@ -190,6 +191,17 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             this_is_a_hill_record: 0,
             lmaara: 0,
         }
+    }
+
+    fn make_send_me(&self) {
+        self.i.call_sendme(
+            VERSION,
+            REGNAME.as_bytes(),
+            REGNUMBER.as_bytes(),
+            self.today,
+            self.now,
+            self.u.vcode.get(),
+        );
     }
 
     fn write_records(&self) {
@@ -1880,7 +1892,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         if laskuri > 700 {
             //{ ei sitte kaveri l�htenytk��n }
-            //if (beeppi) then beep(2);
+            if self.beeppi {
+                beep(self.s, 2);
+            }
             self.p.muuta_logo(4); //{ vihre� pois }
             self.p.aseta_paletti();
             self.g
@@ -2281,7 +2295,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                             //{ Ponnistus liian aikaisin }
                             if ponnistus == 17 {
                                 pl = (pl as f64 + 0.023) as f32;
-                                //if (not cjumper) and (beeppi) then beep(1);
+                                if !cjumper && self.beeppi {
+                                    beep(self.s, 1);
+                                }
                             }
 
                             pl = (pl as f64 + 0.013) as f32;
@@ -4995,17 +5011,25 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.mcpisteet[15] = 0; //{ ????? mik� 15? }
 
         self.wcup = false;
-        /*
-        { testing alleolevia! }
 
-        WriteProfiles;
-        WriteRecords;
-        MakeSendMe;
-        */
+        //{ testing alleolevia! }
+
+        self.i.write_profiles();
+        self.write_records();
+        self.make_send_me();
     }
 
-    fn check_param(&self) {
-        // TODO
+    fn check_param(&mut self) {
+        let str1 = self.s.param_str(1).into_bytes();
+
+        if str1.len() > 1 {
+            match str1[1] {
+                b'r' => self.reset_hiscore(1),
+                b'z' => self.reset_hiscore(0),
+                b'c' => self.reset_config(),
+                _ => {}
+            }
+        }
     }
 
     async fn draw_full_main(&mut self) {
@@ -5171,6 +5195,57 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
 
         self.m.alusta();
+    }
+
+    fn loppu(&mut self) {
+        // This line of the Pascal source is in Latin-1, and the rest in CP437
+        writeln_latin1(&[b"SJ3 v", VERSION, b" by Ville K\xF6n\xF6nen 2013"].concat());
+
+        self.now = self.u.get_now();
+
+        write(b"- Writing HISCORE.SKI");
+        self.write_records();
+
+        write(b", CONFIG.SKI");
+        self.write_config();
+
+        write(b", PLAYERS.SKI");
+        self.i.write_profiles();
+
+        if self.u.num_extra_hills.get() > 0 {
+            write(b", Extra Hillrecords");
+            self.u.write_extras();
+        }
+
+        self.s.putsaa();
+
+        self.make_send_me();
+
+        write(b", SENDME.TXT.");
+
+        trace::start_end_text();
+        textbackground(0);
+        clrscr();
+
+        dowindow(1, 2, 80, 14, 7);
+        self.u.regendtext(REGNAME.as_bytes(), REGNUMBER.as_bytes());
+
+        self.u.lopputext(VERSION_FULL, self.start, self.now);
+
+        // The SDL port waits here until Crt.KeyPressed sees a key in the
+        // terminal. The standard library cannot read a single key from the
+        // terminal, so the remake exits without the wait.
+    }
+
+    pub fn close(&mut self) {
+        self.s.deinit_graphics();
+
+        self.loppu();
+    }
+
+    pub fn close_and_halt(&mut self) -> ! {
+        self.close();
+        halt();
     }
 
     // originally in SJ3UNIT.PAS
