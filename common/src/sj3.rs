@@ -4881,6 +4881,150 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         //{$ENDIF}
     }
 
+    //{ num - monesko hyppääjä }
+    async fn jlista(&mut self, num: i32) {
+        let mut str1: Vec<u8>;
+        let mut temp: i32;
+        let mut who: i32;
+        let mut pts: i32;
+        let mut extra: Vec<u8>;
+        let mut ldiff: bool;
+        let mut leave: bool;
+
+        temp = 5;
+        ldiff = self.diff;
+        str1 = [
+            &self.l.lstr(81) as &[u8],
+            b" ",
+            &txt(self.osakilpailu),
+            b" ",
+            &self.l.lstr(8),
+            b" 6 - R ",
+            &txt(self.kierros),
+            b" - ",
+            &self.l.lstr(88),
+            b" ",
+            &txt(num),
+        ]
+        .concat();
+
+        if num == 0 {
+            //{ cuplista }
+            temp = 6;
+            ldiff = self.diffwc;
+            str1 = [
+                &self.l.lstr(91) as &[u8],
+                b" ",
+                &txt(self.osakilpailu),
+                b" ",
+                &self.l.lstr(8),
+                b" 6",
+            ]
+            .concat();
+            if self.osakilpailu == 6 {
+                str1 = self.l.lstr(92).to_vec();
+            }
+        }
+
+        self.ls
+            .reset_list(
+                self.jmaara as i32,
+                NUM_TEAMS as i32,
+                temp,
+                &str1,
+                self.inv_back,
+            )
+            .await;
+
+        leave = false;
+
+        temp = 1;
+
+        loop {
+            who = self.luett[temp as usize] as i32;
+            if num == 0 {
+                who = self.mcluett[temp as usize] as i32;
+            }
+
+            extra = b"X".to_vec();
+            if temp == 15 {
+                extra = b"L".to_vec();
+            }
+            if num == 0 {
+                if self.mcpisteet[self.mcluett[(temp + 1) as usize] as usize] == 0 {
+                    extra = b"L".to_vec();
+                }
+                self.stats[NUM_TEAMS][self.osakilpailu as usize].wc_pos = self.sija[NUM_TEAMS]; //{ ?? }
+                self.stats[NUM_TEAMS - 1][self.osakilpailu as usize].wc_pos = self.sija[NUM_TEAMS];
+            }
+
+            if who > 15 - self.jmaara as i32 {
+                self.sija[0] = self.sija[who as usize];
+                if num == 0 {
+                    self.stats[(15 - who) as usize][self.osakilpailu as usize].wc_pos =
+                        self.sija[who as usize];
+                } else {
+                    self.stats[(num + (15 - who) * 4) as usize][self.osakilpailu as usize]
+                        .round_len[self.kierros as usize] = self.sija[who as usize] as i32;
+                    self.stats[(15 - who) as usize][self.osakilpailu as usize].comp_pos =
+                        self.sija[who as usize];
+                }
+            }
+
+            pts = self.pisteet[who as usize];
+            if num == 0 {
+                pts = self.mcpisteet[who as usize];
+            }
+
+            if ldiff && temp > 1 {
+                if num == 0 {
+                    pts -= self.mcpisteet[self.mcluett[1] as usize];
+                } else {
+                    pts -= self.pisteet[self.luett[1] as usize];
+                }
+            }
+
+            temp = self
+                .ls
+                .entry(
+                    temp,
+                    self.sija[who as usize] as i32,
+                    who,
+                    &self.i.jnimet.borrow()[who as usize],
+                    pts,
+                    0,
+                    0,
+                    &extra,
+                )
+                .await;
+
+            if temp < 0 {
+                leave = true;
+            }
+
+            if leave {
+                break;
+            }
+        }
+
+        if temp == -2 {
+            self.cupslut = true;
+        }
+
+        if num == 0 {
+            //{$IFDEF REG}
+            if self.s.get_ch() == b's' || self.s.get_ch() == b'S' || self.lct {
+                if !self.cupslut {
+                    self.showstats().await;
+                }
+            }
+            //{$ENDIF}
+            if self.osakilpailu == 6 {
+                self.sorthighs(1).await;
+            }
+        }
+    }
+
     fn jarjestys(&mut self, fromarray: u8, toarray: u8, num: u8) {
         // { from: 0 - MCpist, 1 - fourpts, 2 - pisteet }
         // { to: 0 - mcluett, 1 - luett }
@@ -5019,6 +5163,18 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 }
             }
         }
+    }
+
+    async fn jcupluettelo(&mut self) {
+        for loop1 in 1..=NUM_TEAMS {
+            if self.sija[loop1] < 9 {
+                self.mcpisteet[loop1] += TEAM_POINTS[self.sija[loop1] as usize];
+            }
+        }
+
+        self.jarjestys(0, 0, NUM_TEAMS as u8);
+
+        self.jlista(0).await;
     }
 
     async fn kothlista(&mut self) {
@@ -5885,6 +6041,407 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.write_config(); //{ kirjoitetaan muutokset levylle }
     }
 
+    //{ 0 - tekee ekan, 1 - tokan... }
+    async fn getteam(&mut self, num: u8) {
+        let mut xx: i32;
+
+        xx = 30;
+
+        if num == 1 {
+            xx = 160;
+        }
+
+        // { FontColor(240); }
+
+        // { Writefont(xx,38,'TEAM'+txt(num+1)); }
+        // { Writefont(xx,0,jnimet[15-num]); }
+
+        self.g.font_color(246);
+
+        for temp in 1..=4 {
+            self.g.write_font(
+                xx + 13,
+                (temp - 1) * 10 + 56,
+                &self.i.nimet.borrow()[NUM_PL + 1 - (num as usize * 4) - temp as usize],
+            );
+        }
+
+        self.g.font_color(240);
+
+        self.g.write_font(
+            xx,
+            30,
+            &[&self.l.lstr(113) as &[u8], b" ", &txt(num as i32 + 1), b":"].concat(),
+        );
+        // {  FillBox(40,65,200,81,243); }
+
+        // { Fontcolor(240); }
+
+        self.g.draw_screen().await;
+
+        let oldstr = self.i.jnimet.borrow()[15 - num as usize].clone();
+        let newstr = self.u.getstr(xx, 42, 120, &oldstr, 242).await;
+        self.i.jnimet.borrow_mut()[15 - num as usize] = newstr;
+
+        self.g
+            .fill_box((xx - 10) as u16, 30, (xx + 124) as u16, 54, 243);
+        self.g
+            .fill_area((xx - 10) as u16, 30, (xx + 124) as u16, 54, 63);
+
+        self.g.font_color(241);
+
+        self.g.write_font(
+            xx,
+            30,
+            &[&self.l.lstr(114) as &[u8], b" ", &txt(num as i32 + 1), b":"].concat(),
+        );
+
+        self.g.font_color(240);
+        self.g
+            .write_font(xx, 42, &self.i.jnimet.borrow()[15 - num as usize]);
+    }
+
+    async fn teamsready(&mut self) {
+        let mut temp: i32;
+
+        self.g.new_screen(1, 1).await;
+
+        self.g.font_color(240);
+        self.g.write_font(30, 6, self.l.lstr(111));
+
+        // { FontColor(247); }
+
+        self.g.write_font(30, 110, self.l.lstr(112));
+
+        for temp in 1..=40 {
+            self.hill_order[temp] = temp as i32;
+        }
+
+        self.hill_order[1] = random(NUM_WC_HILLS as u32) as i32 + 1;
+
+        temp = 2;
+        while temp <= 6 {
+            self.hill_order[temp as usize] = random(NUM_WC_HILLS as u32) as i32 + 1;
+
+            for temp2 in 1..=temp - 1 {
+                if self.hill_order[temp as usize] == self.hill_order[temp2 as usize] {
+                    temp -= 1;
+                }
+            }
+
+            temp += 1;
+        }
+
+        self.g.font_color(246);
+
+        for temp in 1..=6 {
+            self.g.write_font(
+                30,
+                (temp * 10) + 114,
+                &[
+                    &txt(temp) as &[u8],
+                    b". ",
+                    &self.u.hillname(self.hill_order[temp as usize]),
+                ]
+                .concat(),
+            );
+        }
+
+        // { Writefont(30,36,'THE TEAM LINEUPS ARE:'); }
+
+        self.getteam(0).await;
+
+        if self.jmaara > 1 {
+            self.getteam(1).await;
+        }
+
+        /*{  ShowTeam(0);
+
+        if (jmaara>1) then ShowTeam(1);
+
+         FontColor(240); }*/
+
+        for temp in 1..=4 {
+            self.teamlineup[14 * 4 + temp] = (NUM_PL + 1 - temp) as u8;
+        }
+
+        if self.jmaara > 1 {
+            for temp in 1..=4 {
+                self.teamlineup[13 * 4 + temp] = (NUM_PL - 3 - temp) as u8;
+            }
+        }
+
+        self.g.draw_screen().await;
+
+        self.cupslut = self.u.wait_for_key3(305, 180).await;
+
+        // { ReadKey; }
+    }
+
+    async fn showteams(&mut self, teamorder: &[i32; 16]) {
+        let mut x: i32;
+        let mut y: i32;
+        let mut team: i32;
+        let mut t3: i32;
+
+        self.g.new_screen(1, 1).await;
+        self.g.write_font(30, 6, self.l.lstr(111));
+        x = 5;
+        y = 24;
+
+        for t1 in (1..=15).rev() {
+            team = teamorder[t1];
+            self.g.font_color(240);
+            self.g.write_font(
+                x,
+                y,
+                &self.g.nsh(&self.i.jnimet.borrow()[team as usize], 95),
+            );
+
+            if team > 15 - self.jmaara as i32 {
+                self.g.font_color(246);
+            } else {
+                self.g.font_color(241);
+            }
+
+            for t2 in 1..=4 {
+                t3 = self.teamlineup[((team - 1) * 4 + t2) as usize] as i32;
+                self.g.write_font(
+                    x + 4,
+                    y + 1 + (t2 * 6),
+                    &self.g.nsh(&self.i.nimet.borrow()[t3 as usize], 90),
+                );
+            }
+
+            x += 102;
+            if x > 240 {
+                x = 5;
+                y += 35;
+            }
+            self.g.draw_screen().await;
+        }
+
+        self.cupslut = self.u.wait_for_key3(305, 6).await;
+    }
+
+    async fn startteam(&mut self) {
+        let mut temp: i32;
+        let mut index: i32;
+        let mut team: i32;
+        let mut teamorder: [i32; 16] = [0; 16];
+
+        let swap = |order: &mut [i32; 16], i1: usize, i2: usize| {
+            let temp = order[i1];
+            order[i1] = order[i2];
+            order[i2] = temp;
+        };
+
+        self.osakilpailu = 0;
+        self.startgate = 0;
+
+        for temp in 1..=15 {
+            self.mcpisteet[temp] = 0;
+            teamorder[temp] = 16 - temp as i32;
+        }
+
+        for _temp2 in 1..=3 {
+            for temp in 1..=14 {
+                if random(2) == 0 {
+                    swap(&mut teamorder, temp, temp + 1);
+                }
+            }
+        }
+
+        let names: Vec<String> = (1..=NUM_TEAMS)
+            .map(|t| format!("order{t}"))
+            .chain((1..=NUM_TEAMS * 4).map(|t| format!("lineup{t}")))
+            .collect();
+        let values = teamorder[1..=NUM_TEAMS]
+            .iter()
+            .copied()
+            .chain(self.teamlineup[1..=NUM_TEAMS * 4].iter().map(|&t| t as i32));
+        let fields: Vec<(&str, trace::Value)> = names
+            .iter()
+            .map(String::as_str)
+            .zip(values.map(Into::into))
+            .collect();
+        trace::record("TeamLineup", &fields);
+
+        self.reset_stats();
+
+        self.showteams(&teamorder).await;
+
+        loop {
+            self.tuuli.alusta(self.windplace);
+
+            self.osakilpailu += 1;
+
+            self.nytmaki = self.hill_order[self.osakilpailu as usize];
+
+            self.jumpalku();
+
+            // {    Stats[0,osakilpailu].Reason[1]:=nytmaki; }
+
+            // {    if (preview1) then preview(nytmaki); }
+
+            self.kierros = 1;
+
+            // {  team:=1; }
+
+            self.eka = true;
+
+            index = 1;
+            loop {
+                //{ jumpers 1..4 }
+                for temp in 1..=15 {
+                    self.luett[temp] = 0;
+                }
+
+                // {       eka:=true; }
+
+                // { if (not cupslut) then jmuidenhypyt(index); }
+
+                for temp2 in 1..=NUM_TEAMS {
+                    team = teamorder[temp2];
+
+                    temp = self.teamlineup[((team - 1) * 4 + index) as usize] as i32;
+
+                    /*{         temp:=round((5-index)*2.5+(team*1.5)-3);
+                    if (team > NumTeams-jmaara) then temp:=NumPl+1-(15-team)*4-index; }*/
+
+                    if !self.cupslut {
+                        self.hyppy(index, temp, team).await;
+                    }
+
+                    self.eka = false;
+                }
+
+                self.jarjestys(2, 1, NUM_TEAMS as u8);
+                self.trace_team_standings(index);
+                if !self.cupslut {
+                    self.jlista(index).await;
+                }
+
+                if index == 4 {
+                    break;
+                }
+                index += 1;
+            }
+
+            self.kierros += 1;
+
+            // {    eka:=true; }  { hullu! }
+
+            if self.s.get_ch() != b'S' && self.s.get_ch() != b's' {
+                //{ 2. kierros }
+                index = 1;
+                loop {
+                    for temp in 1..=15 {
+                        self.luett[temp] = 0;
+                    }
+
+                    // {       eka:=true; }  { TARKASTA! (OK) }
+
+                    for temp2 in 1..=NUM_TEAMS {
+                        team = teamorder[temp2];
+                        temp = self.teamlineup[((team - 1) * 4 + index) as usize] as i32;
+
+                        /*{        temp:=round((5-index)*2.5+(team*1.5)-3);
+                        if (team > NumTeams-jmaara) then temp:=NumPl+1-(15-team)*4-index; }*/
+
+                        if !self.cupslut {
+                            self.hyppy(index, temp, team).await;
+                        }
+                        self.eka = false;
+                    }
+
+                    self.jarjestys(2, 1, NUM_TEAMS as u8);
+                    self.trace_team_standings(index);
+                    if !self.cupslut {
+                        self.jlista(index).await;
+                    }
+
+                    if index == 4 {
+                        break;
+                    }
+                    index += 1;
+                }
+            }
+
+            // {       eka:=true; }
+
+            if self.s.get_ch() == b'S' || self.s.get_ch() == b's' {
+                //{ skippaus (?) }
+                for temp in 1..=15 {
+                    self.luett[temp] = 0;
+                }
+                self.jarjestys(2, 1, NUM_TEAMS as u8);
+                self.trace_team_standings(index);
+                self.jlista(index).await;
+            }
+
+            if !self.cupslut {
+                self.jcupluettelo().await;
+            }
+
+            if self.cupslut || self.osakilpailu >= 6 {
+                break;
+            }
+        }
+
+        // { end; }
+    }
+
+    fn trace_team_standings(&self, index: i32) {
+        let names: Vec<(String, String)> = (1..=NUM_TEAMS)
+            .map(|t| (format!("team{t}"), format!("score{t}")))
+            .collect();
+        let mut fields: Vec<(&str, trace::Value)> = vec![
+            ("osakilpailu", self.osakilpailu.into()),
+            ("kierros", self.kierros.into()),
+            ("index", index.into()),
+        ];
+        for (t, (team, score)) in names.iter().enumerate() {
+            let team_number = self.luett[t + 1] as usize;
+            fields.push((team, (team_number as i32).into()));
+            fields.push((score, self.pisteet[team_number].into()));
+        }
+        trace::record("TeamStandings", &fields);
+    }
+
+    async fn teamcup(&mut self) {
+        self.jcup = true;
+        /*{ textbackground(1);
+        clrscr; }*/
+        self.cupslut = false;
+        self.startgate = 0;
+
+        // { putsaa; }
+        let pmaara = self.i.pmaara.get();
+        if pmaara == 4 || pmaara == 8 {
+            //{ Ehkä vähän turha }
+            self.i
+                .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, false);
+
+            self.teamsready().await;
+
+            if !self.cupslut {
+                self.startteam().await;
+            }
+        } else {
+            if self.beeppi {
+                beep(self.s, 1);
+            }
+
+            self.u.teamwarning().await;
+        }
+
+        self.jcup = false;
+
+        self.i
+            .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true);
+    }
+
     //{ cupstyle: 0 - SJ3 WC, 1 - Custom WC, 2 - Just 4Hills }
     async fn cup(&mut self) {
         let mut temp2 = 0;
@@ -6247,7 +6804,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 //{ MC tulokset, jos niist� kisataan }
                 for temp in 1..=NUM_PL {
                     if self.sija[temp] < 31 {
-                        self.mcpisteet[temp] += WC_POINTS[(self.sija[temp] - 1) as usize] as i32;
+                        self.mcpisteet[temp] += WC_POINTS[self.sija[temp] as usize] as i32;
                     }
                 }
 
@@ -6338,7 +6895,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 }
                 //{$IFDEF REG}
                 4 => {
-                    // teamcup;
+                    self.teamcup().await;
                 }
                 //{$ENDIF}
                 5 => {

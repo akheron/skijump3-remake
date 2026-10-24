@@ -24,11 +24,11 @@ pub const HEX_CH: [&[u8]; 16] = [
     b"0", b"1", b"2", b"3", b"4", b"5", b"6", b"7", b"8", b"9", b"A", b"B", b"C", b"D", b"E", b"F",
 ];
 
-pub const WC_POINTS: [u8; 30] = [
-    100, 80, 60, 50, 45, 40, 36, 32, 29, 26, 24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7,
-    6, 5, 4, 3, 2, 1,
+pub const WC_POINTS: [u8; 31] = [
+    0, 100, 80, 60, 50, 45, 40, 36, 32, 29, 26, 24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8,
+    7, 6, 5, 4, 3, 2, 1,
 ];
-pub const TEAM_POINTS: [i32; 8] = [400, 350, 300, 250, 200, 150, 100, 50];
+pub const TEAM_POINTS: [i32; 9] = [0, 400, 350, 300, 250, 200, 150, 100, 50];
 
 #[derive(Clone, Default)]
 pub struct Hiscore {
@@ -1720,6 +1720,27 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.s.clearchs();
 
         tempb as u8
+    }
+
+    pub async fn teamwarning(&self) {
+        // { alertbox; }
+
+        self.g.fill_box(59, 59, 261, 141, 242);
+        self.g.fill_box(60, 60, 260, 140, 244);
+
+        self.g.fill_area(60, 60, 260, 140, 63);
+
+        self.g.font_color(246);
+
+        self.g.write_font(80, 72, self.l.lstr(261));
+        self.g.write_font(80, 82, self.l.lstr(262));
+        self.g.write_font(80, 92, self.l.lstr(263));
+        self.g.write_font(80, 112, self.l.lstr(264));
+        self.g.write_font(80, 122, self.l.lstr(265));
+
+        self.g.draw_screen().await;
+
+        self.s.wait_for_key().await;
     }
 
     pub fn main_menu_text(&self, phase: u8, version: &[u8]) {
