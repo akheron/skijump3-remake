@@ -19,8 +19,9 @@ use crate::table::{
 use crate::trace;
 use crate::tuuli::TuuliModule;
 use crate::unit::{
-    crypt, dayandtime, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr, Date,
-    Hill, Hiscore, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
+    crypt, dayandtime, defaultkeys, injured, insert, kword, loadgoal, makeletter, uncrypt,
+    valuestr, Date, Hill, Hiscore, Stat, Time, UnitModule, MAX_CUSTOMS, NUM_PL, NUM_TEAMS,
+    NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
 };
 use std::io::{BufReader, Write};
 use std::rc::Rc;
@@ -2655,6 +2656,15 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     hp,
                     dayandtime(self.today, self.now),
                 );
+                trace::record(
+                    "HillRecord",
+                    &[
+                        ("hill", self.nytmaki.into()),
+                        ("name", (&self.u.hrname(self.nytmaki) as &[u8]).into()),
+                        ("length", self.u.hrlen(self.nytmaki).into()),
+                        ("time", (&self.u.hrtime(self.nytmaki) as &[u8]).into()),
+                    ],
+                );
 
                 if self.kierros > 0 {
                     self.stats[statsvictim as usize][self.osakilpailu as usize].reason
@@ -2923,9 +2933,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                             self.g.write_font(260, 33, b"HR!");
                         }
                         if random(2) == 0 {
+                            // The Pascal reference build calls random for the y argument first
+                            let yy = 32 + random(3) as i32;
                             self.g.e_write_font(
                                 temp2 - 1 + random(3) as i32,
-                                32 + random(3) as i32,
+                                yy,
                                 &[&txtp(hp), b"\xab" as &[u8]].concat(),
                             );
                         }
@@ -3673,9 +3685,444 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
     }
 
+    async fn dokothrecords(&self, high: u8) {
+        let mut yy: i32;
+        let mut col: [i32; 5] = [0; 5];
+        let mut str1: Vec<u8>;
+
+        col[1] = 30;
+        col[2] = 55;
+        col[3] = 175;
+        col[4] = 290;
+
+        self.g.font_color(240);
+        self.g.write_font(30, 6, self.l.lstr(160));
+
+        yy = 12;
+
+        for temp in 1..=6 {
+            yy += 18;
+
+            self.g.font_color(246);
+
+            self.g.write_font(col[1], yy, &self.u.kothtitle(temp));
+
+            yy += 10;
+
+            self.g.font_color(241);
+            str1 = self.l.lstr(161).to_vec();
+
+            let hi = self.i.top.borrow()[(temp + 35) as usize].clone();
+            if hi.score > 0 {
+                self.g.write_font(col[3], yy, &hi.time);
+
+                if high == 0 || high as i32 == temp {
+                    self.g.font_color(240);
+                }
+                str1 = hi.name;
+                self.g
+                    .write_font(col[4], yy, &[&txt(hi.score) as &[u8], b" X"].concat());
+                //{ times completed }
+            }
+
+            self.g.write_font(col[2], yy, &str1);
+        }
+
+        self.g.draw_screen().await;
+    }
+
     //{ h0 = main menusta,muuten kertoo mik� highlightataan }
-    fn dolist(&self, high: u8, phase: u8) {
-        // TODO
+    async fn dolist(&mut self, high: u8, phase: u8) {
+        let mut yy: i32;
+        let entries: u8;
+        let start: u8;
+        let mut sortby: u8;
+        let mut str1: Vec<u8>;
+        let mut col: [i32; 6] = [0; 6];
+
+        let mut hi: Hiscore;
+        let mut num_customs: i32 = 0;
+        let mut files: Vec<Vec<u8>> = vec![Vec::new(); MAX_CUSTOMS as usize + 1];
+
+        yy = 6;
+
+        col[0] = 30;
+        col[1] = 146;
+        col[2] = 173;
+        col[3] = 215;
+
+        self.g.font_color(240);
+        sortby = 0; //{ 0-WC, 1 - Total points }
+
+        match phase {
+            0 => {
+                str1 = self.l.lstr(163).to_vec();
+                entries = 20;
+                start = 1;
+            }
+            1 => {
+                str1 = self.l.lstr(164).to_vec();
+                entries = 10;
+                start = 21;
+            }
+            2 => {
+                str1 = self.l.lstr(165).to_vec();
+                entries = 5;
+                start = 31;
+                if high == 0 {
+                    yy = 126;
+                }
+                sortby = 1;
+            }
+            _ => {
+                self.i.find_customs(&mut num_customs, &mut files);
+                str1 = self.l.lstr(162).to_vec();
+                start = (phase - 3).wrapping_mul(20);
+                entries = (num_customs as u8).wrapping_sub(start).min(20);
+                col[0] = 50;
+                col[1] = 157;
+                col[2] = 184;
+            }
+        } //{case}
+
+        self.g.write_font(30, yy, &str1);
+
+        yy += 17;
+
+        self.g.font_color(246);
+
+        if phase > 2 {
+            self.g.write_font(5, yy, self.l.lstr(173)); //{ file }
+            self.g.write_font(col[0], yy, self.l.lstr(171)); //{ name -> who? }
+            self.g.e_write_font(col[1] + 10, yy, self.l.lstr(167));
+            self.g.write_font(col[2] + 9, yy, self.l.lstr(109)); //{ points -> pts }
+        } else {
+            //{ muutoin normaalisti }
+            self.g.write_font(col[0], yy, self.l.lstr(166));
+            self.g.write_font(col[1], yy, self.l.lstr(167));
+            self.g.write_font(col[2], yy, self.l.lstr(168));
+        }
+
+        self.g.write_font(col[3], yy, self.l.lstr(169));
+
+        for temp in start as i32..=start as i32 + entries as i32 - 1 {
+            yy += 8;
+
+            hi = self.i.top.borrow()[temp as usize].clone();
+
+            if phase > 2 {
+                self.i.load_custom(
+                    &files[(temp - start as i32 + 1) as usize],
+                    &mut sortby,
+                    &mut self.hill_order,
+                    &mut self.cup_hills,
+                );
+                hi = self.i.top.borrow()[42].clone();
+            }
+
+            if high == 0 {
+                self.g.font_color(246);
+                if phase < 3 {
+                    self.g.e_write_font(
+                        24,
+                        yy,
+                        &[&txt(temp - start as i32 + 1) as &[u8], b". "].concat(),
+                    );
+                }
+
+                self.g.font_color(240);
+                if hi.name.last() == Some(&b'\xff') {
+                    self.g.font_color(247);
+                }
+            } else {
+                self.g.font_color(241);
+                if temp - start as i32 + 1 == high as i32 {
+                    self.g.font_color(240);
+                }
+                self.g.e_write_font(
+                    24,
+                    yy,
+                    &[&txt(temp - start as i32 + 1) as &[u8], b". "].concat(),
+                );
+            }
+
+            self.g.write_font(col[0], yy, &self.g.nsh(&hi.name, 110));
+            self.g.e_write_font(
+                col[1] + 14,
+                yy,
+                &[&txt(hi.pos as i32) as &[u8], b"."].concat(),
+            );
+
+            str1 = txt(hi.score);
+            if sortby == 1 {
+                str1 = txtp(hi.score);
+            }
+            self.g.e_write_font(col[2] + 24, yy, &str1);
+
+            self.g.font_color(241);
+            self.g.write_font(col[3], yy, &hi.time);
+            if phase > 2 {
+                self.g
+                    .write_font(5, yy, &files[(temp - start as i32 + 1) as usize]);
+            }
+        }
+
+        self.g.draw_screen().await;
+    }
+
+    //{ phase: 0 - normals, 1...  - extras }
+    async fn dohillrec(&self, phase: u8) {
+        let mut yy: i32;
+        let start: i32;
+        let mut loop_: i32;
+        let mut apu1: i32;
+        let mut str1: Vec<u8>;
+        let mut col: [i32; 6] = [0; 6];
+        let mut ahi: i32;
+        let mut laskuri: i32;
+
+        col[0] = 3;
+        col[1] = 71;
+        col[2] = 183;
+        col[3] = 200;
+        col[4] = 216;
+
+        start = phase as i32 * 20;
+
+        self.g.font_color(240);
+
+        str1 = self.l.lstr(156).to_vec();
+
+        ahi = 0;
+
+        if phase == 0 {
+            str1 = self.l.lstr(170).to_vec();
+        }
+
+        loop_ = NUM_WC_HILLS + self.u.num_extra_hills.get() as i32 - start;
+        if loop_ > 20 {
+            loop_ = 20;
+        }
+
+        self.g.write_font(30, 6, &str1);
+
+        self.g.write_font(col[0], 23, self.l.lstr(106));
+        self.g.write_font(col[1], 23, self.l.lstr(171));
+        self.g.e_write_font(col[2], 23, self.l.lstr(172));
+        self.g.write_font(col[3], 23, b"(K)");
+        self.g.write_font(col[4], 23, self.l.lstr(169));
+
+        for aa in 1..=loop_ {
+            yy = (aa - 1) * 8 + 32;
+
+            self.g.font_color(246);
+            self.g
+                .write_font(col[0], yy, &self.g.nsh(&self.u.hillname(aa + start), 64));
+
+            self.g.font_color(240);
+            str1 = self.u.hrname(aa + start);
+
+            apu1 = self.u.hrlen(aa + start);
+
+            if str1.last() == Some(&b'\xff') {
+                self.g.font_color(247);
+                apu1 = self.u.hillkr(aa + start) * 10;
+            }
+
+            ahi += apu1;
+
+            self.g.write_font(col[1], yy, &self.g.nsh(&str1, 80));
+            if str1.last() != Some(&b'\xff') {
+                self.g.font_color(246);
+            }
+            self.g
+                .e_write_font(col[2], yy, &txtp(self.u.hrlen(aa + start)));
+            self.g.e_write_font(
+                col[3] + 11,
+                yy,
+                &[b"(" as &[u8], &txt(self.u.hillkr(aa + start)), b")"].concat(),
+            );
+
+            self.g.font_color(241);
+
+            self.g.write_font(col[4], yy, &self.u.hrtime(aa + start));
+        }
+
+        if phase == 0 {
+            laskuri = 0;
+            for apu1 in 1..=NUM_WC_HILLS {
+                laskuri += self.u.hillkr(apu1) * 10;
+            }
+
+            ahi = round(((ahi as f64 / laskuri as f64) * 10000.0) as f32);
+            str1 = txt(ahi);
+            let index = str1.len() - 1;
+            insert(b".", &mut str1, index);
+            str1.extend_from_slice(b" %");
+
+            self.g.write_font(130, 192, b"A.H.I.");
+            self.g.e_write_font(197, 192, &str1);
+        }
+
+        self.g.draw_screen().await;
+    }
+
+    //{ phase: 0 - hiscores, 1 - hillrecs+extras, 2 - just hillrecs }
+    async fn showtops(&mut self, phase: u8) {
+        let mut index: i32;
+        let mut num: i32;
+        let mut numcustoms: i32 = 0;
+        let mut str1: Vec<u8>;
+        let mut good: bool;
+        let mut leave: bool;
+        let mut filenames: Vec<Vec<u8>> = vec![Vec::new(); MAX_CUSTOMS as usize + 1];
+
+        index = 1;
+        num = 4;
+
+        if phase == 0 {
+            self.i.find_customs(&mut numcustoms, &mut filenames);
+        }
+
+        match phase {
+            0 => {
+                if numcustoms > 0 {
+                    num = (numcustoms - 1) / 20 + 4;
+                } else {
+                    num = 3;
+                }
+            }
+            1 => {
+                num = (self.u.num_extra_hills.get() as i32 - 1) / 20 + 2;
+            }
+            2 => {
+                num = 1;
+            }
+            _ => {}
+        }
+
+        loop {
+            match phase {
+                0 => match index {
+                    1 => {
+                        self.g.new_screen(1, 0).await;
+                        self.dolist(0, 0).await;
+                    }
+                    2 => {
+                        self.g.new_screen(4, 0).await;
+                        self.dolist(0, 1).await;
+                        self.dolist(0, 2).await;
+                    }
+                    3 => {
+                        self.g.new_screen(1, 2).await;
+                        self.dokothrecords(0).await;
+                    }
+                    _ => {
+                        self.g.new_screen(1, 0).await;
+                        self.dolist(0, (index - 1) as u8).await;
+                    }
+                },
+                1 => {
+                    if index == 1 {
+                        self.g.new_screen(1, 0).await;
+                        self.dohillrec(0).await;
+                    } else {
+                        self.g.new_screen(1, 5).await;
+                        self.dohillrec((index - 1) as u8).await;
+                    }
+                }
+                2 => {
+                    self.g.new_screen(1, 0).await;
+                    self.dohillrec(0).await;
+                }
+                _ => {}
+            }
+
+            self.g.font_color(241);
+            if index > 1 {
+                self.g
+                    .e_write_font(319, 5, &[b"(-" as &[u8], &self.l.lstr(246)].concat());
+            }
+
+            str1 = self.l.lstr(247).to_vec();
+            if index == num {
+                str1 = self.l.lstr(248).to_vec();
+            }
+
+            self.g
+                .e_write_font(319, 13, &[&str1 as &[u8], b"-)"].concat());
+
+            self.g.draw_screen().await;
+
+            leave = false;
+
+            loop {
+                good = false;
+
+                let (ch, ch2) = self.s.wait_for_key_press().await;
+                self.s.set_ch(ch);
+                self.s.set_ch2(ch2);
+
+                match ch {
+                    27 => {
+                        index = -1;
+                        good = true;
+                    }
+                    b' ' | 13 => {
+                        index += 1;
+                        good = true;
+                    }
+                    3 => {
+                        //{ CTRL-C }
+                        index = -2;
+                        good = true;
+                    }
+                    _ => {}
+                } //{ case }
+
+                if ch == 0 {
+                    match ch2 {
+                        68 | 45 => {
+                            //{ ALT-X, F10 }
+                            index = -2;
+                            good = true;
+                        }
+                        77 | 81 => {
+                            //{ PgDn, A_Right }
+                            index += 1;
+                            good = true;
+                        }
+                        71 => {
+                            //{ HOME }
+                            if index > 1 {
+                                index = 1;
+                                good = true;
+                            }
+                        }
+                        73 | 75 => {
+                            //{ PgUp, A_Left }
+                            if index > 1 {
+                                index -= 1;
+                                good = true;
+                            }
+                        }
+                        _ => {}
+                    } //{ case }
+                }
+
+                if good {
+                    break;
+                }
+            }
+
+            if index < 0 || index > num {
+                leave = true;
+            }
+
+            if leave {
+                break;
+            }
+        }
     }
 
     //{ vaiheet: 0 - WCquali  1 - WC   2 - 4hills }
@@ -3980,13 +4427,24 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                             top[(t2 + highstart) as usize].name = victimname;
                             top[(t2 + highstart) as usize].pos = self.sija[who as usize];
                             top[(t2 + highstart) as usize].time = datestr.clone();
+                            let entry = &top[(t2 + highstart) as usize];
+                            trace::record(
+                                "TopUpdate",
+                                &[
+                                    ("index", (t2 + highstart).into()),
+                                    ("name", (&entry.name as &[u8]).into()),
+                                    ("score", entry.score.into()),
+                                    ("pos", entry.pos.into()),
+                                    ("time", (&entry.time as &[u8]).into()),
+                                ],
+                            );
                         }
 
                         return_ = t2; //{ pyrkii palauttamaan lis�tyn pelaajan sijan }
 
                         if vaihe < 4 {
                             self.g.new_screen(1, 0).await;
-                            self.dolist(t2, vaihe);
+                            self.dolist(t2, vaihe).await;
                             self.u.wait_for_key3(305, 6).await;
                         }
                     }
@@ -5279,14 +5737,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     self.setup_menu().await;
                 }
                 4 => {
-                    //showtops(0);
+                    self.showtops(0).await;
                 }
                 5 => {
-                    // if (NumExtraHills > 0)
-                    // {
-                    //     showtops(1) }
-                    //     else { showtops(2);
-                    // }
+                    if self.u.num_extra_hills.get() > 0 {
+                        self.showtops(1).await;
+                    } else {
+                        self.showtops(2).await;
+                    }
                 }
                 6 => {
                     // replays(false, version, gdetail);

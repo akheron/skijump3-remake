@@ -198,6 +198,18 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
     }
 
+    pub fn kothtitle(&self, temp: i32) -> Vec<u8> {
+        let mut str1: Vec<u8> = Vec::new();
+
+        match temp {
+            1..=6 => str1 = [&txt(temp) as &[u8], b". ", &self.l.lstr(130 + temp as u32)].concat(),
+            0 | 7 => str1 = [b"0. " as &[u8], &self.l.lstr(137)].concat(),
+            _ => {}
+        }
+
+        str1
+    }
+
     fn draw_goal(&self, goals: &[i32; NUM_WC_HILLS as usize + 1], temp2: i32, phase: i32) {
         if phase == 0 {
             self.g.font_color(240);

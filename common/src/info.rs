@@ -196,7 +196,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         self.s.wait_for_key().await;
     }
 
-    fn find_customs(&self, num_customs: &mut i32, filenames: &mut [Vec<u8>]) {
+    pub fn find_customs(&self, num_customs: &mut i32, filenames: &mut [Vec<u8>]) {
         *num_customs = 0;
         for temp in 0..=MAX_CUSTOMS as usize {
             filenames[temp] = b"".to_vec();

@@ -451,6 +451,7 @@ pub enum Value {
     F32(f32),
     I32(i32),
     Bool(bool),
+    Str(Vec<u8>),
 }
 
 impl Value {
@@ -460,6 +461,17 @@ impl Value {
             Value::F32(v) => format!("f32:{:08X}", v.to_bits()),
             Value::I32(v) => format!("i32:{v}"),
             Value::Bool(v) => format!("bool:{v}"),
+            Value::Str(v) => {
+                let mut s = String::from("str:");
+                for &c in v {
+                    match c {
+                        b'\\' => s += "\\\\",
+                        b'!'..=b'~' => s.push(c as char),
+                        _ => s += &format!("\\x{c:02X}"),
+                    }
+                }
+                s
+            }
         }
     }
 }
@@ -489,6 +501,12 @@ impl From<i32> for Value {
 impl From<u8> for Value {
     fn from(v: u8) -> Self {
         Value::I32(v as i32)
+    }
+}
+
+impl From<&[u8]> for Value {
+    fn from(v: &[u8]) -> Self {
+        Value::Str(v.to_vec())
     }
 }
 
