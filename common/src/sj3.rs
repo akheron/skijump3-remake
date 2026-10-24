@@ -6377,11 +6377,18 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     self.jump_menu().await;
                 }
                 2 => {
-                    // LoadNames(namenumber,jmaara,TeamLineup,false);
-                    // profiles;
-                    // if (pmaara=8) then jmaara:=2 else jmaara:=1;
-                    // jnimet[NumTeams-1]:='Team 2';
-                    // LoadNames(namenumber,jmaara,TeamLineup,true);
+                    //{ signupplayers; }
+                    self.i
+                        .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, false);
+                    self.i.profiles().await;
+                    if self.i.pmaara.get() == 8 {
+                        self.jmaara = 2;
+                    } else {
+                        self.jmaara = 1;
+                    }
+                    self.i.jnimet.borrow_mut()[NUM_TEAMS - 1] = b"Team 2".to_vec();
+                    self.i
+                        .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true);
                 }
                 3 => {
                     self.setup_menu().await;

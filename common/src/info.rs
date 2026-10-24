@@ -1,16 +1,17 @@
 use crate::graph::GraphModule;
 use crate::help::{beep, nmstr, round, toansi, txt, txtp, upstr};
 use crate::lang::LangModule;
-use crate::pcx::PcxModule;
+use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
 use crate::rs_util::{dos_file_name, dos_name_bytes, pad_left, parse_line, random, read_line};
 use crate::unit::{
-    crypt, dayandtime, insert, svaluestr, valuestr, Date, Hiscore, Time, UnitModule, MAX_CUSTOMS,
-    NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
+    crypt, dayandtime, insert, svaluestr, valuestr, Date, Hill, Hiscore, Time, UnitModule,
+    MAX_CUSTOMS, NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
 };
 use std::cell::{Cell, RefCell};
 use std::io::{BufReader, Write};
 
+#[derive(Clone)]
 pub struct Profile {
     name: Vec<u8>,
     realname: Vec<u8>,
@@ -92,9 +93,6 @@ pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'u, P: Platform> {
     num_profiles: Cell<u8>, //{ piilota alas }
     pub profileorder: RefCell<[u8; 21]>,
     pub profile: RefCell<Vec<Profile>>, //{ ehk� my�s }
-
-    maxprofiles: i32,
-    maxpmaara: i32,
 }
 
 impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> {
@@ -119,8 +117,6 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             num_profiles: Cell::new(1),
             profileorder: RefCell::new([0; 21]),
             profile: RefCell::new(profiles),
-            maxprofiles: 0,
-            maxpmaara: 0,
         }
     }
 
@@ -567,6 +563,439 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         }
     }
 
+    fn emptyedit(&self) {
+        self.g.fill_box(166, 4, 319, 198, 244);
+        self.g.fill_area(166, 4, 319, 198, 63);
+    }
+
+    async fn choosesuitski(&self, index: i32, phase: i32) {
+        //{ 0 -suit, 1 -ski}
+        let mut x = if self.g.font_len(self.l.lstr(306)) > self.g.font_len(self.l.lstr(307)) {
+            172 + self.g.font_len(self.l.lstr(306))
+        } else {
+            172 + self.g.font_len(self.l.lstr(307))
+        };
+        if x > 288 {
+            x = 288;
+        }
+
+        let mut max = NUM_SUITS as i32;
+        let mut value = self.profile.borrow()[index as usize].suitcolor as i32 + 1;
+        let mut y = 24;
+
+        for temp in 1..=max {
+            self.p.load_suit((temp - 1) as u8, temp as u8);
+        }
+
+        if phase == 1 {
+            max = NUM_SKIS as i32;
+            for temp in 1..=max {
+                self.p.load_skis((temp - 1) as u8, temp as u8);
+            }
+            value = self.profile.borrow()[index as usize].skicolor as i32 + 1;
+            y += 8;
+        }
+
+        if value == 0 {
+            value = max - 1;
+        }
+
+        self.p.aseta_paletti();
+
+        self.g.fill_box(
+            x as u16,
+            y as u16,
+            (x + 30) as u16,
+            (y + 4 + (max * 8)) as u16,
+            242,
+        );
+        self.g.box_(
+            x as u16,
+            y as u16,
+            (x + 30) as u16,
+            (y + 4 + (max * 8)) as u16,
+            244,
+        );
+
+        for temp in 1..=max {
+            self.g.fill_box(
+                (x + 6) as u16,
+                (y + 4) as u16,
+                (x + 24) as u16,
+                (y + 8) as u16,
+                (temp * 5) as u8,
+            );
+            if phase == 0 {
+                self.g.box_(
+                    (x + 6) as u16,
+                    (y + 4) as u16,
+                    (x + 24) as u16,
+                    (y + 8) as u16,
+                    ((temp * 5) + 2) as u8,
+                );
+            }
+            y += 8;
+        }
+
+        y = y - 59 + (phase * 32);
+
+        value = self
+            .u
+            .make_menu(x + 9, y, 24, 8, max - 1, value, 242, 7, value as u8)
+            .await;
+
+        if value == 0 {
+            value = max;
+        }
+        let mut profile = self.profile.borrow_mut();
+        if phase == 0 {
+            profile[index as usize].suitcolor = (value - 1) as u8;
+        } else {
+            profile[index as usize].skicolor = (value - 1) as u8;
+        }
+    }
+
+    fn drawsuitski(&self, index: i32, _phase: i32) {
+        {
+            let profile = self.profile.borrow();
+            self.p.load_suit(profile[index as usize].suitcolor, 0);
+            self.p.load_skis(profile[index as usize].skicolor, 0);
+        }
+
+        let x = if self.g.font_len(self.l.lstr(306)) > self.g.font_len(self.l.lstr(307)) {
+            178 + self.g.font_len(self.l.lstr(306))
+        } else {
+            178 + self.g.font_len(self.l.lstr(307))
+        };
+
+        let mut xl = x + 18;
+        if xl > 318 {
+            xl = 318;
+        }
+        let mut y = 28;
+
+        self.g
+            .fill_box(x as u16, y as u16, xl as u16, (y + 4) as u16, 216);
+        self.g
+            .box_(x as u16, y as u16, xl as u16, (y + 4) as u16, 218);
+
+        y += 8;
+
+        self.g.fill_box(
+            (x + 1) as u16,
+            (y + 1) as u16,
+            (xl - 1) as u16,
+            (y + 3) as u16,
+            231,
+        );
+
+        self.p.aseta_paletti();
+    }
+
+    fn writeprofile(&self, index: i32, phase: i32, inorder: i32) {
+        //{ 0 - sivunäyttö, 1 - edit }
+        let gety = |temp: i32| -> i32 {
+            match temp {
+                0..=9 => temp * 8 + 4,
+                10..=15 => temp * 8 + 10,
+                _ => temp * 16 - 118,
+            }
+        };
+
+        let colx = 166;
+
+        let mut col1 = 241;
+        let col2 = 246;
+
+        self.emptyedit();
+
+        if phase == 1 {
+            col1 = 240;
+            self.g.fill_box(175, 85, 305, 85, 241);
+        }
+        if self.num_profiles.get() < 16 {
+            self.g.fill_box(1, 175, 158, 199, 243);
+            self.g.fill_area(1, 175, 158, 199, 63);
+        }
+
+        if self.num_profiles.get() < 16 && inorder >= 0 {
+            self.g.font_color(241);
+            let mut temp = 2;
+            if inorder > 0 {
+                temp = 0;
+            }
+            self.g.write_font(8, 175, self.l.lstr(322));
+            self.g.write_font(11, 183, self.l.lstr(323 + temp));
+            self.g.write_font(11, 191, self.l.lstr(324 + temp));
+        }
+
+        if index > 0 && index <= self.num_profiles.get() as i32 {
+            self.g.font_color(col1);
+
+            self.drawsuitski(index, 0);
+
+            for temp in 1..=18 {
+                let mut str1 = self.l.lstr(temp as u32 + 303).to_vec();
+
+                if phase == 0 && temp > 7 && temp < 10 {
+                    str1 = b"".to_vec();
+                }
+
+                if temp == 10 && phase == 1 {
+                    self.g.font_color(241);
+                }
+
+                self.g.write_font(colx, gety(temp), &str1);
+            }
+
+            self.g.font_color(col2);
+
+            for temp in 1..=18 {
+                let profile = self.profile.borrow();
+                let p = &profile[index as usize];
+                let str1: Vec<u8> = match temp {
+                    1 => p.name.clone(),
+                    2 => p.realname.clone(),
+                    5 => {
+                        if p.replace == 0 {
+                            b"-".to_vec()
+                        } else {
+                            self.nimet.borrow()[p.replace as usize].clone()
+                        }
+                    }
+                    6 => {
+                        if p.cstyle == 0 {
+                            self.l.lstr(9).to_vec()
+                        } else {
+                            self.l.lstr(361 + p.cstyle as u32 * 40).to_vec()
+                        }
+                    }
+                    7 => self.l.lstr(231 + p.skipquali as u32).to_vec(),
+                    10 => txt(p.totaljumps),
+                    11 => txt(p.wcs),
+                    12 => txt(p.legswon),
+                    13 => txt(p.wcswon),
+                    14 => p.bestresult.clone(),
+                    15 => p.best4result.clone(),
+                    16 => {
+                        if p.bestwcjump == 0 {
+                            b"-".to_vec()
+                        } else {
+                            [
+                                &txtp(p.bestwcjump as i32) as &[u8],
+                                b"\xab ",
+                                &self.u.hillname(p.bestwchill as i32),
+                            ]
+                            .concat()
+                        }
+                    }
+                    17 => {
+                        if p.bestjump == 0 {
+                            b"-".to_vec()
+                        } else if p.besthill as i32 > NUM_WC_HILLS {
+                            let mut acthill = Hill::default();
+                            let mut temp2 = 0;
+
+                            let num_extra_hills = self.u.num_extra_hills.get() as i32;
+                            if num_extra_hills > 0 {
+                                while temp2 < num_extra_hills {
+                                    temp2 += 1;
+                                    if self.u.hillfile(temp2) == p.besthillfile {
+                                        self.u.load_info(temp2 + NUM_WC_HILLS, &mut acthill);
+                                        temp2 = num_extra_hills;
+                                    }
+                                }
+                            }
+                            [&txtp(p.bestjump as i32) as &[u8], b"\xab ", &acthill.name].concat()
+                        } else {
+                            [
+                                &txtp(p.bestjump as i32) as &[u8],
+                                b"\xab ",
+                                &self.u.hillname(p.besthill as i32),
+                            ]
+                            .concat()
+                        }
+                    }
+                    18 => {
+                        if p.kothlevel == 0 {
+                            b"-".to_vec()
+                        } else {
+                            self.l.lstr(130 + p.kothlevel as u32).to_vec()
+                        }
+                    }
+                    _ => b"".to_vec(),
+                };
+
+                let mut x = colx + 4;
+                let mut y = gety(temp);
+
+                if temp > 15 {
+                    y += 8;
+                } else {
+                    x += self.g.font_len(self.l.lstr(303 + temp as u32));
+                }
+
+                self.g.write_font(x, y, &str1);
+            }
+        }
+    }
+
+    fn doorder(&self) {
+        let y = |temp: i32| temp * 8 + 4;
+
+        self.g.font_color(246);
+
+        if self.num_profiles.get() > 0 {
+            for temp in 1..=self.num_profiles.get() as i32 {
+                self.g
+                    .fill_box(10, (y(temp) - 1) as u16, 30, (y(temp) + 6) as u16, 243);
+                for temp2 in 1..=self.pmaara.get() {
+                    if self.profileorder.borrow()[temp2 as usize] as i32 == temp {
+                        self.g.write_font(
+                            18,
+                            y(temp),
+                            &[&txt(temp2 as i32) as &[u8], b"."].concat(),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    async fn doscreen(&self) {
+        let y = |temp: i32| temp * 8 + 4;
+
+        self.g.new_screen(7, 0).await;
+
+        self.g.font_color(241);
+        self.g.write_font(40, 3, self.l.lstr(34));
+
+        self.g.font_color(240);
+
+        let mut temp = 0;
+        for t in 1..=self.num_profiles.get() as i32 {
+            temp = t;
+            self.g
+                .write_font(40, y(temp), &self.profile.borrow()[temp as usize].name);
+        }
+
+        if self.num_profiles.get() < MAX_PROFILES {
+            self.g.font_color(246);
+            temp += 1;
+            self.g.write_font(40, y(temp), self.l.lstr(302));
+        }
+
+        temp += 2;
+        self.g.font_color(240);
+        self.g.write_font(40, y(temp), self.l.lstr(33));
+
+        self.doorder();
+    }
+
+    async fn selectreplace(&self, index: i32) {
+        let mut value = self.profile.borrow()[index as usize].replace as i32;
+        if value > 65 {
+            value = 65;
+        }
+
+        let x = self.g.font_len(self.l.lstr(308)) + 170;
+        let y = 44;
+
+        let mut ch;
+        loop {
+            self.g
+                .fill_box((x - 2) as u16, (y - 1) as u16, 318, (y + 6) as u16, 245);
+
+            self.g.font_color(240);
+
+            if value > 0 {
+                self.g.write_font(
+                    x,
+                    y,
+                    &self.g.nsh(&self.nimet.borrow()[value as usize], 305 - x),
+                );
+                self.g
+                    .e_write_font(316, y, &[b"#" as &[u8], &txt(value)].concat());
+            } else {
+                self.g.write_font(x, y, self.l.lstr(9));
+            }
+
+            self.g.draw_screen().await;
+
+            let ch2;
+            (ch, ch2) = self.s.wait_for_key_press().await;
+
+            if ch == 0 {
+                if ch2 == 71 {
+                    value = 1;
+                }
+                if ch2 == 79 {
+                    value = 65;
+                }
+                if ch2 == 72 || ch2 == 75 {
+                    value -= 1;
+                }
+                if ch2 == 80 || ch2 == 77 {
+                    value += 1;
+                }
+                if ch2 == 73 {
+                    value -= 10;
+                }
+                if ch2 == 81 {
+                    value += 10;
+                }
+            }
+
+            if value < 0 {
+                value = 0;
+            }
+            if value > 65 {
+                value = 65;
+            }
+
+            if ch == 13 || ch == 27 {
+                break;
+            }
+        }
+
+        if ch == 13 {
+            self.profile.borrow_mut()[index as usize].replace = value as u8;
+        }
+    }
+
+    async fn question(&self, str1: &[u8]) -> bool {
+        let str2 = self.l.lstr(193);
+
+        self.g.alert_box();
+
+        let mut temp = (self.g.font_len(str2.clone()) + 4) as u8 as i32;
+
+        self.g.font_color(241);
+        self.g.write_font(
+            70 + temp,
+            110,
+            &[b'(', self.l.lch(6, 1), b'/', self.l.lch(7, 1), b')'],
+        );
+
+        temp += 25;
+
+        self.g.font_color(246);
+
+        self.g.write_font(70, 90, str1);
+        self.g.write_font(70, 110, str2);
+
+        self.u.getch(70 + temp, 110, 243).await;
+
+        let mut tempboo = false;
+        if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1) {
+            tempboo = true;
+        }
+
+        self.s.clearchs();
+
+        tempboo
+    }
+
     pub async fn welcome_screen(&self, languagenumber: &mut u8) {
         let full = *languagenumber == 255;
 
@@ -716,6 +1145,266 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         if sch1 == 13 {
             *seecomps = index;
         }
+    }
+
+    async fn editprofile(&self, index: i32) {
+        let mut leave2 = false;
+        let mut index2 = 1;
+
+        self.writeprofile(index, 1, -1);
+
+        loop {
+            index2 = self
+                .u
+                .make_menu(168, 13, 154, 8, 8, index2, 244, 3, 9)
+                .await;
+
+            match index2 {
+                0 => leave2 = true,
+                1 => {
+                    //{ name edit }
+                    loop {
+                        let mut tempboo = true;
+                        let oldstr = self.profile.borrow()[index as usize].name.clone();
+
+                        let temp = 314 - 170 - self.g.font_len(self.l.lstr(304));
+
+                        let mut str1 = self
+                            .u
+                            .getstr(
+                                170 + self.g.font_len(self.l.lstr(304)),
+                                12,
+                                temp,
+                                &oldstr,
+                                245,
+                            )
+                            .await;
+                        str1 = upstr(&str1);
+
+                        if !str1.is_empty() {
+                            let mut profile = self.profile.borrow_mut();
+                            for temp in 1..=self.num_profiles.get() as i32 {
+                                if temp != index && str1 == profile[temp as usize].name {
+                                    tempboo = false;
+                                }
+                            }
+
+                            if tempboo {
+                                profile[index as usize].name = str1;
+                            }
+                        }
+
+                        if tempboo {
+                            break;
+                        }
+                    }
+
+                    self.doscreen().await;
+                }
+                2 => {
+                    //{ realname edit }
+                    let oldstr = self.profile.borrow()[index as usize].realname.clone();
+
+                    let temp = 314 - 170 - self.g.font_len(self.l.lstr(305));
+                    let mut str1 = self
+                        .u
+                        .getstr(
+                            170 + self.g.font_len(self.l.lstr(305)),
+                            20,
+                            temp,
+                            &oldstr,
+                            245,
+                        )
+                        .await;
+                    str1 = upstr(&str1);
+
+                    self.profile.borrow_mut()[index as usize].realname = str1;
+
+                    self.doscreen().await;
+                }
+                //{$IFDEF REG}
+                3 => self.choosesuitski(index, 0).await,
+                4 => self.choosesuitski(index, 1).await,
+                5 => {
+                    self.selectreplace(index).await;
+                    self.doscreen().await;
+                }
+                //{$ENDIF}
+                6 => {
+                    let mut profile = self.profile.borrow_mut();
+                    let p = &mut profile[index as usize];
+                    p.cstyle = p.cstyle.wrapping_add(1);
+                    if *self.l.lstr(361 + (p.cstyle as u32 * 40)) == b"?" {
+                        p.cstyle = 0;
+                    }
+                    drop(profile);
+                    self.emptyedit();
+                }
+                7 => {
+                    {
+                        let mut profile = self.profile.borrow_mut();
+                        let p = &mut profile[index as usize];
+                        p.skipquali += 1;
+                        if p.skipquali > 2 {
+                            p.skipquali = 0;
+                        }
+                    }
+                    self.doscreen().await;
+                }
+                8 => {
+                    if self.question(&self.l.lstr(329)).await {
+                        self.default_profile(index, 1);
+                    }
+                    self.doscreen().await;
+                }
+                _ => {}
+            }
+
+            if index2 > 0 {
+                self.writeprofile(index, 1, -1);
+            }
+
+            if leave2 {
+                break;
+            }
+        }
+
+        self.emptyedit();
+    }
+
+    pub async fn profiles(&self) {
+        let getentry = || -> i32 {
+            let mut temp2 = self.num_profiles.get() as i32 + 1;
+            if self.num_profiles.get() >= MAX_PROFILES {
+                temp2 = self.num_profiles.get() as i32;
+            }
+            temp2
+        };
+
+        let mut leave = false;
+        let mut index = 1;
+
+        self.doscreen().await;
+
+        loop {
+            let entries = getentry();
+
+            let mut temp2 = 0;
+            let oldindex = index;
+
+            for temp in 1..=self.pmaara.get() as i32 {
+                if self.profileorder.borrow()[temp as usize] as i32 == oldindex {
+                    temp2 = temp;
+                }
+            }
+
+            let mut temp = temp2;
+            if oldindex > self.num_profiles.get() as i32 {
+                temp = -1;
+            }
+
+            self.writeprofile(index, 0, temp);
+
+            index = self
+                .u
+                .make_menu(40, 13, 122, 8, entries, index, 243, 6, 255)
+                .await;
+
+            if (index == 255 && oldindex > entries) || index == 254 {
+                leave = true;
+            }
+
+            if !leave && index == 255 {
+                //{ enter pressed }
+                if temp2 > 0 || oldindex > self.num_profiles.get() as i32 {
+                    //{ edit }
+                    if oldindex > self.num_profiles.get() as i32
+                        && self.num_profiles.get() != MAX_PROFILES
+                    {
+                        self.default_profile(oldindex, 1);
+                        self.num_profiles.set(self.num_profiles.get() + 1);
+                        self.doscreen().await;
+                    }
+
+                    self.editprofile(oldindex).await;
+                } else {
+                    //{ lisää pelaaja hyppääviin }
+                    if self.pmaara.get() < MAX_PMAARA {
+                        self.pmaara.set(self.pmaara.get() + 1);
+                        self.profileorder.borrow_mut()[self.pmaara.get() as usize] = oldindex as u8;
+                        self.doorder();
+                    }
+                }
+            }
+
+            if oldindex <= self.num_profiles.get() as i32 && !leave && index < 0 {
+                //{ del pressed }
+                temp2 = 0;
+
+                for temp in 1..=self.pmaara.get() as i32 {
+                    if self.profileorder.borrow()[temp as usize] as i32 == oldindex {
+                        temp2 = temp;
+                    }
+                }
+
+                if temp2 > 0 {
+                    //{ poista järjestyksestä }
+                    if self.pmaara.get() > 0 {
+                        {
+                            let mut profileorder = self.profileorder.borrow_mut();
+                            for temp in temp2..=self.pmaara.get() as i32 {
+                                profileorder[temp as usize] = profileorder[temp as usize + 1];
+                            }
+                        }
+
+                        self.pmaara.set(self.pmaara.get() - 1);
+                        self.doorder();
+                    }
+                } else {
+                    //{ poista profile kokonaan }
+                    let str1 = [
+                        &self.l.lstr(328) as &[u8],
+                        b": ",
+                        &self.profile.borrow()[oldindex as usize].name,
+                    ]
+                    .concat();
+                    if self.question(&str1).await {
+                        if self.num_profiles.get() > 1 {
+                            self.num_profiles.set(self.num_profiles.get() - 1);
+                            let mut profile = self.profile.borrow_mut();
+                            for temp in oldindex..=self.num_profiles.get() as i32 {
+                                profile[temp as usize] = profile[temp as usize + 1].clone();
+                            }
+                            let mut profileorder = self.profileorder.borrow_mut();
+                            for temp in 1..=self.pmaara.get() as usize {
+                                if profileorder[temp] as i32 > oldindex {
+                                    profileorder[temp] -= 1;
+                                }
+                            }
+                        } else {
+                            self.default_profile(oldindex, 1);
+                        }
+                    }
+
+                    self.doscreen().await;
+                }
+            }
+
+            if index > 100 || index < 0 {
+                index = oldindex;
+            }
+
+            if leave {
+                break;
+            }
+        }
+
+        if self.pmaara.get() == 0 {
+            self.profileorder.borrow_mut()[1] = 1;
+            self.pmaara.set(1);
+        }
+
+        self.g.draw_screen().await;
     }
 
     pub fn call_sendme(

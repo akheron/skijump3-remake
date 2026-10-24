@@ -29,6 +29,8 @@ sc=$TRACE_DIR/scenarios
   echo "1 $sc/fourhills_hiscore.keys -1"
   echo "1 $sc/koth.keys -1"
   echo "1 $sc/koth_win.keys -1"
+  echo "1 $sc/profiles.keys -1"
+  echo "1 $sc/profile_worldcup.keys -1"
 } | xargs -P "${JOBS:-$(nproc)}" -L 1 "$TRACE_DIR/batch-seed.sh"
 status=$?
 [ $status = 0 ] && echo "All scenarios pass" || echo "Some scenarios fail"

@@ -188,6 +188,64 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.g.draw_screen().await;
     }
 
+    pub async fn getstr(
+        &self,
+        xx: i32,
+        yy: i32,
+        maxlength: i32,
+        oldstr: &[u8],
+        bkcolor: u8,
+    ) -> Vec<u8> {
+        let mut out = false;
+
+        let mut newstr = oldstr.to_vec();
+
+        loop {
+            let cx = self.g.font_len(&newstr);
+
+            self.g.fill_box(
+                (xx - 2) as u16,
+                (yy - 2) as u16,
+                (xx + maxlength + 2) as u16,
+                (yy + 7) as u16,
+                bkcolor,
+            );
+            self.g.write_font(xx, yy, &newstr);
+
+            self.g.draw_screen().await;
+
+            self.givech(xx + cx, yy, bkcolor).await;
+            let ch = self.s.get_ch();
+
+            if self.s.get_ch2() == 83 {
+                newstr.clear();
+            }
+
+            match ch {
+                8 => {
+                    newstr.pop();
+                }
+                13 | 27 => out = true,
+                32..=254 => {
+                    if cx + 7 < maxlength && self.g.font_len(&[ch]) > 0 {
+                        newstr.push(ch);
+                    }
+                }
+                _ => {}
+            }
+
+            if out {
+                break;
+            }
+        }
+
+        if self.s.get_ch() == 27 {
+            newstr = oldstr.to_vec();
+        }
+
+        newstr
+    }
+
     pub fn get_now(&self) -> Time {
         let (hour, minute, second, sec100) = self.s.get_time();
         Time {
