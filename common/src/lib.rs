@@ -11,6 +11,7 @@ mod maki;
 mod pcx;
 mod platform;
 mod regfree;
+mod repl;
 mod rs_util;
 mod sj3;
 mod table;
@@ -25,6 +26,7 @@ use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
+use crate::repl::ReplModule;
 use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::{Date, UnitModule};
@@ -52,6 +54,16 @@ async fn run<P: Platform>(port: &P) {
     let tuuli_module = TuuliModule::new(&graph_module);
     let info_module = InfoModule::new(&graph_module, &lang_module, &pcx_module, port, &unit_module);
     let lumi_module = LumiModule::init();
+    let repl_module = ReplModule::new(
+        &graph_module,
+        &info_module,
+        &lang_module,
+        &maki_module,
+        &pcx_module,
+        port,
+        &tuuli_module,
+        &unit_module,
+    );
 
     let (year, month, day, day_of_week) = port.get_date();
     let today = Date {
@@ -71,6 +83,7 @@ async fn run<P: Platform>(port: &P) {
         &maki_module,
         &pcx_module,
         port,
+        &repl_module,
         &tuuli_module,
         &unit_module,
     );

@@ -102,7 +102,24 @@ impl<'m, 's, 'si, P: Platform> PcxModule<'m, 's, P> {
         }
     }
     pub fn muuta_replay(&self, mode: u8) {
-        unimplemented!()
+        let mut col: u8 = 249;
+
+        match mode {
+            1 => col = 250,
+            2 => col = 253,
+            4 => col = 251,
+            //{ 5   : col:=252; }
+            _ => {}
+        }
+
+        let mut paletti = self.paletti.borrow_mut();
+        for temp in 249..=253u8 {
+            let temp2 = (temp == col) as u8;
+
+            paletti[temp as usize][0] = 10 * temp2;
+            paletti[temp as usize][1] = 63 * temp2;
+            paletti[temp as usize][2] = 20 * temp2;
+        }
     }
     pub fn muuta_logo(&self, col: u8) {
         let mut paletti = self.paletti.borrow_mut();

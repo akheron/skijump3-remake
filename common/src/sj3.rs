@@ -8,6 +8,7 @@ use crate::maki::MakiModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
 use crate::regfree::{REGNAME, REGNUMBER};
+use crate::repl::ReplModule;
 use crate::rs_util::{
     clrscr, dos_file_name, halt, parse_line, random, read_line, start_end_text, textbackground,
     write, writeln, writeln_latin1,
@@ -36,7 +37,7 @@ const VERSION: &[u8] = b"3.13";
 #[cfg(feature = "trace")]
 const VERSION_FULL: &[u8] = b"3.13-SP4";
 
-pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
+pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform> {
     g: &'g GraphModule<'m, 'p, 's, P>,
     i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'u, P>,
     l: &'l LangModule<'s, P>,
@@ -44,6 +45,7 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
     lumi: LumiModule,
     m: &'m MakiModule,
     p: &'p PcxModule<'m, 's, P>,
+    r: &'r ReplModule<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P>,
     s: &'s P,
     tuuli: &'t TuuliModule<'g, 'm, 'p, 's, P>,
     u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
@@ -110,7 +112,9 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
     lmaara: u16,
 }
 
-impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P> {
+impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
+    SJ3Module<'g, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P>
+{
     pub fn new(
         g: &'g GraphModule<'m, 'p, 's, P>,
         i: &'i InfoModule<'g, 'l, 'm, 'p, 's, 'u, P>,
@@ -120,6 +124,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         m: &'m MakiModule,
         p: &'p PcxModule<'m, 's, P>,
         s: &'s P,
+        r: &'r ReplModule<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P>,
         tuuli: &'t TuuliModule<'g, 'm, 'p, 's, P>,
         u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
     ) -> Self {
@@ -131,6 +136,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             lumi,
             m,
             p,
+            r,
             s,
             tuuli,
             u,
@@ -7033,8 +7039,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         if self.languagenumber == 255 {
             self.i.welcome_screen(&mut self.languagenumber).await;
-            // TODO
-            // Replays(true, version, gdetail);
+            self.r
+                .replays(true, VERSION, self.gdetail, &mut self.lumi)
+                .await;
         }
 
         loop {
@@ -7074,7 +7081,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     }
                 }
                 6 => {
-                    // replays(false, version, gdetail);
+                    self.r
+                        .replays(false, VERSION, self.gdetail, &mut self.lumi)
+                        .await;
                 }
                 _ => {}
             }
