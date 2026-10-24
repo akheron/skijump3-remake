@@ -217,7 +217,9 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             s = read_line(&mut f4).unwrap();
             let mut ok = true; //{ k�yk� nimi eli ei kai ole replace-listoilla }
             for temp3 in 1..=self.pmaara.get() {
-                if profile[temp3 as usize].replace == temp && replaces {
+                if profile[self.profileorder.borrow()[temp3 as usize] as usize].replace == temp
+                    && replaces
+                {
                     ok = false;
                 }
             }
@@ -254,6 +256,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 l1 += (tempb % temp2) as i32;
 
                 if temp < NUM_TEAMS + 1 - teamdiscount as usize {
+                    self.jnimet.borrow_mut()[temp] = s.clone();
                     teamlineup[(temp - 1) * 4 + temp2 as usize] = tempb;
                 }
             }
@@ -442,7 +445,6 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             let l1: i32 = parse_line(&mut f1).unwrap();
 
             if l1 != profile_code(profile) {
-                println!("Profile {temp} checksum mismatch, resetting");
                 self.default_profile(temp as i32, 0);
             }
             /*
@@ -524,7 +526,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             .await;
 
         let index = if index == 0 {
-            self.l.num_languages() as i32 - 1
+            self.l.num_languages() as i32
         } else {
             index
         };

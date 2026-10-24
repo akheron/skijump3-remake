@@ -1,14 +1,18 @@
 use crate::platform::Platform;
-use crate::rs_util::random;
+use crate::rs_util::{random, read_line, val};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::rc::Rc;
+
+const NUM_STR: usize = 599;
+
+/// The length of `LangStr`
+const LANG_STR_LEN: usize = 59;
 
 pub struct LangModule<'s, P: Platform> {
     s: &'s P,
     pub lnames: Vec<Vec<u8>>,
-    pub plstr: RefCell<HashMap<u32, Rc<Vec<u8>>>>,
+    pub plstr: RefCell<Vec<Rc<Vec<u8>>>>,
 }
 
 impl<'s, P: Platform> LangModule<'s, P> {
@@ -16,7 +20,7 @@ impl<'s, P: Platform> LangModule<'s, P> {
         LangModule {
             s,
             lnames: Vec::new(),
-            plstr: RefCell::new(HashMap::new()),
+            plstr: RefCell::new(vec![Rc::new(Vec::new()); NUM_STR + 1]),
         }
     }
 
@@ -25,7 +29,10 @@ impl<'s, P: Platform> LangModule<'s, P> {
     }
 
     pub fn lstr(&self, index: u32) -> Rc<Vec<u8>> {
-        return self.plstr.borrow().get(&index).unwrap().clone();
+        match self.plstr.borrow().get(index as usize) {
+            Some(str1) => str1.clone(),
+            None => Rc::new(Vec::new()),
+        }
     }
 
     pub fn lch(&self, index: u32, num: u32) -> u8 {
@@ -53,34 +60,56 @@ impl<'s, P: Platform> LangModule<'s, P> {
     }
 
     pub fn load_language(&self, languageindex: u8) {
-        let f = self.s.open_file("LANGBASE.SKI");
-        let mut lines = BufReader::new(f).split(b'\n');
-        loop {
-            let Some(Ok(line)) = lines.next() else {
-                panic!("Language with index {} not found", languageindex)
-            };
-            // @ = 64, A = 65 ==> languageindex 1 = A
-            if line.starts_with(b"*") && line[1] - 64 == languageindex {
-                break;
-            };
+        let mut plstr = self.plstr.borrow_mut();
+        for temp in 0..=NUM_STR {
+            plstr[temp] = Rc::new(b"?".to_vec());
         }
 
-        let mut plstr = self.plstr.borrow_mut();
-        plstr.clear();
-        loop {
-            let Some(Ok(line)) = lines.next() else { break };
-            if line.starts_with(b"*") {
+        let mut f1 = BufReader::new(self.s.open_file("LANGBASE.SKI"));
+        let mut lines = std::iter::from_fn(|| match f1.fill_buf() {
+            Ok(buf) if !buf.is_empty() => Some(read_line(&mut f1).unwrap()),
+            _ => None,
+        });
+
+        let mut index = 0;
+
+        for str1 in lines.by_ref() {
+            if str1.first() == Some(&b'*') && str1.get(1) == Some(&languageindex.wrapping_add(64)) {
+                //{ oikea kieli löytyi! }
+                index = 1;
                 break;
             }
+        }
 
-            let parts = line.splitn(2, |c| *c == b':').collect::<Vec<_>>();
-            if parts.len() != 2 || !parts[0].iter().all(|c| b'0' <= *c && *c <= b'9') {
-                continue;
+        if index > 0 {
+            //{ kunhan oikea kieli on löytyynty. }
+            for str1 in lines {
+                if str1.first() == Some(&b'*') {
+                    break; //{ kiitti, riittää }
+                }
+
+                index = 0;
+                let mut first = true;
+
+                for temp in 0..str1.len() {
+                    if index > 0 && plstr[index].len() < LANG_STR_LEN {
+                        Rc::make_mut(&mut plstr[index]).push(str1[temp]);
+                    }
+
+                    if str1[temp] == b':' && first {
+                        first = false;
+                        let code = val(&str1[..temp]);
+                        index = if (1..=NUM_STR as i32).contains(&code) {
+                            code as usize
+                        } else {
+                            0
+                        };
+                        if index > 0 {
+                            plstr[index] = Rc::new(Vec::new()); //{ putsaa stringin }
+                        }
+                    }
+                }
             }
-            let index = parts[0]
-                .iter()
-                .fold(0, |acc, c| acc * 10 + (c - b'0') as u32);
-            plstr.insert(index, Rc::new(parts[1].to_vec()));
         }
     }
 

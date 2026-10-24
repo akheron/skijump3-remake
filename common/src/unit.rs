@@ -4,9 +4,9 @@ use crate::lang::LangModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
-use crate::rs_util::{parse_line, random, read_line, writeln};
+use crate::rs_util::{parse_line, random, read_line, val, writeln};
 use std::cell::{Cell, RefCell};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::rc::Rc;
 use std::str::from_utf8;
 
@@ -121,7 +121,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             vcode: Cell::new(0),
             num_extra_hills: Cell::new(0),
             hd: RefCell::new(Vec::from_iter(
-                (0..NUM_WC_HILLS + MAX_EXTRA_HILLS).map(|_| Hillinfo::default()),
+                (0..=NUM_WC_HILLS + MAX_EXTRA_HILLS).map(|_| Hillinfo::default()),
             )),
         }
     }
@@ -565,76 +565,65 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
     }
 
     pub fn do_coach_corner(&self, height: i32, kulmalaskuri: i32, grade: u8, ponn: u8, style: u8) {
-        let mut cstr = Vec::new();
+        let mut cstr: Vec<Rc<Vec<u8>>> = vec![Rc::new(Vec::new()); 6];
         let index: i32 = 360 + style as i32 * 40;
+        let lstr = |offset: i32| self.l.lstr((index + offset) as u32);
 
-        cstr.push(self.l.lstr(
-            (index
-                + match kulmalaskuri {
-                    0..=49 => 2,
-                    50..=61 => 3,
-                    62..=200 => 4,
-                    _ => panic!("kulmalaskuri out of range"),
-                }) as u32,
-        ));
+        match kulmalaskuri {
+            0..=49 => cstr[0] = lstr(2),
+            50..=61 => cstr[0] = lstr(3),
+            62..=200 => cstr[0] = lstr(4),
+            _ => {}
+        }
 
-        cstr.push(self.l.lstr(
-            (index
-                + if grade < 10 {
-                    match grade {
-                        1 => 5,
-                        2 => 6,
-                        3 => 7,
-                        _ => panic!("grade out of range"),
-                    }
-                } else {
-                    match grade / 10 {
-                        1..=5 => 10,
-                        6..=8 => 11,
-                        9 => 12,
-                        10 => 13,
-                        11 => 14,
-                        12..=20 => 15,
-                        _ => panic!("grade out of range"),
-                    }
-                }) as u32,
-        ));
+        if grade < 10 {
+            match grade {
+                1 => cstr[1] = lstr(5),
+                2 => cstr[1] = lstr(6),
+                3 => cstr[1] = lstr(7),
+                _ => {}
+            }
+        } else {
+            match grade / 10 {
+                1..=5 => cstr[1] = lstr(10),
+                6..=8 => cstr[1] = lstr(11),
+                9 => cstr[1] = lstr(12),
+                10 => cstr[1] = lstr(13),
+                11 => cstr[1] = lstr(14),
+                12..=20 => cstr[1] = lstr(15),
+                _ => {}
+            }
+        }
 
-        cstr.push(self.l.lstr(
-            (index
-                + match ponn {
-                    0..=5 => 18,
-                    6..=9 => 19,
-                    10..=12 => 20,
-                    13..=15 => 21,
-                    16 => 22,
-                    17..=19 => 23,
-                    20..=23 => 24,
-                    24..=50 => 25,
-                    _ => panic!("ponn out of range"),
-                }) as u32,
-        ));
+        match ponn {
+            0..=5 => cstr[2] = lstr(18),
+            6..=9 => cstr[2] = lstr(19),
+            10..=12 => cstr[2] = lstr(20),
+            13..=15 => cstr[2] = lstr(21),
+            16 => cstr[2] = lstr(22),
+            17..=19 => cstr[2] = lstr(23),
+            20..=23 => cstr[2] = lstr(24),
+            24..=50 => cstr[2] = lstr(25),
+            _ => {}
+        }
 
-        cstr.push(self.l.lstr(
-            (index
-                + match height {
-                    0..=49 => 28,
-                    50..=55 => 29,
-                    56..=60 => 30,
-                    61..=64 => 31,
-                    65..=70 => 32,
-                    71..=90 => 33,
-                    91..=200 => 34,
-                    _ => panic!("height out of range"),
-                }) as u32,
-        ));
+        match height {
+            0..=49 => cstr[3] = lstr(28),
+            50..=55 => cstr[3] = lstr(29),
+            56..=60 => cstr[3] = lstr(30),
+            61..=64 => cstr[3] = lstr(31),
+            65..=70 => cstr[3] = lstr(32),
+            71..=90 => cstr[3] = lstr(33),
+            91..=200 => cstr[3] = lstr(34),
+            _ => {}
+        }
 
         //{ jos kupat n�es }
         if grade < 10 {
             cstr[0] = cstr[1].clone();
         }
         if grade == 1 {
-            cstr[3] = self.l.lstr((index + 35) as u32);
+            cstr[3] = lstr(35);
         }
 
         cstr[1] = cstr[random(2) as usize].clone();
@@ -1164,7 +1153,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
                         self.g.fill_area(180, y as u16 - 2, 319, (y + 7) as u16, 63);
 
                         self.getch(185, y, 245).await;
-                        a = self.s.get_ch();
+                        a = self.s.get_ch().to_ascii_uppercase();
                         b = self.s.get_ch2();
 
                         let mut str2 = self.keyname(kword(a, b));
@@ -1729,22 +1718,27 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 pub fn loadgoal<P: Platform>(s: &P, num: i32) -> i32 {
     let mut value: i32 = 0;
 
-    if num > 0 && num <= NUM_WC_HILLS {
-        let mut f2 = s.open_file("GOALS.SKI");
-        let mut b = BufReader::new(f2).lines();
+    if s.file_exists("GOALS.SKI") && num > 0 && num <= NUM_WC_HILLS {
+        let mut f2 = BufReader::new(s.open_file("GOALS.SKI"));
         for _ in 1..=num {
-            let line = b.next().unwrap().unwrap();
-            value = line.parse().unwrap();
+            value = read_goal(&mut f2);
         }
     }
     value
 }
 
 fn load_goals<P: Platform>(s: &P, goals: &mut [i32; NUM_WC_HILLS as usize + 1]) {
-    let mut f2 = BufReader::new(s.open_file("GOALS.SKI"));
-    for temp2 in 1..=NUM_WC_HILLS as usize {
-        goals[temp2] = parse_line(&mut f2).unwrap();
+    if s.file_exists("GOALS.SKI") {
+        let mut f2 = BufReader::new(s.open_file("GOALS.SKI"));
+        for temp2 in 1..=NUM_WC_HILLS as usize {
+            goals[temp2] = read_goal(&mut f2);
+        }
     }
+}
+
+/// `readln(f2, value)`, which gives 0 at the end of the file
+fn read_goal(f2: &mut BufReader<impl Read>) -> i32 {
+    read_line(f2).map_or(0, |line| val(&line))
 }
 
 fn write_goals(s: &impl Platform, goals: &[i32; NUM_WC_HILLS as usize + 1]) {
@@ -1857,36 +1851,48 @@ pub fn crypt(arvo: i32, jarj: i32) -> Vec<u8> {
 pub fn uncrypt(mut str0: Vec<u8>, jarj: i32) -> i32 {
     // All the "- 1" are because the original code uses 1-based string indexing
 
-    let mut high = str0[5 - 1];
-    str0.remove(5 - 1);
-    let chk1 = str0[2 - 1];
-    str0.remove(2 - 1);
-    let chk2 = str0[2 - 1];
-    str0.remove(2 - 1);
+    let high = char_at(&str0, 5 - 1); //{ satunnainen kirjain, tai yli 100 000 }
+    delete(&mut str0, 5 - 1); //{ pois }
+    let chk1 = char_at(&str0, 2 - 1);
+    delete(&mut str0, 2 - 1);
+    let chk2 = char_at(&str0, 2 - 1);
+    delete(&mut str0, 2 - 1);
 
     let mut str1: Vec<u8> = Vec::new();
 
     for index in (1..=5).rev() {
-        str1.push(str0[index - 1] - 21);
+        str1.push(char_at(&str0, index - 1).wrapping_sub(21));
     }
 
-    let mut luku1: i32 = from_utf8(&str1).unwrap().parse().unwrap();
+    let mut luku1: i32 = val(&str1);
 
     if high > 74 {
-        //{ ei pelkk� satunnaiskirjain }
+        //{ ei pelkkä satunnaiskirjain }
         luku1 += 100000 * (high - 75) as i32;
     }
 
-    str1[1 - 1] = 68 + 2 * ((luku1 % 7) ^ 1) as u8;
+    str1[1 - 1] = (68 + 2 * ((luku1 % 7) ^ 1)) as u8;
     if str1[1 - 1] != chk1 {
         luku1 = 0;
     }
-    str1[1 - 1] = 65 + ((jarj ^ 33) % 19) as u8;
+    str1[1 - 1] = (65 + ((jarj ^ 33) % 19)) as u8;
     if str1[1 - 1] != chk2 {
         luku1 = 0;
     }
 
     luku1
+}
+
+/// A character past the end of a Pascal string is undefined. This gives 0.
+fn char_at(str0: &[u8], index: usize) -> u8 {
+    str0.get(index).copied().unwrap_or(0)
+}
+
+/// `Delete(str0, index + 1, 1)` of Pascal, which does nothing past the end
+fn delete(str0: &mut Vec<u8>, index: usize) {
+    if index < str0.len() {
+        str0.remove(index);
+    }
 }
 
 pub fn valuestr(str0: &[u8], arvo: i32) -> u16 {

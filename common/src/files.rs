@@ -3,13 +3,14 @@
 //! come from the read-only assets.
 
 use crate::trace;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::io::Write;
 
 /// A flat directory of files
 pub trait Store {
-    fn read(&self, name: &str) -> Option<Vec<u8>>;
+    fn read(&self, name: &str) -> Option<Cow<'_, [u8]>>;
     fn contains(&self, name: &str) -> bool {
         self.read(name).is_some()
     }
@@ -35,7 +36,7 @@ impl<D: WritableStore, A: Store> Overlay<D, A> {
         Self { data, assets }
     }
 
-    pub fn read(&self, name: &str) -> Option<Vec<u8>> {
+    pub fn read(&self, name: &str) -> Option<Cow<'_, [u8]>> {
         if name == REMOVED {
             return None;
         }
@@ -164,8 +165,8 @@ pub struct MemoryStore {
 }
 
 impl Store for MemoryStore {
-    fn read(&self, name: &str) -> Option<Vec<u8>> {
-        self.files.borrow().get(name).cloned()
+    fn read(&self, name: &str) -> Option<Cow<'_, [u8]>> {
+        self.files.borrow().get(name).cloned().map(Cow::Owned)
     }
     fn names(&self) -> Vec<String> {
         self.files.borrow().keys().cloned().collect()
@@ -212,7 +213,7 @@ mod tests {
     fn read(overlay: &Overlay<MemoryStore, MemoryStore>, name: &str) -> Option<String> {
         overlay.read(name).map(|content| {
             let mut s = String::new();
-            content.as_slice().read_to_string(&mut s).unwrap();
+            content.as_ref().read_to_string(&mut s).unwrap();
             s
         })
     }
@@ -233,7 +234,7 @@ mod tests {
         let overlay = Overlay::new(store(&[]), store(&[("GOALS.SKI", "old")]));
         write!(overlay.create("GOALS.SKI"), "new").unwrap();
         assert_eq!(read(&overlay, "GOALS.SKI").as_deref(), Some("new"));
-        assert_eq!(overlay.data.read("GOALS.SKI"), Some(b"new".to_vec()));
+        assert_eq!(overlay.data.read("GOALS.SKI").as_deref(), Some(&b"new"[..]));
     }
 
     #[test]

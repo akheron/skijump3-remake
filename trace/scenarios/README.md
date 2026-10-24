@@ -8,7 +8,6 @@ exits.
 | Scenario | Frames | Description |
 | --- | --- | --- |
 | `training` | 2315 | Training: Kuopio with start position `+`, `+`, `-`, a 121.5 m telemark jump, `-` and a crash, Esc in the inrun; Lahti with Esc before the jump; Vikersund with Esc on the bar; then `0` to the jump menu. |
-| `k4_start` | 968 | World Cup: `T` (K[4]) on the bar, then a 120.5 m telemark jump. Ends after the comment screen. |
 | `listkeys` | 975 | World Cup qualification list paged with PgDn, Right, Left, Home, End (no effect), PgDn, PgUp, then F10 to the jump menu. |
 | `tops` | 78 | Main menu item 4 through its 3 pages with PgDn, Home, Right, Space, Left, PgUp, PgDn, PgDn, Enter; then item 5 (one page) and Esc. |
 | `koth` | 845 | King of the Hill: challenge 1 chosen with item 2 and played to the end (the human jumper presses Esc before each jump); then `choosekoth` with 4 jumpers, item 4 (Lahti), wind on, one round, played to the end; then `0` (writes `CONFIG.SKI`). |

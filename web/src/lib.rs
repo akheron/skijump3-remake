@@ -4,6 +4,7 @@ use crate::webport::{Modifiers, WebPlatform};
 use common::files::Store;
 use common::sj3;
 use futures::task::noop_waker;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -63,8 +64,8 @@ impl Files {
 }
 
 impl Store for Files {
-    fn read(&self, name: &str) -> Option<Vec<u8>> {
-        self.file_content(name).map(<[u8]>::to_vec)
+    fn read(&self, name: &str) -> Option<Cow<'_, [u8]>> {
+        self.file_content(name).map(Cow::Borrowed)
     }
     fn contains(&self, name: &str) -> bool {
         self.files.contains_key(name)

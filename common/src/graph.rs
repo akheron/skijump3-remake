@@ -161,7 +161,7 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
     }
 
     pub fn close_graph(&self) {
-        unimplemented!()
+        self.m.aseta_moodi(0x3);
     }
 
     pub fn sprite(&self, sprite_data: &[u8], x: u16, y: u16) {
@@ -278,7 +278,8 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
     }
 
     pub fn get_pixel(&self, x: u16, y: u16) -> u8 {
-        unimplemented!()
+        //{ en tiedä toimiiko }
+        self.m.video.borrow()[y as usize * 320 + x as usize]
     }
 
     pub fn e_write_font(&self, xx: i32, yy: i32, s: impl AsBytes) {
@@ -423,8 +424,8 @@ impl<'m, 'p, 's, 'si, P: Platform> GraphModule<'m, 'p, 's, P> {
         }
     }
 
-    pub fn balk(&self, st: u8) {
-        unimplemented!()
+    pub fn balk(&self, _st: u8) {
+        // Not needed in port
     }
 
     // Originally in SJ3HELP.PAS

@@ -8,6 +8,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::surface::Surface;
 use sdl2::video::{Window, WindowContext};
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::io::Cursor;
@@ -634,7 +635,7 @@ impl<'si> Platform for SDLPortModule<'si> {
     }
 
     type ReadableFile<'a>
-        = Cursor<Vec<u8>>
+        = Cursor<Cow<'a, [u8]>>
     where
         Self: 'a;
     fn open_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::ReadableFile<'a> {
@@ -704,8 +705,8 @@ pub struct DirStore {
 }
 
 impl Store for DirStore {
-    fn read(&self, name: &str) -> Option<Vec<u8>> {
-        fs::read(self.dir.join(name)).ok()
+    fn read(&self, name: &str) -> Option<Cow<'_, [u8]>> {
+        fs::read(self.dir.join(name)).ok().map(Cow::Owned)
     }
     fn contains(&self, name: &str) -> bool {
         self.dir.join(name).is_file()

@@ -15,6 +15,9 @@ sc=$TRACE_DIR/scenarios
   for seed in $seeds; do echo "$seed $sc/cpu_qual.keys 40000"; done
   echo "1 $sc/multi5.keys 49372"
   echo "1 $sc/setup_menu.keys 5000"
+  echo "1 $sc/k4_start.keys 2000"
+  for place in 11 12 13; do echo "1 $sc/k4_start.keys 2000 $sc/wind$place"; done
+  echo "1 $sc/listkeys.keys 972"
 } | xargs -P "${JOBS:-$(nproc)}" -L 1 "$TRACE_DIR/batch-seed.sh"
 status=$?
 [ $status = 0 ] && echo "All scenarios pass" || echo "Some scenarios fail"

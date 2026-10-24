@@ -15,4 +15,7 @@ init_data() {
     cp "$REPO"/assets/* "$1/"
     cp "$TRACE_DIR"/data-init/* "$1/"
   fi
+  if [ -n "$DATA_EXTRA" ]; then
+    cp "$DATA_EXTRA"/* "$1/"
+  fi
 }

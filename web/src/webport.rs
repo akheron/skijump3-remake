@@ -1,6 +1,7 @@
 use crate::{AsyncState, Files};
 use common::files::{MemoryStore, Overlay, OverlayFile};
 use common::{Platform, TPalette};
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::future::Future;
@@ -267,7 +268,7 @@ impl Platform for WebPlatform {
         self.files.create(path.as_ref())
     }
 
-    type ReadableFile<'a> = Cursor<Vec<u8>>;
+    type ReadableFile<'a> = Cursor<Cow<'a, [u8]>>;
 
     fn open_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::ReadableFile<'a> {
         let path = path.as_ref();

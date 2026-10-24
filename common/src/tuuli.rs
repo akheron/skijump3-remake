@@ -47,11 +47,11 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
         match self.tpaikka.get() {
             11 => {
                 x += 10;
-                y += 20;
+                y -= 20;
             }
             12 => {
                 x += 15;
-                y += 5;
+                y -= 5;
             }
             13 => {
                 x -= 10;

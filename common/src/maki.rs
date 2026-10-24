@@ -88,8 +88,8 @@ impl MakiModule {
         self.kopioi_maki(a, b);
     }
 
-    pub fn aseta_moodi(&self, m: u16) {
-        unimplemented!()
+    pub fn aseta_moodi(&self, _m: u16) {
+        // Not needed in port
     }
 
     pub fn profiili(&self, x: i32) -> i32 {
@@ -125,7 +125,7 @@ impl MakiModule {
             }
         }
 
-        for x in X_SIZE..1300 {
+        for x in X_SIZE..=1300 {
             profiili_y[x as usize] = profiili_y[X_SIZE as usize - 1];
         }
 
@@ -139,7 +139,7 @@ impl MakiModule {
 
         *keula_x -= 1; //{ se mennee yhden liian pitk�ksi }
 
-        for x in *keula_x..(X_SIZE - 10) as i32 {
+        for x in *keula_x..=(X_SIZE - 10) as i32 {
             let x2 = x - *keula_x; //{ suhteellinen keulan alap��h�n X }
             let y2 = profiili_y[x as usize] as i32 - profiili_y[*keula_x as usize] as i32; //{ suhteellinen Y }
             let hp = round_half_even(f64::sqrt((x2 * x2 + y2 * y2) as f64) * pk as f64 * 0.5) * 5; //{ +10? }

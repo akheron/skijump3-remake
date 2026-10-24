@@ -8,7 +8,7 @@ use crate::maki::MakiModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
 use crate::regfree::{REGNAME, REGNUMBER};
-use crate::rs_util::{parse_line, random, read_line, write, writeln};
+use crate::rs_util::{parse_line, random, read_line, write, writeln, writeln_latin1};
 use crate::table::{
     find_landing, jump_risk, lasku_anim, lasku_asento, lento_anim, parru_anim, ponn_anim,
     suksi_laskussa, suksi_lennossa,
@@ -19,7 +19,7 @@ use crate::unit::{
     crypt, dayandtime, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr, Date,
     Hill, Hiscore, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
 };
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufReader, Write};
 use std::str::from_utf8;
 
 #[cfg(not(feature = "trace"))]
@@ -611,17 +611,16 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                         }
                         3 => self.l.lstr(13 + self.gdetail as u32).to_vec(),
                         4 => {
-                            let mut f3 = BufReader::new(
-                                self.s.open_file(format!("NAMES{}.SKI", self.namenumber)),
-                            );
-                            let mut str2 = String::new();
-                            f3.read_line(&mut str2).unwrap();
-                            self.g.font_color(241);
-                            self.g.write_font(40, 78, &str2.into_bytes());
+                            let names = format!("NAMES{}.SKI", self.namenumber);
+                            if self.s.file_exists(&names) {
+                                let mut f3 = BufReader::new(self.s.open_file(&names));
+                                let str2 = read_line(&mut f3).unwrap();
+                                drop(f3);
+                                self.g.font_color(241);
+                                self.g.write_font(40, 78, &str2);
+                            }
 
-                            let mut s = vec![0; self.namenumber.len_utf8()];
-                            self.namenumber.encode_utf8(&mut s);
-                            s
+                            vec![self.namenumber as u8]
                         }
                         _ => b"".to_vec(),
                     },
@@ -724,20 +723,25 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                         }
                     }
                     4 => {
-                        let mut n: char;
-                        let mut ch = 0;
+                        let mut ch;
                         loop {
+                            let ok;
                             self.u.getch(255, 70, 245).await;
                             ch = self.s.get_ch();
-                            if let Some(chr) = char::from_u32(ch as u32) {
-                                n = chr;
-                                if ch != 27 && self.s.file_exists(format!("NAMES{}.SKI", n)) {
-                                    break;
-                                }
+
+                            if ch != 27 {
+                                ok = self.s.file_exists(format!("NAMES{}.SKI", ch as char));
+                            } else {
+                                ok = true;
+                            }
+
+                            if ok {
+                                break;
                             }
                         }
+
                         if ch != 27 {
-                            self.namenumber = n;
+                            self.namenumber = ch as char;
                             self.i.load_names(
                                 self.namenumber,
                                 self.jmaara,
@@ -782,13 +786,16 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                         self.g.fill_box(69, 79, 251, 131, 242);
                         self.g.fill_box(70, 80, 250, 130, 244);
                         self.g.fill_area(70, 80, 250, 130, 63);
-                        let mut str1 = self.l.lstr(if index[screen as usize] == 4 {
+                        let str1 = self.l.lstr(if index[screen as usize] == 4 {
                             191
                         } else {
                             190
                         });
-                        self.g
-                            .write_font(80, 90, &[&str1 as &[u8], &self.l.lstr(192)].concat());
+                        self.g.write_font(
+                            80,
+                            90,
+                            &[&str1 as &[u8], b" ", &self.l.lstr(192)].concat(),
+                        );
                         self.g.write_font(80, 110, self.l.lstr(193));
 
                         self.u
@@ -920,7 +927,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         let text = [&self.act_hill.name as &[u8], b" K", &txt(self.act_hill.kr)].concat();
         self.g.e_write_font(308, 9, &text);
 
-        for temp in 0..5 {
+        for temp in 1..=5 {
             if self.pisteet[top5[temp] as usize] > 0 {
                 let mut str1 = txtp(self.pisteet[top5[temp] as usize]);
 
@@ -1052,7 +1059,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 match *l {
                     0..=130 => self.drawtop5info(top5, index, pel),
                     146..=276 => self.drawhrinfo(),
-                    291..=422 => {
+                    292..=422 => {
                         if self.mcpisteet[self.mcluett[1] as usize] > 0 {
                             self.drawwcinfo()
                         } else {
@@ -1389,7 +1396,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         temp -= random(10 * pel as u32) as i32; //{ uusi }
         temp = 63 - temp; //{ 80,100,110,114,119,119  e.m. }
 
-        skill = 17 - round(nsqrt(temp as f32) / 4.0) as u8;
+        skill = (17 - round(nsqrt(temp as f32) / 4.0)) as u8;
         if skill > 16 {
             skill = 16;
         }
@@ -1633,7 +1640,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     temp = team;
                 }
 
-                self.drawinfo(&mut laskuri, &top5, index, pel);
+                self.drawinfo(&mut laskuri, &top5, index, temp);
 
                 self.g.draw_screen().await;
 
@@ -1689,7 +1696,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
 
         if self.treeni {
-            maxspeed += (self.startgate - 15) as u8;
+            maxspeed = (maxspeed as i32 + (self.startgate - 15)) as u8;
         }
 
         laskuri = 0; //{ t�t� ehk� k�ytet��n laskurina seuraavassa }
@@ -1829,7 +1836,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                         kulmalaskuri = 3000;
                     }
                     if self.s.kword() == self.k[4] {
-                        kulmalaskuri = 4000;
+                        kulmalaskuri = 2000;
                     }
                     if self.s.kword() == self.k[1] {
                         kulmalaskuri = 1000;
@@ -2568,7 +2575,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     profile[actprofile as usize].besthill = self.nytmaki as u8;
                     profile[actprofile as usize].besthillfile = b"HILLBASE".to_vec();
                     if self.nytmaki > NUM_WC_HILLS as i32 {
-                        profile[actprofile as usize].besthillfile = self.u.hillfile(self.nytmaki);
+                        profile[actprofile as usize].besthillfile =
+                            self.u.hillfile(self.nytmaki - NUM_WC_HILLS as i32);
                     }
                 }
             }
@@ -3225,16 +3233,17 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
                 yy += 7;
 
-                for cup in 1..self.osakilpailu {
+                for cup in 1..=self.osakilpailu {
                     ws(0, 240, &[&txt(cup) as &[u8], b"."].concat(), yy, &col);
 
                     temp = self.hill_order[cup as usize];
 
+                    let hillname = self.u.hillname(temp);
                     ws(
                         1,
                         246,
                         &[
-                            &self.u.hillname(temp) as &[u8],
+                            &hillname[..hillname.len().min(3)] as &[u8],
                             b" ",
                             &txt(self.u.hillkr(temp)),
                         ]
@@ -3300,7 +3309,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     self.g.e_write_font(
                         100,
                         yy,
-                        &txt(self.stats[team as usize][cup as usize].comp_pos as i32),
+                        &[
+                            &txt(self.stats[team as usize][cup as usize].comp_pos as i32)
+                                as &[u8],
+                            b".",
+                        ]
+                        .concat(),
                     );
 
                     self.g.font_color(247);
@@ -3389,10 +3403,16 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
                     ws(0, 0, &[&txt(cup) as &[u8], b"."].concat(), yy, &col);
 
+                    let hillname = self.u.hillname(cup);
                     ws(
                         1,
                         0,
-                        &[&self.u.hillname(cup)[0..=2], b" ", &txt(self.u.hillkr(cup))].concat(),
+                        &[
+                            &hillname[..hillname.len().min(3)],
+                            b" ",
+                            &txt(self.u.hillkr(cup)),
+                        ]
+                        .concat(),
                         yy,
                         &col,
                     );
@@ -3453,7 +3473,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                             b"\xab)",
                         ]
                         .concat();
-                        ws(7, 0, &str1, yy, &col);
+                        ws(7, 247, &str1, yy, &col);
 
                         ws(
                             8,
@@ -3491,6 +3511,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                     temp = self.stats[player as usize][cup as usize].reason[1] as i32;
                     if temp > 0 {
                         ws(9, 247, makeletter(temp), yy, &col);
+                    }
+
+                    temp = self.stats[player as usize][cup as usize].reason[2] as i32;
+                    if temp > 0 {
+                        ws(12, 247, makeletter(temp), yy, &col);
                     }
 
                     if cup == 12 && self.osakilpailu != 12 {
@@ -3882,7 +3907,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                             }
                         }
 
-                        if vaihe > 2 && self.cup_hills == 1 {
+                        if vaihe > 3 && self.cup_hills == 1 {
                             datestr = [
                                 b"(",
                                 &txtp(self.stats[t1 as usize][1].round_len[1]) as &[u8],
@@ -5085,8 +5110,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         writeln(b"");
         writeln(b"-------");
         writeln(b"");
-        // The Pascal source is Latin-1, so it writes ö as the byte F6
-        writeln(&[b"SJ3 v", VERSION, b" by Ville K\xF6n\xF6nen 2011"].concat());
+        // This line of the Pascal source is in Latin-1, and the rest in CP437
+        writeln_latin1(&[b"SJ3 v", VERSION, b" by Ville K\xF6n\xF6nen 2011"].concat());
 
         write(b"- Loading ANIM.SKI");
         self.g.load_anim("ANIM.SKI");
