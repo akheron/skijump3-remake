@@ -11,14 +11,23 @@ pub fn read_line(f: &mut BufReader<impl Read>) -> std::io::Result<Vec<u8>> {
     Ok(line)
 }
 
+/// `ReadLn` of a number in Pascal: skips blank lines, and gives 0 at the end
+/// of the file
 pub fn parse_line<T>(f: &mut BufReader<impl Read>) -> eyre::Result<T>
 where
     T: FromStr,
     T::Err: std::error::Error + Send + Sync + 'static,
 {
-    let mut line = String::new();
-    f.read_line(&mut line)?;
-    Ok(line.trim().parse()?)
+    loop {
+        let mut line = String::new();
+        if f.read_line(&mut line)? == 0 {
+            return Ok("0".parse()?);
+        }
+        let number = line.trim();
+        if !number.is_empty() {
+            return Ok(number.parse()?);
+        }
+    }
 }
 
 /// `Val` of Pascal: 0 when the text is not a number
@@ -35,6 +44,14 @@ pub fn random(max: u32) -> u32 {
         return trace::random(max);
     }
     (rand::random::<f64>() * (max as f64)) as u32
+}
+
+/// `Halt` of Pascal
+pub fn halt() -> ! {
+    if trace::active() {
+        trace::finish();
+    }
+    std::process::exit(0);
 }
 
 /// `Write` to the console. The terminal gets the text in UTF-8, decoded from
@@ -62,6 +79,14 @@ fn write_decoded(text: &[u8], decode: fn(u8) -> char) {
     let mut stdout = std::io::stdout();
     let _ = stdout.write_all(utf8.as_bytes());
     let _ = stdout.flush();
+}
+
+/// The name of a data file. DOS file names do not depend on case, and the data
+/// files have upper-case names. A byte above 127 is a CP437 character.
+pub fn dos_file_name(name: &[u8]) -> String {
+    name.iter()
+        .map(|&c| cp437_char(c.to_ascii_uppercase()))
+        .collect()
 }
 
 fn cp437_char(c: u8) -> char {

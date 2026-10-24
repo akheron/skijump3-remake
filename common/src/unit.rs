@@ -1736,9 +1736,24 @@ fn load_goals<P: Platform>(s: &P, goals: &mut [i32; NUM_WC_HILLS as usize + 1]) 
     }
 }
 
-/// `readln(f2, value)`, which gives 0 at the end of the file
+/// `readln(f2, value)`: skips blanks and empty lines, reads the number up to
+/// the first character that is not a digit, and gives 0 at the end of the file
 fn read_goal(f2: &mut BufReader<impl Read>) -> i32 {
-    read_line(f2).map_or(0, |line| val(&line))
+    loop {
+        let mut line = Vec::new();
+        if f2.read_until(b'\n', &mut line).unwrap_or(0) == 0 {
+            return 0;
+        }
+        let text = line.trim_ascii_start();
+        if !text.is_empty() {
+            let sign = usize::from(matches!(text[0], b'+' | b'-'));
+            let digits = text[sign..]
+                .iter()
+                .take_while(|c| c.is_ascii_digit())
+                .count();
+            return val(&text[..sign + digits]);
+        }
+    }
 }
 
 fn write_goals(s: &impl Platform, goals: &[i32; NUM_WC_HILLS as usize + 1]) {
@@ -1821,29 +1836,34 @@ pub fn dayandtime(d1: Date, t1: Time) -> Vec<u8> {
 }
 
 pub fn crypt(arvo: i32, jarj: i32) -> Vec<u8> {
-    let str1 = format!("{:05}", arvo);
+    let mut str1 = txt(arvo);
+
+    if str1.len() < 5 {
+        for _ in 1..=5 - str1.len() {
+            str1.insert(0, b'0');
+        }
+    }
+
     let mut str2: Vec<u8> = Vec::new();
 
-    for c in str1.chars().rev() {
-        str2.push((c as u8) + 21);
+    for index in (1..=5).rev() {
+        str2.push(str1[index - 1] + 21);
     }
 
-    let ch1 = (68 + 2 * ((arvo % 7) ^ 1)) as u8; //{ tarkistusluku arvosta }
+    // Pascal assigns one character to the short string str1 below, so
+    // str1[6] still has the sixth digit of arvo.
+    let digits = str1;
+
+    let mut str1 = vec![(68 + 2 * ((arvo % 7) ^ 1)) as u8]; //{ tarkistusluku arvosta }
+    insert(&str1, &mut str2, 2);
+    str1 = vec![(65 + ((jarj ^ 33) % 19)) as u8]; //{ tarkistusluku j�rjestyksest� }
+    insert(&str1, &mut str2, 3);
+    str1 = vec![(68 + random(6)) as u8]; //{ ihan vaan satunnainen kirjain }
     if txt(arvo).len() > 5 {
-        str2.insert(0, ch1);
-    } else {
-        str2.insert(1, ch1);
+        str1 = vec![digits[6 - 1] + 27];
     }
-    str2.insert(1, ch1);
-
-    let ch1 = (65 + ((jarj ^ 33) % 19)) as u8; //{ tarkistusluku j�rjestyksest� }
-    str2.insert(2, ch1);
-
-    let mut ch1 = (68 + random(6)) as u8; //{ ihan vaan satunnainen kirjain }
-    if txt(arvo).len() > 5 {
-        ch1 = str1.as_bytes()[5] + 27;
-    }
-    str2.insert(4, ch1);
+    insert(&str1, &mut str2, 5);
+    // {  insert('*',str2,5); }
 
     str2
 }
@@ -1895,6 +1915,12 @@ fn delete(str0: &mut Vec<u8>, index: usize) {
     }
 }
 
+/// `Insert(source, s, index)` of Pascal, which appends past the end
+fn insert(source: &[u8], s: &mut Vec<u8>, index: usize) {
+    let at = index.clamp(1, s.len() + 1) - 1;
+    s.splice(at..at, source.iter().copied());
+}
+
 pub fn valuestr(str0: &[u8], arvo: i32) -> u16 {
     let mut word1: u16 = 0;
 
@@ -1907,4 +1933,51 @@ pub fn valuestr(str0: &[u8], arvo: i32) -> u16 {
     word1
         .wrapping_mul((arvo % 7 + 1) as u16)
         .wrapping_add(arvo as u16)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{crypt, read_goal, uncrypt};
+    use std::io::BufReader;
+
+    // The expected strings come from the Pascal crypt and uncrypt, built with
+    // FPC -Mtp, with random(6) replaced by 0. The fifth character is random
+    // when arvo has at most 5 digits.
+    fn assert_crypt(arvo: i32, jarj: i32, expected: &[u8], uncrypted: i32) {
+        let mut str1 = crypt(arvo, jarj);
+        assert_eq!(str1.len(), 8);
+        if arvo < 100000 {
+            assert!((b'D'..=b'I').contains(&str1[4]));
+            str1[4] = b'D';
+        }
+        assert_eq!(str1, expected);
+        assert_eq!(uncrypt(str1, jarj), uncrypted);
+    }
+
+    #[test]
+    fn crypt_round_trip() {
+        assert_crypt(0, 1, b"EFNEDEEE", 0);
+        assert_crypt(7, 5, b"LFREDEEE", 7);
+        assert_crypt(1515, 1, b"JHNFDJFE", 1515);
+        assert_crypt(42, 21, b"GFOIDEEE", 42);
+        assert_crypt(12345, 3, b"JNPIDHGF", 12345);
+        assert_crypt(99999, 41, b"NNINDNNN", 99999);
+    }
+
+    #[test]
+    fn crypt_more_than_5_digits() {
+        // crypt keeps the first 6 digits, and uncrypt reads the sixth digit as
+        // the hundred thousands. The check then fails and gives 0.
+        assert_crypt(123456, 7, b"JNAIQHGF", 0);
+        assert_crypt(100000, 2, b"ELQEKEEF", 0);
+        assert_crypt(1234567, 9, b"JLCIQHGF", 0);
+    }
+
+    #[test]
+    fn read_goal_like_readln() {
+        let mut f2 = BufReader::new(&b"12 \r\n\r\n  -7x\r\n"[..]);
+        assert_eq!(read_goal(&mut f2), 12);
+        assert_eq!(read_goal(&mut f2), -7);
+        assert_eq!(read_goal(&mut f2), 0);
+    }
 }

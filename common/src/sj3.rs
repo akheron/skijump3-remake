@@ -1,5 +1,5 @@
 use crate::graph::GraphModule;
-use crate::help::{nsqrt, pcomp, round, txt, txtp};
+use crate::help::{nsqrt, pcomp, round, txt, txtp, upstr};
 use crate::info::InfoModule;
 use crate::lang::LangModule;
 use crate::list::ListModule;
@@ -8,7 +8,9 @@ use crate::maki::MakiModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
 use crate::regfree::{REGNAME, REGNUMBER};
-use crate::rs_util::{parse_line, random, read_line, write, writeln, writeln_latin1};
+use crate::rs_util::{
+    dos_file_name, halt, parse_line, random, read_line, write, writeln, writeln_latin1,
+};
 use crate::table::{
     find_landing, jump_risk, lasku_anim, lasku_asento, lento_anim, parru_anim, ponn_anim,
     suksi_laskussa, suksi_lennossa,
@@ -93,7 +95,7 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
     kothrounds: u8,
     kothmaki: i32,
     kothpel: [u8; 21],
-    namenumber: char,
+    namenumber: u8,
     languagenumber: u8,
     gdetail: u8,
     seecomps: u8,
@@ -179,7 +181,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             kothrounds: 0,
             kothmaki: 0,
             kothpel: [0; 21],
-            namenumber: '0',
+            namenumber: b'0',
             languagenumber: 0,
             gdetail: 0,
             seecomps: 0,
@@ -218,9 +220,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         for temp in 1..=NUM_WC_HILLS {
             let hrname = self.u.hrname(temp);
             f1.write_all(&hrname).unwrap();
+            writeln!(f1).unwrap();
             l1 += valuestr(&hrname, temp) as i32;
-            let str1 = crypt(hrname.len() as i32, temp);
+            let str1 = crypt(self.u.hrlen(temp), temp);
             f1.write_all(&str1).unwrap();
+            writeln!(f1).unwrap();
             l2 += valuestr(&str1, temp) as i32;
         }
 
@@ -252,7 +256,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
     fn write_config(&mut self) {
         let reg = true; // { registered wai no }
 
-        let mut f2: Vec<u8> = Vec::new();
+        let mut f2 = self.s.create_file("CONFIG.SKI"); //{ CONFIG }
+
         writeln!(f2, "{}", reg as i32).unwrap();
         writeln!(f2, "{}", self.comphrs as i32).unwrap();
         writeln!(f2, "{}", self.lct as i32).unwrap();
@@ -268,7 +273,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         writeln!(f2, "{}", self.languagenumber).unwrap();
         writeln!(f2, "{}", self.trainrounds).unwrap();
-        writeln!(f2, "{}", self.namenumber).unwrap();
+        f2.write_all(&[self.namenumber, b'\n']).unwrap();
         f2.write_all(&self.setfile).unwrap();
         writeln!(f2).unwrap();
 
@@ -333,6 +338,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             for temp in 1..=20 {
                 profileorder[temp as usize] = 0;
             }
+            profileorder[1] = 1;
         }
 
         self.jmaara = 1;
@@ -343,7 +349,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.beeppi = false;
         self.gdetail = 0;
 
-        self.namenumber = '0';
+        self.namenumber = b'0';
 
         self.trainrounds = 0;
 
@@ -374,7 +380,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.write_config();
     }
 
-    fn read_records(&mut self) {
+    async fn read_records(&mut self) {
         let mut l1: i32 = 0;
         let mut l2: i32 = 0;
 
@@ -382,26 +388,19 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         read_line(&mut f1).unwrap(); //{ se varoitusrivi pois sielt� }
 
-        let mut top = self.i.top.borrow_mut();
-        for temp in 1..=41 {
-            //{ 20 World Cup, 10 Team Cupia, 5 4hillsia ja 6 Kothia }
-            let name = read_line(&mut f1).unwrap();
-            l1 += valuestr(&name, temp) as i32;
-
-            let mut str1 = read_line(&mut f1).unwrap();
-            l2 += valuestr(&str1, temp) as i32;
-            let pos = uncrypt(str1.clone(), temp) as u8;
-
-            str1 = read_line(&mut f1).unwrap();
-            l2 += valuestr(&str1, temp) as i32;
-            let score = uncrypt(str1, temp);
-
-            top.push(Hiscore {
-                name,
-                pos,
-                score,
-                time: Vec::new(),
-            });
+        {
+            let mut top = self.i.top.borrow_mut();
+            for temp in 1..=41 {
+                //{ 20 World Cup, 10 Team Cupia, 5 4hillsia ja 6 Kothia }
+                top[temp as usize].name = read_line(&mut f1).unwrap();
+                l1 += valuestr(&top[temp as usize].name, temp) as i32;
+                let str1 = read_line(&mut f1).unwrap();
+                l2 += valuestr(&str1, temp) as i32;
+                top[temp as usize].pos = uncrypt(str1, temp) as u8;
+                let str1 = read_line(&mut f1).unwrap();
+                l2 += valuestr(&str1, temp) as i32;
+                top[temp as usize].score = uncrypt(str1, temp);
+            }
         }
 
         for temp in 1..=NUM_WC_HILLS {
@@ -424,8 +423,11 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         let str1 = (l1 + l2 + 53).to_string().into_bytes();
 
-        for temp in 1..=41 {
-            top[temp - 1].time = read_line(&mut f1).unwrap();
+        {
+            let mut top = self.i.top.borrow_mut();
+            for temp in 1..=41 {
+                top[temp].time = read_line(&mut f1).unwrap();
+            }
         }
 
         for temp in 1..=NUM_WC_HILLS {
@@ -435,14 +437,21 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             self.u.set_hrinfo(temp, name, len, time);
         }
 
-        self.u.vcode.set(parse_line(&mut f1).unwrap_or(1));
+        self.u.vcode.set(parse_line(&mut f1).unwrap_or(0));
+        if self.u.vcode.get() == 0 {
+            self.u.vcode.set(1); //{ pre-v3.11 }
+        }
+
+        drop(f1);
 
         if l1 != l3 || l2 != l4 || valuestr(&str1, 22) as i32 != l5 {
+            self.m.aseta_moodi(0x3);
             writeln(b"Error #21A: Something doesn't add up in the HISCORE.SKI file.");
             writeln(b"Maybe you tried to edit it or something.  Please don't do it again.");
-            // self.reset_hiscore(1);
-            // self.reset_config();
-            std::process::exit(1);
+            self.reset_hiscore(1);
+            self.reset_config();
+            self.s.wait_for_key().await;
+            halt();
         }
     }
 
@@ -493,7 +502,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         //self.trainrounds=0;
         //{$ENDIF}
 
-        self.namenumber = parse_line(&mut f2).unwrap();
+        // readln of a char at the end of a DOS line gives #13
+        self.namenumber = read_line(&mut f2)
+            .unwrap()
+            .first()
+            .copied()
+            .unwrap_or(b'\r');
         //{$IFNDEF REG}
         //self.namenumber=0;
         //{$ENDIF}
@@ -502,7 +516,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         let str1 = read_line(&mut f2).unwrap();
         let filename = [&str1 as &[u8], b".SJC"].concat();
         if self.s.file_exists(from_utf8(&filename).unwrap()) {
-            self.setfile = str1;
+            self.setfile = upstr(&str1);
         }
 
         self.gdetail = parse_line(&mut f2).unwrap();
@@ -611,7 +625,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                         }
                         3 => self.l.lstr(13 + self.gdetail as u32).to_vec(),
                         4 => {
-                            let names = format!("NAMES{}.SKI", self.namenumber);
+                            let names = dos_file_name(
+                                &[b"NAMES" as &[u8], &[self.namenumber], b".SKI"].concat(),
+                            );
                             if self.s.file_exists(&names) {
                                 let mut f3 = BufReader::new(self.s.open_file(&names));
                                 let str2 = read_line(&mut f3).unwrap();
@@ -620,7 +636,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                                 self.g.write_font(40, 78, &str2);
                             }
 
-                            vec![self.namenumber as u8]
+                            vec![self.namenumber]
                         }
                         _ => b"".to_vec(),
                     },
@@ -730,7 +746,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                             ch = self.s.get_ch();
 
                             if ch != 27 {
-                                ok = self.s.file_exists(format!("NAMES{}.SKI", ch as char));
+                                ok = self.s.file_exists(dos_file_name(
+                                    &[b"names" as &[u8], &[ch], b".ski"].concat(),
+                                ));
                             } else {
                                 ok = true;
                             }
@@ -741,7 +759,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                         }
 
                         if ch != 27 {
-                            self.namenumber = ch as char;
+                            self.namenumber = ch;
                             self.i.load_names(
                                 self.namenumber,
                                 self.jmaara,
@@ -5098,7 +5116,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         }
     }
 
-    pub fn alku(&mut self) {
+    pub async fn alku(&mut self) {
         writeln(b"Ported to SDL2 by Suomipelit (https://suomipelit.github.io)");
         writeln(b"");
         writeln(b"New shortkeys:");
@@ -5125,7 +5143,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.check_param();
 
         write(b", HISCORE.SKI");
-        self.read_records();
+        self.read_records().await;
 
         write(b", CONFIG.SKI");
         self.read_config();
@@ -5133,7 +5151,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         write(b", PLAYERS.SKI");
         self.i.load_profiles();
 
-        writeln(&[b", NAMES" as &[u8], &[self.namenumber as u8], b".SKI"].concat());
+        writeln(&[b", NAMES" as &[u8], &[self.namenumber], b".SKI"].concat());
         self.i
             .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true);
 

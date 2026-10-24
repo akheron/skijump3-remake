@@ -3,12 +3,12 @@ use crate::help::{round, txt, txtp};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
-use crate::rs_util::{parse_line, random, read_line};
+use crate::rs_util::{dos_file_name, parse_line, random, read_line};
 use crate::unit::{
     dayandtime, valuestr, Date, Hiscore, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
 };
 use std::cell::{Cell, RefCell};
-use std::io::BufReader;
+use std::io::{BufReader, Write};
 
 pub struct Profile {
     name: Vec<u8>,
@@ -84,7 +84,7 @@ pub struct InfoModule<'g, 'l, 'm, 'p, 's, 'u, P: Platform> {
     p: &'p PcxModule<'m, 's, P>,
     s: &'s P,
     u: &'u UnitModule<'g, 'l, 'm, 'p, 's, P>,
-    pub top: RefCell<Vec<Hiscore>>,
+    pub top: RefCell<[Hiscore; NUM_HISCORES as usize + 1]>,
     pub nimet: RefCell<Vec<Vec<u8>>>,
     pub jnimet: RefCell<Vec<Vec<u8>>>,
     pub pmaara: Cell<u8>,
@@ -111,7 +111,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             p,
             s,
             u,
-            top: RefCell::new(vec![]),
+            top: RefCell::new(std::array::from_fn(|_| Hiscore::default())),
             nimet: RefCell::new((0..=NUM_PL + 1).map(|_| b"".to_vec()).collect()),
             jnimet: RefCell::new((0..=NUM_TEAMS).map(|_| b"".to_vec()).collect()),
             pmaara: Cell::new(1),
@@ -195,20 +195,16 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         self.s.wait_for_key().await;
     }
 
-    pub fn load_names(
-        &self,
-        whatset: char,
-        teamdiscount: u8,
-        teamlineup: &mut [u8],
-        replaces: bool,
-    ) {
+    pub fn load_names(&self, whatset: u8, teamdiscount: u8, teamlineup: &mut [u8], replaces: bool) {
         let mut l1: i32 = 0;
         let mut s = b"".to_vec();
 
         let profile = self.profile.borrow();
         let mut nimet = self.nimet.borrow_mut();
 
-        let mut f4 = BufReader::new(self.s.open_file(format!("NAMES{}.SKI", whatset)));
+        let mut f4 = BufReader::new(self.s.open_file(dos_file_name(
+            &[b"NAMES" as &[u8], &[whatset], b".SKI"].concat(),
+        )));
 
         read_line(&mut f4).unwrap(); //{ titlerivi pois }
 
@@ -262,7 +258,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             }
         }
 
-        if whatset == '0' {
+        if whatset == b'0' {
             let l2: i32 = parse_line(&mut f4).unwrap(); //{ haetaan se names:n checksum }
             l1 += 5661;
             if l1 != l2 {
@@ -272,37 +268,50 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
     }
 
     pub fn reset_tops(&self, kerroin: u8, today: Date, now: Time) {
-        let scores1 = [
-            [1515, 1],
-            [1343, 1],
-            [1212, 2],
-            [1101, 3],
-            [999, 4],
-            [888, 5],
-            [777, 6],
-            [665, 7],
-            [555, 8],
-            [494, 10],
-            [444, 12],
-            [383, 14],
-            [333, 16],
-            [272, 18],
-            [222, 20],
-            [161, 22],
-            [111, 25],
-            [77, 30],
-            [33, 35],
-            [11, 40],
-        ];
-
         let mut top = self.top.borrow_mut();
         let nimet = self.nimet.borrow();
         let jnimet = self.jnimet.borrow();
 
-        for (i, t) in scores1.iter().enumerate() {
-            top[i].score = t[0];
-            top[i].pos = t[1] as u8;
-        }
+        top[1].score = 1515;
+        top[1].pos = 1;
+        top[2].score = 1343;
+        top[2].pos = 1;
+        top[3].score = 1212;
+        top[3].pos = 2;
+        top[4].score = 1101;
+        top[4].pos = 3;
+        top[5].score = 999;
+        top[5].pos = 4;
+        top[6].score = 888;
+        top[6].pos = 5;
+        top[7].score = 777;
+        top[7].pos = 6;
+        top[8].score = 665;
+        top[8].pos = 7;
+        top[9].score = 555;
+        top[9].pos = 8;
+        top[10].score = 494;
+        top[10].pos = 10;
+        top[11].score = 444;
+        top[11].pos = 12;
+        top[12].score = 383;
+        top[12].pos = 14;
+        top[13].score = 333;
+        top[13].pos = 16;
+        top[14].score = 272;
+        top[14].pos = 18;
+        top[15].score = 222;
+        top[15].pos = 20;
+        top[16].score = 161;
+        top[16].pos = 22;
+        top[17].score = 111;
+        top[17].pos = 25;
+        top[18].score = 77;
+        top[18].pos = 30;
+        top[19].score = 33;
+        top[19].pos = 35;
+        top[20].score = 11;
+        top[20].pos = 40;
 
         for temp in 1..=20 {
             top[temp].name = [&nimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
@@ -335,25 +344,42 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             }
         }
 
-        let scores2 = [42, 35, 28, 21, 17, 11, 8, 5, 3, 1];
         for temp in 21..=30 {
-            top[temp].pos = (temp - 20) as u8;
+            top[temp].pos = round(((temp - 20) * 1) as f32) as u8;
             top[temp].name = [&jnimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
             top[temp].time = dayandtime(today, now);
-            top[temp].score = scores2[temp - 21];
         }
 
-        let scores3 = [[10111, 1], [9876, 3], [9449, 6], [9010, 10], [8321, 15]];
+        top[21].score = 42;
+        top[22].score = 35;
+        top[23].score = 28;
+        top[24].score = 21;
+        top[25].score = 17;
+        top[26].score = 11;
+        top[27].score = 8;
+        top[28].score = 5;
+        top[29].score = 3;
+        top[30].score = 1;
+
+        top[31].score = 10111;
+        top[31].pos = 1;
+        top[32].score = 9876;
+        top[32].pos = 3;
+        top[33].score = 9449;
+        top[33].pos = 6;
+        top[34].score = 9010;
+        top[34].pos = 10;
+        top[35].score = 8321;
+        top[35].pos = 15;
+
         for temp in 31..=35 {
-            top[temp].score = scores3[temp - 31][0];
-            top[temp].pos = scores3[temp - 31][1] as u8;
             top[temp].name = [&nimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
             top[temp].time = dayandtime(today, now);
         }
 
         for temp in 1..=35 {
             //{ katsos jos nollaa ne scoret! }
-            top[temp].pos = top[temp].pos * kerroin;
+            top[temp].pos = top[temp].pos.wrapping_mul(kerroin);
             top[temp].score = top[temp].score * kerroin as i32;
         }
 
@@ -369,16 +395,17 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         let mut profiles = self.profile.borrow_mut();
         profiles[index as usize] = Profile::new();
 
-        let mut count = 0u8;
+        let mut count: u8;
         let mut count2 = 2u8;
         if phase == 1 {
             loop {
                 let mut ok = true;
+                count = 0;
                 for temp in 1..=self.num_profiles.get() as i32 {
                     if profiles[temp as usize].name == profiles[index as usize].name
                         && temp != index
                     {
-                        count += 1;
+                        count = count.wrapping_add(1);
                     }
                 }
                 if count > 0 {
@@ -408,43 +435,48 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             self.num_profiles.set(1);
         }
 
-        let mut profiles = self.profile.borrow_mut();
         for temp in 1..=self.num_profiles.get() {
-            let mut str1 = vec![1];
-            while str1.is_empty() || str1[0] != b'*' {
-                str1 = read_line(&mut f1).unwrap();
+            let l1: i32;
+            let code: i32;
+            {
+                let mut profiles = self.profile.borrow_mut();
+                let mut str1 = vec![1];
+                while str1.is_empty() || str1[0] != b'*' {
+                    str1 = read_line(&mut f1).unwrap();
+                }
+
+                let profile = &mut profiles[temp as usize];
+                profile.name = read_line(&mut f1).unwrap();
+                profile.suitcolor = parse_line(&mut f1).unwrap();
+                profile.skicolor = parse_line(&mut f1).unwrap();
+                profile.cstyle = parse_line(&mut f1).unwrap();
+                profile.kothlevel = parse_line(&mut f1).unwrap();
+                profile.replace = parse_line(&mut f1).unwrap();
+                profile.wcs = parse_line(&mut f1).unwrap();
+                profile.legswon = parse_line(&mut f1).unwrap();
+                profile.wcswon = parse_line(&mut f1).unwrap();
+                profile.bestwcjump = parse_line(&mut f1).unwrap();
+                profile.bestwchill = parse_line(&mut f1).unwrap();
+                profile.bestjump = parse_line(&mut f1).unwrap();
+                profile.besthill = parse_line(&mut f1).unwrap();
+                profile.besthillfile = read_line(&mut f1).unwrap();
+                profile.bestresult = read_line(&mut f1).unwrap();
+                profile.bestpoints = parse_line(&mut f1).unwrap();
+                profile.best4result = read_line(&mut f1).unwrap();
+                profile.best4points = parse_line(&mut f1).unwrap();
+                profile.totaljumps = parse_line(&mut f1).unwrap();
+                profile.skipquali = parse_line(&mut f1).unwrap();
+                profile.realname = read_line(&mut f1).unwrap();
+                if profile.realname == b"0" {
+                    profile.realname = profile.name.clone();
+                }
+                read_line(&mut f1).unwrap();
+                read_line(&mut f1).unwrap();
+                l1 = parse_line(&mut f1).unwrap(); //{ checksum }
+                code = profile_code(profile);
             }
 
-            let profile = &mut profiles[temp as usize];
-            profile.name = read_line(&mut f1).unwrap();
-            profile.suitcolor = parse_line(&mut f1).unwrap();
-            profile.skicolor = parse_line(&mut f1).unwrap();
-            profile.cstyle = parse_line(&mut f1).unwrap();
-            profile.kothlevel = parse_line(&mut f1).unwrap();
-            profile.replace = parse_line(&mut f1).unwrap();
-            profile.wcs = parse_line(&mut f1).unwrap();
-            profile.legswon = parse_line(&mut f1).unwrap();
-            profile.wcswon = parse_line(&mut f1).unwrap();
-            profile.bestwcjump = parse_line(&mut f1).unwrap();
-            profile.bestwchill = parse_line(&mut f1).unwrap();
-            profile.bestjump = parse_line(&mut f1).unwrap();
-            profile.besthill = parse_line(&mut f1).unwrap();
-            profile.besthillfile = read_line(&mut f1).unwrap();
-            profile.bestresult = read_line(&mut f1).unwrap();
-            profile.bestpoints = parse_line(&mut f1).unwrap();
-            profile.best4result = read_line(&mut f1).unwrap();
-            profile.best4points = parse_line(&mut f1).unwrap();
-            profile.totaljumps = parse_line(&mut f1).unwrap();
-            profile.skipquali = parse_line(&mut f1).unwrap();
-            profile.realname = read_line(&mut f1).unwrap();
-            if profile.realname == b"0" {
-                profile.realname = profile.name.clone();
-            }
-            read_line(&mut f1).unwrap();
-            read_line(&mut f1).unwrap();
-            let l1: i32 = parse_line(&mut f1).unwrap();
-
-            if l1 != profile_code(profile) {
+            if l1 != code {
                 self.default_profile(temp as i32, 0);
             }
             /*
@@ -457,6 +489,56 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                   end;
             {$ENDIF}
             */
+        }
+    }
+
+    pub fn write_profiles(&self) {
+        let mut f1 = self.s.create_file("PLAYERS.SKI");
+
+        writeln!(f1, "{}", self.num_profiles.get()).unwrap();
+        if self.num_profiles.get() == 0 || self.num_profiles.get() > 20 {
+            self.num_profiles.set(1);
+        }
+
+        let profiles = self.profile.borrow();
+        for temp in 1..=self.num_profiles.get() {
+            f1.write_all(&[b"*" as &[u8], &txt(temp as i32)].concat())
+                .unwrap();
+            writeln!(f1).unwrap();
+
+            let profile = &profiles[temp as usize];
+            f1.write_all(&profile.name).unwrap();
+            writeln!(f1).unwrap();
+            writeln!(f1, "{}", profile.suitcolor).unwrap();
+            writeln!(f1, "{}", profile.skicolor).unwrap();
+            writeln!(f1, "{}", profile.cstyle).unwrap();
+            writeln!(f1, "{}", profile.kothlevel).unwrap();
+            writeln!(f1, "{}", profile.replace).unwrap();
+            writeln!(f1, "{}", profile.wcs).unwrap();
+            writeln!(f1, "{}", profile.legswon).unwrap();
+            writeln!(f1, "{}", profile.wcswon).unwrap();
+            writeln!(f1, "{}", profile.bestwcjump).unwrap();
+            writeln!(f1, "{}", profile.bestwchill).unwrap();
+            writeln!(f1, "{}", profile.bestjump).unwrap();
+            writeln!(f1, "{}", profile.besthill).unwrap();
+            f1.write_all(&profile.besthillfile).unwrap();
+            writeln!(f1).unwrap();
+            f1.write_all(&profile.bestresult).unwrap();
+            writeln!(f1).unwrap();
+            writeln!(f1, "{}", profile.bestpoints).unwrap();
+            f1.write_all(&profile.best4result).unwrap();
+            writeln!(f1).unwrap();
+            writeln!(f1, "{}", profile.best4points).unwrap();
+            writeln!(f1, "{}", profile.totaljumps).unwrap();
+            writeln!(f1, "{}", profile.skipquali).unwrap();
+            f1.write_all(&profile.realname).unwrap();
+            writeln!(f1).unwrap();
+            writeln!(f1, "0").unwrap();
+            writeln!(f1, "0").unwrap();
+
+            writeln!(f1, "{}", profile_code(profile)).unwrap();
+            writeln!(f1).unwrap();
+            writeln!(f1).unwrap();
         }
     }
 

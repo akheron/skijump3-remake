@@ -70,6 +70,6 @@ pub async fn sj3<P: Platform>(port: &P) {
     sj3_module.today = today;
     sj3_module.start = start;
 
-    sj3_module.alku();
+    sj3_module.alku().await;
     sj3_module.main_menu().await;
 }

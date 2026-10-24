@@ -6,7 +6,6 @@ use std::rc::Rc;
 
 const NUM_STR: usize = 599;
 
-/// The length of `LangStr`
 const LANG_STR_LEN: usize = 59;
 
 pub struct LangModule<'s, P: Platform> {
@@ -36,9 +35,12 @@ impl<'s, P: Platform> LangModule<'s, P> {
     }
 
     pub fn lch(&self, index: u32, num: u32) -> u8 {
-        // In Pascal, strings are 1-indexed => subtract 1.
-        assert!(num >= 1);
-        self.lstr(index)[(num - 1) as usize]
+        // Pascal reads a byte past the end of the string without an error.
+        // Here that byte is 0.
+        let str1 = self.lstr(index);
+        str1.get((num as usize).wrapping_sub(1))
+            .copied()
+            .unwrap_or(0)
     }
 
     pub fn lrstr(&self, start: u32, stop: u32) -> Rc<Vec<u8>> {

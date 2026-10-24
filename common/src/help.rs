@@ -47,3 +47,23 @@ pub fn num(jokuluku: &[u8]) -> i32 {
     let s = String::from_utf8_lossy(jokuluku);
     s.parse().unwrap_or(-1)
 }
+
+pub fn upstr(str1: &[u8]) -> Vec<u8> {
+    let mut outstr = str1.to_vec();
+
+    for index in 1..=outstr.len() {
+        outstr[index - 1] = outstr[index - 1].to_ascii_uppercase();
+
+        outstr[index - 1] = match outstr[index - 1] {
+            0x86 => 0x8f, // å
+            0x84 => 0x8e, // ä
+            0x94 => 0x99, // ö
+            0x81 => 0x9a, // ü
+            0x9b => 0x9d, // ¢
+            0x91 => 0x92, // æ
+            c => c,
+        };
+    }
+
+    outstr
+}
