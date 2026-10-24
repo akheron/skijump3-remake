@@ -1,15 +1,17 @@
 use crate::graph::GraphModule;
-use crate::help::{beep, nmstr, round, toansi, txt, txtp, upstr};
+use crate::help::{beep, nmstr, paraletter, round, toansi, txt, txtp, upstr};
 use crate::lang::LangModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
-use crate::rs_util::{dos_file_name, dos_name_bytes, pad_left, parse_line, random, read_line};
+use crate::rs_util::{
+    dos_file_name, dos_name_bytes, pad_left, parse_line, random, read_line, val, val_code,
+};
 use crate::unit::{
     crypt, dayandtime, insert, svaluestr, valuestr, Date, Hill, Hiscore, Time, UnitModule,
     MAX_CUSTOMS, NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
 };
 use std::cell::{Cell, RefCell};
-use std::io::{BufReader, Write};
+use std::io::{BufRead, BufReader, Write};
 
 #[derive(Clone)]
 pub struct Profile {
@@ -120,26 +122,227 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         }
     }
 
-    pub fn load_custom(
+    fn defaulthi(hi: &mut Hiscore) {
+        hi.name = b"Nobody".to_vec();
+        hi.pos = 0;
+        hi.score = 0;
+        hi.time = b"-".to_vec();
+    }
+
+    pub async fn load_custom(
         &self,
         setfile: &[u8],
         sortby: &mut u8,
         hillorder: &mut [i32],
         cuphills: &mut i32,
     ) -> i32 {
-        // TODO
-        todo!();
+        let mut temp: i32;
+        let mut nytmaki: i32;
+        let mut str1: Vec<u8>;
+        let filename = dos_file_name(&[setfile, b".SJC"].concat());
+        let found = self.s.file_exists(&filename);
+
+        // { defaulthi(Hi); }
+
+        let mut code: i32 = 0;
+        let mut checksum: i32 = 0;
+        let mut compare: i32;
+        let mut compare2: i32;
+
+        for temp in 1..=20 {
+            Self::defaulthi(&mut self.top.borrow_mut()[temp + 41]);
+        }
+
+        if found {
+            let mut f2 = BufReader::new(self.s.open_file(&filename));
+            *sortby = 0;
+            //{ ei niin väliä vaikkei löytyisikään }
+
+            *cuphills = parse_line(&mut f2).unwrap();
+
+            temp = 0;
+
+            loop {
+                nytmaki = parse_line(&mut f2).unwrap();
+
+                if nytmaki > NUM_WC_HILLS {
+                    nytmaki = -1;
+                    str1 = read_line(&mut f2).unwrap();
+
+                    if self.u.num_extra_hills.get() > 0 {
+                        for temp2 in 1..=self.u.num_extra_hills.get() as i32 {
+                            if self.u.hillfile(temp2) == str1 {
+                                nytmaki = temp2 + NUM_WC_HILLS;
+                            }
+                        }
+                    }
+                }
+
+                if nytmaki > 0 {
+                    temp += 1;
+                    hillorder[temp as usize] = nytmaki;
+                }
+
+                if nytmaki == 0 || temp >= 40 {
+                    break;
+                }
+            }
+
+            if temp >= 40 {
+                //{ se lopettava nolla pois }
+                nytmaki = parse_line(&mut f2).unwrap();
+                while nytmaki != 0 {
+                    nytmaki = parse_line(&mut f2).unwrap();
+                }
+            }
+
+            *cuphills = temp;
+            if *cuphills == 0 {
+                code = -1;
+            }
+
+            for _ in 1..=4 {
+                read_line(&mut f2).unwrap(); //{ v3.10 enkka pois alta }
+            }
+
+            *sortby = parse_line::<i32>(&mut f2).unwrap() as u8;
+            if *sortby != 1 {
+                *sortby = 0;
+            }
+
+            str1 = read_line(&mut f2).unwrap();
+            code = val_code(&str1).unwrap_or(1); //{ luetaan code }
+
+            //{ v3.12 lisäys #1 start / ei lueta codea vaan lasketaan se }
+            compare2 = 0;
+            compare2 = compare2.wrapping_add(svaluestr(&upstr(setfile), 11) as i32 * 13 + 1);
+
+            for temp in 1..=*cuphills {
+                compare2 =
+                    compare2.wrapping_add(self.u.hillcode(hillorder[temp as usize]).await % 193557);
+            }
+
+            compare2 ^= 566727 + *sortby as i32 * 2;
+
+            //{ v3.12 lisäys end }
+
+            read_line(&mut f2).unwrap();
+
+            for temp in 1..=20 {
+                if !f2.fill_buf().unwrap().is_empty() {
+                    let mut top = self.top.borrow_mut();
+                    let hi = &mut top[temp as usize + 41];
+                    hi.name = read_line(&mut f2).unwrap();
+                    checksum = checksum.wrapping_add(svaluestr(&hi.name, temp) as i32);
+                    hi.pos = parse_line::<i32>(&mut f2).unwrap() as u8;
+                    checksum = checksum.wrapping_add((hi.pos as i32 + temp) * 11);
+                    hi.score = parse_line(&mut f2).unwrap();
+                    checksum =
+                        checksum.wrapping_add(hi.score.wrapping_add(temp + 1).wrapping_mul(3));
+                    hi.time = read_line(&mut f2).unwrap();
+                }
+            }
+
+            str1 = read_line(&mut f2).unwrap();
+            compare = val(&str1);
+
+            checksum ^= 131333;
+
+            if compare != checksum || compare2 != code {
+                for temp in 1..=20 {
+                    Self::defaulthi(&mut self.top.borrow_mut()[temp + 41]);
+                }
+            }
+
+            //{ v3.12 muutos #2 start / yksi uusi checksum (sis. code) }
+
+            str1 = read_line(&mut f2).unwrap(); //{ luetaan se jos sitä on }
+                                                //{ tästä seuraa että v3.11:n SJC nollautuu v3.12:ssa! }
+            compare = val(&str1);
+
+            checksum ^= 131333;
+            checksum = (checksum.wrapping_add(5).wrapping_add(code)).wrapping_mul(2) ^ 356777;
+
+            if compare != checksum {
+                for temp in 1..=20 {
+                    Self::defaulthi(&mut self.top.borrow_mut()[temp + 41]);
+                }
+            }
+            //{ v3.12 muutos #2 end }
+
+            drop(f2);
+        }
+
+        code
     }
 
-    pub fn write_custom(
+    pub async fn write_custom(
         &self,
         setfile: &[u8],
         sortby: u8,
         hillorder: &[i32],
         cuphills: i32,
     ) -> i32 {
-        // TODO
-        0
+        let mut code: i32;
+        let mut f2 = self
+            .s
+            .create_file(dos_file_name(&[setfile, b".SJC"].concat()));
+
+        let mut checksum: i32 = 0;
+        let result: i32;
+
+        code = 0; //{ SJC:n mäkijärkkäkoodi }
+        let setfile = upstr(setfile);
+
+        writeln!(f2, "{}", cuphills).unwrap();
+        code = code.wrapping_add(svaluestr(&setfile, 11) as i32 * 13 + 1);
+
+        for temp in 1..=cuphills as usize {
+            writeln!(f2, "{}", hillorder[temp]).unwrap();
+            code = code.wrapping_add(self.u.hillcode(hillorder[temp]).await % 193557);
+            if hillorder[temp] > NUM_WC_HILLS {
+                writeln_bytes(&mut f2, &[&self.u.hillfile(hillorder[temp] - NUM_WC_HILLS)]);
+            }
+        }
+
+        code ^= 566727 + sortby as i32 * 2;
+
+        writeln!(f2, "0").unwrap(); //{ endofhillsequence }
+
+        writeln!(f2, "v3.12 SJC").unwrap(); //{ vanha enkkastandardi }
+        writeln!(f2, "0").unwrap();
+        writeln!(f2, "0").unwrap();
+        writeln!(f2, "-").unwrap();
+
+        writeln!(f2, "{}", sortby).unwrap(); //{ uutta }
+
+        writeln!(f2, "{}", code).unwrap();
+        writeln!(f2, "0").unwrap();
+
+        for temp in 1..=20 {
+            let top = self.top.borrow();
+            let hi = &top[temp as usize + 41];
+            writeln_bytes(&mut f2, &[&hi.name]);
+            checksum = checksum.wrapping_add(svaluestr(&hi.name, temp) as i32);
+            writeln!(f2, "{}", hi.pos).unwrap();
+            checksum = checksum.wrapping_add((hi.pos as i32 + temp) * 11);
+            writeln!(f2, "{}", hi.score).unwrap();
+            checksum = checksum.wrapping_add(hi.score.wrapping_add(temp + 1).wrapping_mul(3));
+            writeln_bytes(&mut f2, &[&hi.time]);
+        }
+
+        checksum ^= 131333;
+        writeln!(f2, "{}", checksum).unwrap();
+        //{ v3.12 muutos #2 }
+        checksum ^= 131333;
+        checksum = (checksum.wrapping_add(5).wrapping_add(code)).wrapping_mul(2) ^ 356777;
+        writeln!(f2, "{}", checksum).unwrap();
+
+        result = 0;
+
+        drop(f2);
+
+        result
     }
 
     pub async fn newcrecordscreen(
@@ -213,6 +416,536 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 }
             }
         }
+    }
+}
+
+struct CustomHillSelection<'a, 'g, 'l, 'm, 'p, 's, 'u, P: Platform> {
+    i: &'a InfoModule<'g, 'l, 'm, 'p, 's, 'u, P>,
+    sortby: &'a mut u8,
+    cuphills: &'a mut i32,
+    hillorder: &'a mut [i32],
+    setfile: &'a mut Vec<u8>,
+    hill: i32,
+    y: i32,
+    tempstr: Vec<u8>,
+    temphi: Hiscore,
+}
+
+impl<P: Platform> CustomHillSelection<'_, '_, '_, '_, '_, '_, '_, P> {
+    fn dohill(&mut self, num: i32, phase: u8) {
+        //{ 1 - valinnassa, 2 - saletti, 3 - del }
+        let g = self.i.g;
+        let mut x: i32;
+        let str1: Vec<u8>;
+
+        self.y = num * 7 + 32;
+        x = 17;
+        if num > 20 {
+            x = 162;
+            self.y -= 140;
+        }
+        let y = self.y;
+        self.hill = self.hillorder[num as usize];
+
+        g.fill_box(
+            x as u16,
+            (y - 1) as u16,
+            (x + 142) as u16,
+            (y + 7) as u16,
+            248,
+        );
+
+        if phase == 3 {
+            g.fill_box(
+                x as u16,
+                (y - 1) as u16,
+                (x + 142) as u16,
+                (y + 7) as u16,
+                243,
+            );
+            g.fill_area(
+                x as u16,
+                (y - 1) as u16,
+                (x + 142) as u16,
+                (y + 7) as u16,
+                63,
+            );
+        } else {
+            g.font_color(246);
+            if phase == 2 {
+                g.e_write_font(x + 14, y, &[&txt(num) as &[u8], b"."].concat());
+            }
+
+            if phase == 1 {
+                g.font_color(241);
+            }
+            if phase == 2 {
+                if self.hill > NUM_WC_HILLS {
+                    g.font_color(253);
+                } else {
+                    g.font_color(240);
+                }
+            }
+
+            str1 = g.nsh(&self.i.u.hillname(self.hill), 104);
+            g.write_font(x + 15, y, &str1);
+            if phase == 2 {
+                g.font_color(247);
+            }
+            g.write_font(
+                x + 18 + g.font_len(&str1),
+                y,
+                &[b"K" as &[u8], &txt(self.i.u.hillkr(self.hill))].concat(),
+            );
+        }
+    }
+
+    async fn doscreen(&mut self) {
+        let g = self.i.g;
+        let l = self.i.l;
+        g.new_screen(2, 0).await;
+
+        g.font_color(240);
+        g.write_font(68, 8, l.lstr(118));
+
+        g.font_color(241);
+        g.write_font(78, 16, l.lstr(119));
+
+        g.write_font(
+            78,
+            23,
+            &[
+                &l.lstr(285) as &[u8],
+                b", ",
+                &l.lstr(286),
+                b", ",
+                &l.lstr(287),
+            ]
+            .concat(),
+        );
+        g.write_font(78, 30, l.lstr(288 + *self.sortby as u32));
+
+        if *self.cuphills > 0 {
+            for temp2 in 1..=*self.cuphills {
+                self.dohill(temp2, 2);
+            }
+        }
+
+        g.draw_screen().await;
+    }
+
+    async fn nocustoms(&self) {
+        self.i.u.result_box(4, 0).await;
+    }
+
+    async fn selectload(&mut self) -> u8 {
+        //{ palauttaa: 0 - ladattu, 1 - ei }
+        let g = self.i.g;
+        let l = self.i.l;
+        let s = self.i.s;
+        let mut filenames: Vec<Vec<u8>> = vec![Vec::new(); MAX_CUSTOMS as usize + 1];
+        let mut numcustoms: i32 = 0;
+        let mut actcustom: i32;
+        let mut leave2: bool;
+        let mut temp2: i32 = 0;
+        let mut tempb: u8 = 0;
+        let mut result: u8;
+        let mut temphillorder = [0i32; 42];
+
+        self.i.find_customs(&mut numcustoms, &mut filenames);
+        result = 1;
+
+        if numcustoms > 0 {
+            actcustom = 1;
+
+            loop {
+                self.i
+                    .load_custom(
+                        &filenames[actcustom as usize],
+                        &mut tempb,
+                        &mut temphillorder,
+                        &mut temp2,
+                    )
+                    .await; //{ just hi's }
+                self.temphi = self.i.top.borrow()[42].clone();
+
+                leave2 = true; //{ väliaikaiskäytössä }
+                if self.temphi.score == 0 {
+                    leave2 = false;
+                }
+
+                g.fill_box(74, 69, 246, 151, 248);
+                g.fill_box(75, 70, 245, 150, 243);
+
+                g.font_color(240);
+                g.write_font(85, 75, l.lstr(116));
+                if leave2 {
+                    g.write_font(95, 130, &g.nsh(&self.temphi.name, 90));
+                } else {
+                    g.write_font(95, 130, b"-");
+                }
+
+                g.font_color(241);
+                g.write_font(85, 85, l.lstr(150));
+                g.write_font(85, 121, l.lstr(115));
+
+                if leave2 {
+                    g.write_font(95, 139, &self.temphi.time);
+                }
+
+                g.fill_box(85, 95, 180, 115, 245);
+                g.e_write_font(
+                    220,
+                    102,
+                    &[&txt(actcustom) as &[u8], b" / ", &txt(numcustoms)].concat(),
+                );
+                g.font_color(246);
+                g.write_font(95, 102, &filenames[actcustom as usize]);
+                self.tempstr = txt(self.temphi.score);
+                if tempb == 1 {
+                    self.tempstr = txtp(self.temphi.score);
+                }
+
+                if leave2 {
+                    g.e_write_font(232, 130, &self.tempstr);
+                }
+
+                leave2 = false;
+
+                g.draw_screen().await;
+
+                s.clearchs();
+                s.wait_for_key_press().await;
+
+                if s.get_ch() == b'+'
+                    || s.get_ch() == b' '
+                    || s.get_ch2() == 77
+                    || s.get_ch2() == 80
+                {
+                    actcustom += 1;
+                }
+                if s.get_ch() == b'-' || s.get_ch2() == 75 || s.get_ch2() == 72 {
+                    actcustom -= 1;
+                }
+                if s.get_ch2() == 71 {
+                    actcustom = 1;
+                }
+                if s.get_ch2() == 79 {
+                    actcustom = numcustoms;
+                }
+
+                if actcustom < 1 {
+                    actcustom = 1;
+                }
+                if actcustom > numcustoms {
+                    actcustom = numcustoms;
+                }
+
+                if s.get_ch2() == 83 {
+                    //{ delete! }
+                    if self
+                        .i
+                        .u
+                        .might_delete(&[&filenames[actcustom as usize] as &[u8], b".SJC"].concat())
+                        .await
+                        == 0
+                    {
+                        self.i.find_customs(&mut numcustoms, &mut filenames);
+                        actcustom = 1;
+                        *self.setfile = b"TEMP".to_vec();
+                        if numcustoms == 0 {
+                            self.nocustoms().await;
+                            leave2 = true;
+                        }
+                    }
+                    self.doscreen().await;
+                }
+
+                if s.get_ch() == 27 || s.get_ch2() == 68 {
+                    leave2 = true;
+                }
+
+                if s.get_ch() == 13
+                    && self
+                        .i
+                        .load_custom(
+                            &filenames[actcustom as usize],
+                            self.sortby,
+                            self.hillorder,
+                            self.cuphills,
+                        )
+                        .await
+                        > 0
+                {
+                    leave2 = true;
+                    *self.setfile = filenames[actcustom as usize].clone();
+                    result = 0;
+                }
+
+                if leave2 {
+                    break;
+                }
+            }
+        } else {
+            self.nocustoms().await;
+        }
+
+        self.doscreen().await;
+        s.clearchs();
+
+        result
+    }
+
+    async fn saveset(&mut self) -> i32 {
+        //{ palauttaa: 0 - save onnistui, 1 - ei }
+        let g = self.i.g;
+        let l = self.i.l;
+        let s = self.i.s;
+        let mut result: i32;
+        let mut str1: Vec<u8>;
+
+        result = 1;
+
+        str1 = b"CUSTOM".to_vec();
+
+        g.fill_box(74, 69, 246, 121, 248);
+        g.fill_box(75, 70, 245, 120, 243);
+
+        g.font_color(240);
+        g.write_font(85, 75, l.lstr(117));
+        g.font_color(241);
+        g.write_font(85, 85, l.lstr(293));
+
+        g.fill_box(85, 95, 180, 115, 245);
+        g.font_color(246);
+
+        str1 = self.i.u.getstr2(95, 102, 8, &str1, 245).await;
+        str1 = upstr(&str1);
+
+        if str1 != b" " {
+            s.set_ch(b'Y');
+
+            if s.file_exists(dos_file_name(&[&str1 as &[u8], b".SJC"].concat())) {
+                //{ file exists }
+                g.alert_box();
+
+                g.write_font(
+                    80,
+                    90,
+                    &[b"FILE " as &[u8], &str1, b".SJC ALREADY EXISTS."].concat(),
+                );
+                g.write_font(80, 110, b"WRITE OVER? (Y/N):");
+
+                self.i.u.getch(190, 110, 243).await;
+            }
+
+            if s.get_ch().to_ascii_uppercase() == b'Y' {
+                for temp in 1..=20 {
+                    InfoModule::<P>::defaulthi(&mut self.i.top.borrow_mut()[temp + 41]);
+                }
+                result = self
+                    .i
+                    .write_custom(&str1, *self.sortby, self.hillorder, *self.cuphills)
+                    .await;
+            }
+        }
+
+        self.i.u.result_box(2, result).await;
+        if result == 0 {
+            *self.setfile = str1;
+        }
+
+        self.doscreen().await;
+
+        s.clearchs();
+
+        result
+    }
+
+    fn hillsummary(&self) -> Vec<u8> {
+        let mut sum: Vec<u8> = Vec::new();
+
+        for temp in 1..=*self.cuphills as usize {
+            sum.push((self.hillorder[temp] >> 8) as u8);
+            sum.push(self.hillorder[temp] as u8);
+        }
+
+        sum.push(*self.sortby);
+
+        sum
+    }
+
+    async fn doselection(&mut self) {
+        let g = self.i.g;
+        let l = self.i.l;
+        let s = self.i.s;
+        let mut loop2: i32;
+        let mut str1: Vec<u8>;
+
+        let hills = (NUM_WC_HILLS + self.i.u.num_extra_hills.get() as i32) as u8 as i32;
+
+        for loop_ in 0..=41 {
+            self.hillorder[loop_] = 1;
+        }
+
+        *self.cuphills = 1;
+
+        self.i
+            .load_custom(self.setfile, self.sortby, self.hillorder, self.cuphills)
+            .await;
+
+        str1 = self.hillsummary(); //{ str1 indikoi muutoksia }
+
+        self.doscreen().await;
+
+        loop {
+            loop {
+                self.dohill(*self.cuphills + 1, 1);
+
+                g.fill_box(250, 30, 305, 36, 243);
+                g.fill_area(250, 30, 305, 36, 63);
+
+                if str1 == self.hillsummary() && *self.setfile != b"TEMP" {
+                    g.font_color(241);
+                    g.e_write_font(305, 30, &[b"(" as &[u8], self.setfile, b")"].concat());
+                }
+
+                g.draw_screen().await;
+
+                s.clearchs();
+
+                s.wait_for_key_press().await;
+
+                let next = *self.cuphills as usize + 1;
+                if s.get_ch2() == 71 || s.get_ch2() == 83 {
+                    self.hillorder[next] = 1; //{ home }
+                }
+                if s.get_ch2() == 79 {
+                    self.hillorder[next] = hills; //{ end }
+                }
+                if s.get_ch2() == 75 && self.hillorder[next] > 1 {
+                    self.hillorder[next] -= 1;
+                }
+                if s.get_ch2() == 77 && self.hillorder[next] < hills {
+                    self.hillorder[next] += 1;
+                }
+                if s.get_ch2() == 73 && self.hillorder[next] > 5 {
+                    self.hillorder[next] -= 5;
+                }
+                if s.get_ch2() == 81 && self.hillorder[next] < hills - 5 {
+                    self.hillorder[next] += 5;
+                }
+                if s.get_ch2() == 68 {
+                    s.set_ch(27);
+                }
+                if (s.get_ch() == 8 || s.get_ch2() == 72) && *self.cuphills > 0 {
+                    //{ delete }
+                    self.dohill(*self.cuphills + 1, 3);
+                    *self.cuphills -= 1;
+                }
+                if s.get_ch().to_ascii_uppercase() == paraletter(&l.lstr(285))
+                    && self.selectload().await == 0
+                {
+                    str1 = self.hillsummary();
+                }
+                if s.get_ch().to_ascii_uppercase() == paraletter(&l.lstr(286))
+                    && *self.cuphills > 0
+                    && self.saveset().await == 0
+                {
+                    str1 = self.hillsummary();
+                }
+                if s.get_ch().to_ascii_uppercase() == paraletter(&l.lstr(288)) {
+                    *self.sortby += 1;
+                    if *self.sortby == 2 {
+                        *self.sortby = 0;
+                    }
+                    self.doscreen().await;
+                }
+
+                if s.get_ch().to_ascii_uppercase() == paraletter(&l.lstr(287)) {
+                    //{ randomize }
+                    if *self.cuphills < MAX_CUSTOM_HILLS {
+                        loop2 = 20;
+                        if *self.cuphills >= 20 {
+                            loop2 = MAX_CUSTOM_HILLS;
+                        }
+                        for loop_ in *self.cuphills + 1..=loop2 {
+                            self.hillorder[loop_ as usize] = random(20) as i32 + 1;
+                            self.dohill(loop_, 2);
+                        }
+                        *self.cuphills = loop2;
+                    }
+                }
+
+                if s.get_ch() == 13 || s.get_ch() == 27 || s.get_ch2() == 80 || s.get_ch() == b' ' {
+                    break;
+                }
+            }
+
+            if s.get_ch() == b' ' || s.get_ch2() == 80 {
+                if *self.cuphills < MAX_CUSTOM_HILLS {
+                    *self.cuphills += 1;
+                }
+                self.dohill(*self.cuphills, 2);
+            }
+
+            if s.get_ch() == 13 || s.get_ch() == 27 {
+                break;
+            }
+        }
+
+        if str1 != self.hillsummary() {
+            *self.setfile = b"TEMP".to_vec(); //{ setti muuttunut, enkat menee tänne }
+        }
+
+        if s.get_ch2() == 68 || s.get_ch() == 27 {
+            *self.cuphills = 0; //{ kikkaillaan vähän... }
+        }
+
+        if *self.cuphills > 0 {
+            self.dohill(*self.cuphills + 1, 3); //{ pois jämä }
+
+            for loop_ in 1..=*self.cuphills {
+                self.dohill(loop_, 2);
+            }
+
+            self.i.u.wait_for_key3(295, 183).await;
+
+            self.i
+                .write_custom(b"TEMP", *self.sortby, self.hillorder, *self.cuphills)
+                .await;
+        }
+
+        if *self.cuphills == 0 {
+            self.hillorder[1] = 1;
+        }
+    }
+}
+
+impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> {
+    pub async fn selectcustomhills(
+        &self,
+        sortby: &mut u8,
+        cuphills: &mut i32,
+        hillorder: &mut [i32],
+        setfile: &mut Vec<u8>,
+    ) {
+        let mut temphi = Hiscore::default();
+        Self::defaulthi(&mut temphi);
+
+        CustomHillSelection {
+            i: self,
+            sortby,
+            cuphills,
+            hillorder,
+            setfile,
+            hill: 0,
+            y: 0,
+            tempstr: Vec::new(),
+            temphi,
+        }
+        .doselection()
+        .await;
     }
 
     pub fn load_names(&self, whatset: u8, teamdiscount: u8, teamlineup: &mut [u8], replaces: bool) {
@@ -1467,14 +2200,14 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         };
 
         //{ 1-sendme, 2-extras, 3-customs }
-        let findnames = |f2: &mut dyn Write,
-                         phase: u8,
-                         str1: &mut Vec<u8>,
-                         sortby: &mut u8,
-                         temphillorder: &mut [i32; 42],
-                         tempcuphills: &mut i32,
-                         num_customs: i32,
-                         files: &[Vec<u8>]| {
+        let findnames = async |f2: &mut dyn Write,
+                               phase: u8,
+                               str1: &mut Vec<u8>,
+                               sortby: &mut u8,
+                               temphillorder: &mut [i32; 42],
+                               tempcuphills: &mut i32,
+                               num_customs: i32,
+                               files: &[Vec<u8>]| {
             let mut writtenstr: Vec<Vec<u8>> = vec![Vec::new(); 201];
             let mut numwritten: usize = 0;
             let stop: i32;
@@ -1491,7 +2224,8 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
 
             for temp1 in 1..=stop {
                 if phase == 3 {
-                    self.load_custom(&files[temp1 as usize], sortby, temphillorder, tempcuphills);
+                    self.load_custom(&files[temp1 as usize], sortby, temphillorder, tempcuphills)
+                        .await;
                 }
 
                 for temp2 in 1..=stop2 {
@@ -1589,7 +2323,8 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             &mut tempcuphills,
             num_customs,
             &files,
-        );
+        )
+        .await;
 
         writehead(&mut f2, 1);
         anywritten = false;
@@ -1780,7 +2515,8 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 &mut tempcuphills,
                 num_customs,
                 &files,
-            );
+            )
+            .await;
 
             laskuri = 0;
 
@@ -1846,18 +2582,21 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 &mut tempcuphills,
                 num_customs,
                 &files,
-            );
+            )
+            .await;
 
             writehead(&mut f2, 6);
 
             for apu1 in 1..=num_customs as usize {
                 laskuri = 0;
-                code = self.load_custom(
-                    &files[apu1],
-                    &mut sortby,
-                    &mut temphillorder,
-                    &mut tempcuphills,
-                );
+                code = self
+                    .load_custom(
+                        &files[apu1],
+                        &mut sortby,
+                        &mut temphillorder,
+                        &mut tempcuphills,
+                    )
+                    .await;
 
                 writeln_bytes(&mut f2, &[b"File: ", &upstr(&files[apu1])]);
                 writeln!(f2, "Sort: {sortby}").unwrap();

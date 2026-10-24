@@ -47,6 +47,21 @@ pub fn pcomp(score: i32, sij: i32) -> i32 {
     (score * 51) + 50 - sij
 }
 
+pub fn paraletter(str1: &[u8]) -> u8 {
+    let mut tempch = 0;
+    let mut temp = 1;
+
+    while str1.get(temp - 1) != Some(&b')') && temp < str1.len() {
+        temp += 1;
+    }
+
+    if temp > 1 {
+        tempch = str1[temp - 2];
+    }
+
+    tempch
+}
+
 pub fn txtp(mut jokuluku: i32) -> Vec<u8> {
     if jokuluku == 0 {
         b"0.0".to_vec()

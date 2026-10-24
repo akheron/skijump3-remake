@@ -1817,7 +1817,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         }
     }
 
-    async fn might_delete(&self, filestr: &[u8]) -> u8 {
+    pub async fn might_delete(&self, filestr: &[u8]) -> u8 {
         let mut tempb = 1;
 
         self.g.alert_box();

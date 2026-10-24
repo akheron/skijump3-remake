@@ -3813,12 +3813,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             hi = self.i.top.borrow()[temp as usize].clone();
 
             if phase > 2 {
-                self.i.load_custom(
-                    &files[(temp - start as i32 + 1) as usize],
-                    &mut sortby,
-                    &mut self.hill_order,
-                    &mut self.cup_hills,
-                );
+                self.i
+                    .load_custom(
+                        &files[(temp - start as i32 + 1) as usize],
+                        &mut sortby,
+                        &mut self.hill_order,
+                        &mut self.cup_hills,
+                    )
+                    .await;
                 hi = self.i.top.borrow()[42].clone();
             }
 
@@ -4517,12 +4519,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             }
 
             if self.cup_style == 1 && final_ {
-                self.i.load_custom(
-                    &self.setfile,
-                    &mut sortby,
-                    &mut self.hill_order,
-                    &mut self.cup_hills,
-                );
+                self.i
+                    .load_custom(
+                        &self.setfile,
+                        &mut sortby,
+                        &mut self.hill_order,
+                        &mut self.cup_hills,
+                    )
+                    .await;
                 oldhi = self.i.top.borrow()[42].clone();
                 temp2 = self.sorthighs(4 + sortby).await as i32;
 
@@ -4532,7 +4536,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
                 if temp2 > 0 {
                     self.i
-                        .write_custom(&self.setfile, sortby, &self.hill_order, self.cup_hills);
+                        .write_custom(&self.setfile, sortby, &self.hill_order, self.cup_hills)
+                        .await;
                 }
             }
         }
@@ -6478,9 +6483,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 sortby = 0;
             }
             1 => {
-                // TODO
-                //SelectCustomHills(sortby, CupHills, HillOrder, SetFile);
-                panic!("SelectCustomHills not implemented");
+                self.i
+                    .selectcustomhills(
+                        &mut sortby,
+                        &mut self.cup_hills,
+                        &mut self.hill_order,
+                        &mut self.setfile,
+                    )
+                    .await;
             }
             2 => {
                 for temp in 0..=4 {
