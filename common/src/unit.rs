@@ -4,8 +4,7 @@ use crate::lang::LangModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
-use crate::rs_util::{parse_line, random, read_line};
-use chrono::{Datelike, Timelike};
+use crate::rs_util::{parse_line, random, read_line, writeln};
 use std::cell::{Cell, RefCell};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::rc::Rc;
@@ -75,23 +74,19 @@ pub struct Hillinfo {
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct Time {
-    hour: u16,
-    minute: u16,
-    second: u16,
-    sec100: u16,
+pub struct Date {
+    pub year: u16,
+    pub month: u16,
+    pub day: u16,
+    pub day_of_week: u16,
 }
 
-impl Time {
-    pub fn now() -> Self {
-        let now = chrono::Local::now();
-        Time {
-            hour: now.hour() as u16,
-            minute: now.minute() as u16,
-            second: now.second() as u16,
-            sec100: (now.nanosecond() / 10_000_000) as u16,
-        }
-    }
+#[derive(Clone, Copy, Default)]
+pub struct Time {
+    pub hour: u16,
+    pub minute: u16,
+    pub second: u16,
+    pub sec100: u16,
 }
 
 pub struct UnitModule<'g, 'l, 'm, 'p, 's, P: Platform> {
@@ -190,6 +185,16 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.givech(xx, yy, bkcolor).await;
 
         self.g.draw_screen().await;
+    }
+
+    pub fn get_now(&self) -> Time {
+        let (hour, minute, second, sec100) = self.s.get_time();
+        Time {
+            hour,
+            minute,
+            second,
+            sec100,
+        }
     }
 
     pub async fn load_hill(&self, keula_x: &mut i32, nytmaki: i32, act_hill: &Hill) -> u8 {
@@ -689,7 +694,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.g.write_font(150, 130, self.l.lstr(38));
         self.g.write_font(150, 140, self.l.lstr(39));
 
-        let temp = (((rand::random::<f64>() * 3.0) as i32 * 2) + 41) as u16;
+        let temp = ((random(3) as i32 * 2) + 41) as u16;
         self.g.font_color(246);
 
         self.g.write_font(150, 155, self.l.lstr(temp as u32));
@@ -799,17 +804,11 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         };
 
         if !self.s.file_exists(&from_utf8(&str2).unwrap()) {
-            println!(
-                "Error #345A: File {} does not exist,",
-                String::from_utf8_lossy(&str2)
-            );
-            println!(
-                "even though it's mentioned in the {} file.",
-                String::from_utf8_lossy(str1)
-            );
-            println!("Using FRONT1.PCX and BACK1.PCX.");
-            println!();
-            println!("Press a key...");
+            writeln(&[b"Error #345A: File ", str2.as_slice(), b" does not exist,"].concat());
+            writeln(&[b"even though it's mentioned in the ", str1, b" file."].concat());
+            writeln(b"Using FRONT1.PCX and BACK1.PCX.");
+            writeln(b"");
+            writeln(b"Press a key...");
 
             hill.bk_index = b"1".to_vec();
             hill.fr_index = b"1".to_vec();
@@ -982,7 +981,32 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
     }
 
     pub fn check_extra_hills(&self) {
-        // TODO
+        self.num_extra_hills.set(0);
+
+        let mut filenames: Vec<Vec<u8>> = vec![Vec::new(); MAX_EXTRA_HILLS as usize + 1];
+
+        for name in self.s.find_files("*.SJH") {
+            if (self.num_extra_hills.get() as i32) < MAX_EXTRA_HILLS {
+                self.num_extra_hills.set(self.num_extra_hills.get() + 1);
+                let filename = &mut filenames[self.num_extra_hills.get() as usize];
+
+                for &c in name.as_bytes().iter().take_while(|&&c| c != b'.') {
+                    // string[12]
+                    if filename.len() < 12 {
+                        filename.push(c);
+                    }
+                }
+            }
+        }
+
+        let mut f1 = self.s.create_file("MOREHILL.SKI");
+
+        writeln!(f1, "{}", self.num_extra_hills.get()).unwrap();
+
+        for temp in 1..=self.num_extra_hills.get() as usize {
+            f1.write_all(&filenames[temp]).unwrap();
+            writeln!(f1).unwrap();
+        }
     }
 
     //{ t�ll� ladataan mnimet ja kri -taulut kuntoon }
@@ -1830,41 +1854,40 @@ pub fn injured() -> u8 {
     }
 }
 
-pub fn dayandtime_now() -> Vec<u8> {
+pub fn dayandtime(d1: Date, t1: Time) -> Vec<u8> {
     static DAYS: [&[u8]; 7] = [b"Sun", b"Mon", b"Tue", b"Wed", b"Thu", b"Fri", b"Sat"];
     static MONTHS: [&[u8]; 12] = [
         b"Jan", b"Feb", b"Mar", b"Apr", b"May", b"Jun", b"Jul", b"Aug", b"Sep", b"Oct", b"Nov",
         b"Dec",
     ];
 
-    let now = chrono::Local::now();
     return [
-        DAYS[now.weekday().num_days_from_sunday() as usize],
+        DAYS[d1.day_of_week as usize],
         b" ",
-        if now.day() < 10 {
+        if d1.day < 10 {
             b" " as &[u8]
         } else {
             b"" as &[u8]
         },
-        &txt(now.day() as i32),
+        &txt(d1.day as i32),
         b" ",
-        MONTHS[(now.month() - 1) as usize],
+        MONTHS[(d1.month - 1) as usize],
         b" ",
-        &txt(now.year()),
+        &txt(d1.year as i32),
         b" ",
-        if now.hour() < 10 {
+        if t1.hour < 10 {
             b" " as &[u8]
         } else {
             b"" as &[u8]
         },
-        &txt(now.hour() as i32),
+        &txt(t1.hour as i32),
         b":",
-        if now.minute() < 10 {
+        if t1.minute < 10 {
             b"0" as &[u8]
         } else {
             b"" as &[u8]
         },
-        &txt(now.minute() as i32),
+        &txt(t1.minute as i32),
     ]
     .concat();
 }

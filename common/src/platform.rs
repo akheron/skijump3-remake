@@ -40,4 +40,18 @@ pub trait Platform {
 
     fn file_exists<P: AsRef<str>>(&self, path: P) -> bool;
     fn remove_file<P: AsRef<str>>(&self, path: P);
+    /// `FindFirst` and `FindNext`: the names of the files that match a
+    /// pattern like `*.SJH`
+    fn find_files(&self, pattern: &str) -> Vec<String>;
+
+    /// `GetDate` of the DOS unit: year, month, day and day of the week (0 is Sunday)
+    fn get_date(&self) -> (u16, u16, u16, u16);
+    /// `GetTime` of the DOS unit: hour, minute, second and hundredths of a second
+    fn get_time(&self) -> (u16, u16, u16, u16);
+
+    /// `ParamStr`: the command line argument number `index`, from 1, or an
+    /// empty string
+    fn param_str(&self, index: usize) -> String;
+    /// `Wait` of the SDL port
+    fn wait(&self, ms: u32);
 }

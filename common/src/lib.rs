@@ -1,5 +1,6 @@
 #![allow(async_fn_in_trait)]
 
+pub mod files;
 mod graph;
 mod help;
 mod info;
@@ -26,7 +27,7 @@ use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
 use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
-use crate::unit::UnitModule;
+use crate::unit::{Date, UnitModule};
 pub use platform::{Platform, TPalette};
 
 pub async fn sj3<P: Platform>(port: &P) {
@@ -43,6 +44,16 @@ pub async fn sj3<P: Platform>(port: &P) {
     let tuuli_module = TuuliModule::new(&graph_module);
     let info_module = InfoModule::new(&graph_module, &lang_module, &pcx_module, port, &unit_module);
     let lumi_module = LumiModule::init();
+
+    let (year, month, day, day_of_week) = port.get_date();
+    let today = Date {
+        year,
+        month,
+        day,
+        day_of_week,
+    };
+    let start = unit_module.get_now();
+
     let mut sj3_module = SJ3Module::new(
         &graph_module,
         &info_module,
@@ -55,6 +66,9 @@ pub async fn sj3<P: Platform>(port: &P) {
         &tuuli_module,
         &unit_module,
     );
+
+    sj3_module.today = today;
+    sj3_module.start = start;
 
     sj3_module.alku();
     sj3_module.main_menu().await;

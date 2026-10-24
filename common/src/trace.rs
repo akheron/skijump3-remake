@@ -1,6 +1,7 @@
 //! Replays a trace written by the tracing build of the Pascal SDL port and
-//! checks that this port computes the same state. Keypresses and random numbers
-//! are taken from the trace; records and frame CRCs are compared against it.
+//! checks that this port computes the same state. Keypresses, random numbers,
+//! the clock and the files that `FindFirst` finds are taken from the trace;
+//! records, written files, console text and frame CRCs are compared against it.
 //!
 //! Trace lines look like `SJ3.PAS:1234 Context payload...`. The order of the
 //! lines must match the order of the calls here exactly.
@@ -138,8 +139,17 @@ mod imp {
                 .unwrap_or_else(|| panic!("No {name} in trace:{}", entry.trace_lineno))
         };
         let (frames, records, exitcode) = (field("frames"), field("records"), field("exitcode"));
-        let (checked_frames, consumed_lines) =
-            STATE.with(|s| (s.borrow().checked_frames, s.borrow().consumed_lines));
+        let (checked_frames, consumed_lines, lines_after) = STATE.with(|s| {
+            let s = s.borrow();
+            let lines_after = s.entries.as_ref().unwrap().len();
+            (s.checked_frames, s.consumed_lines, lines_after)
+        });
+        if lines_after > 0 {
+            panic!(
+                "The trace has {lines_after} lines after the End line on line {}",
+                entry.trace_lineno
+            );
+        }
         if exitcode != 0 || frames != checked_frames || records != consumed_lines {
             panic!(
                 "Replayed {consumed_lines} records and {checked_frames} frames, but trace:{} has: {}",
@@ -177,6 +187,82 @@ mod imp {
             );
         }
         p[1].parse().unwrap()
+    }
+
+    pub fn find_files(pattern: &str) -> Vec<String> {
+        let entry = pop("FindFirst");
+        let (traced_pattern, first) = match entry.rest().split_once(' ') {
+            Some((traced_pattern, name)) => (traced_pattern, Some(name)),
+            None => (entry.rest(), None),
+        };
+        if traced_pattern != pattern {
+            panic!(
+                "FindFirst {pattern}, trace:{} has: {}",
+                entry.trace_lineno, entry.line
+            );
+        }
+        let mut names = Vec::new();
+        let Some(first) = first else { return names };
+        names.push(first.to_string());
+        loop {
+            let entry = pop("FindNext");
+            if entry.rest().is_empty() {
+                return names;
+            }
+            names.push(entry.rest().to_string());
+        }
+    }
+
+    pub fn file_written(name: &str, content: &[u8]) {
+        let entry = pop("FileWritten");
+        let written = format!("{} {:08X} {name}", content.len(), crc32(&[content]));
+        if entry.rest() != written {
+            panic!(
+                "Wrote {written}, trace:{} has: {}",
+                entry.trace_lineno, entry.line
+            );
+        }
+    }
+
+    pub fn file_removed(name: &str) {
+        let entry = pop("FileRemoved");
+        if entry.rest() != name {
+            panic!(
+                "Removed {name}, trace:{} has: {}",
+                entry.trace_lineno, entry.line
+            );
+        }
+    }
+
+    pub fn console(text: &[u8]) {
+        let entry = pop("Console");
+        let escaped: String = text
+            .iter()
+            .map(|&c| match c {
+                b'\\' => "\\\\".to_string(),
+                b' '..=b'~' => (c as char).to_string(),
+                _ => format!("\\x{c:02X}"),
+            })
+            .collect();
+        if entry.rest() != escaped {
+            panic!(
+                "Wrote {escaped} to the console, trace:{} has: {}",
+                entry.trace_lineno, entry.line
+            );
+        }
+    }
+
+    pub fn date() -> (u16, u16, u16, u16) {
+        clock(pop("Date"))
+    }
+
+    pub fn time() -> (u16, u16, u16, u16) {
+        clock(pop("Time"))
+    }
+
+    fn clock(entry: Entry) -> (u16, u16, u16, u16) {
+        let p: Vec<u16> = entry.payload().iter().map(|v| v.parse().unwrap()).collect();
+        (p[0], p[1], p[2], p[3])
     }
 
     pub fn value(context: &str, payload: &str) {
@@ -312,7 +398,6 @@ mod imp {
 #[cfg(feature = "trace")]
 pub use imp::*;
 
-/// No-op versions for builds without the `trace` feature.
 #[cfg(not(feature = "trace"))]
 mod noop {
     pub fn active() -> bool {
@@ -325,6 +410,18 @@ mod noop {
         unreachable!()
     }
     pub fn random(_range: u32) -> u32 {
+        unreachable!()
+    }
+    pub fn find_files(_pattern: &str) -> Vec<String> {
+        unreachable!()
+    }
+    pub fn file_written(_name: &str, _content: &[u8]) {}
+    pub fn file_removed(_name: &str) {}
+    pub fn console(_text: &[u8]) {}
+    pub fn date() -> (u16, u16, u16, u16) {
+        unreachable!()
+    }
+    pub fn time() -> (u16, u16, u16, u16) {
         unreachable!()
     }
     pub fn frame(_buffer: &[u8], _palette: &[[u8; 3]; 256]) {}
@@ -387,5 +484,28 @@ impl From<u8> for Value {
 impl From<bool> for Value {
     fn from(v: bool) -> Self {
         Value::Bool(v)
+    }
+}
+
+#[cfg(all(test, feature = "trace"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_files_in_the_trace() {
+        let path = std::env::temp_dir().join(format!("sj3-trace-{}.txt", std::process::id()));
+        std::fs::write(
+            &path,
+            "TRACE.PAS:1 Start seed=1 keys=k\n\
+             SJ3UNIT.PAS:2 FindFirst *.SJH A.SJH\n\
+             SJ3UNIT.PAS:3 FindNext MY HILL.SJH\n\
+             SJ3UNIT.PAS:3 FindNext\n\
+             SJ3INFO.PAS:4 FindFirst *.SJC\n",
+        )
+        .unwrap();
+        load(path.to_str().unwrap(), None);
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(find_files("*.SJH"), ["A.SJH", "MY HILL.SJH"]);
+        assert!(find_files("*.SJC").is_empty());
     }
 }

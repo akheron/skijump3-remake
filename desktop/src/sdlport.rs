@@ -1,3 +1,5 @@
+use chrono::{Datelike, Timelike};
+use common::files::{Overlay, OverlayFile, Store, WritableStore};
 use common::{trace, Platform, TPalette};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::pixels::PixelFormatEnum::RGBA8888;
@@ -7,9 +9,9 @@ use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::surface::Surface;
 use sdl2::video::{Window, WindowContext};
 use std::cell::{Cell, RefCell};
-use std::fs::File;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::io::Cursor;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
@@ -21,6 +23,7 @@ const TARGET_FRAMES: u32 = 70;
 const ASPECT_RES: f64 = X_RES as f64 / Y_RES as f64;
 
 pub struct SDLPortModule<'a> {
+    files: Overlay<DirStore, DirStore>,
     window_multiplier: u32,
     canvas: RefCell<&'a mut Canvas<Window>>,
     texture_creator: &'a TextureCreator<WindowContext>,
@@ -54,6 +57,7 @@ impl<'a> SDLPortModule<'a> {
         canvas: &'a mut Canvas<Window>,
         texture_creator: &'a TextureCreator<WindowContext>,
         window_multiplier: u32,
+        data_dir: PathBuf,
     ) -> Self {
         // let renderer_flags = 0;
         let aspect = ASPECT_RES;
@@ -78,6 +82,12 @@ impl<'a> SDLPortModule<'a> {
 
         let render_dest_rect = get_render_rect(canvas, aspect);
         SDLPortModule {
+            files: Overlay::new(
+                DirStore { dir: data_dir },
+                DirStore {
+                    dir: PathBuf::from("assets"),
+                },
+            ),
             window_multiplier,
             canvas: RefCell::new(canvas),
             texture_creator,
@@ -626,29 +636,107 @@ impl<'si> Platform for SDLPortModule<'si> {
     }
 
     type WritableFile<'a>
-        = File
+        = OverlayFile<'a, DirStore, DirStore>
     where
         Self: 'a;
     fn create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::WritableFile<'a> {
-        File::create(path.as_ref()).unwrap()
+        self.files.create(path.as_ref())
     }
 
     type ReadableFile<'a>
-        = File
+        = Cursor<Vec<u8>>
     where
         Self: 'a;
     fn open_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::ReadableFile<'a> {
-        File::open(asset_path(path)).unwrap()
+        let path = path.as_ref();
+        Cursor::new(
+            self.files
+                .read(path)
+                .unwrap_or_else(|| panic!("Unknown file {path}")),
+        )
     }
 
     fn file_exists<P: AsRef<str>>(&self, path: P) -> bool {
-        Path::new(&asset_path(path)).exists()
+        self.files.exists(path.as_ref())
     }
     fn remove_file<P: AsRef<str>>(&self, path: P) {
-        fs::remove_file(asset_path(path)).unwrap();
+        self.files.remove(path.as_ref());
+    }
+    fn find_files(&self, pattern: &str) -> Vec<String> {
+        if trace::active() {
+            return trace::find_files(pattern);
+        }
+        self.files.find(pattern)
+    }
+
+    fn get_date(&self) -> (u16, u16, u16, u16) {
+        if trace::active() {
+            return trace::date();
+        }
+        let now = chrono::Local::now();
+        (
+            now.year() as u16,
+            now.month() as u16,
+            now.day() as u16,
+            now.weekday().num_days_from_sunday() as u16,
+        )
+    }
+    fn get_time(&self) -> (u16, u16, u16, u16) {
+        if trace::active() {
+            return trace::time();
+        }
+        let now = chrono::Local::now();
+        (
+            now.hour() as u16,
+            now.minute() as u16,
+            now.second() as u16,
+            // A leap second has more than 10^9 nanoseconds
+            (now.nanosecond() % 1_000_000_000 / 10_000_000) as u16,
+        )
+    }
+
+    fn param_str(&self, index: usize) -> String {
+        std::env::args_os()
+            .nth(index)
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    }
+    fn wait(&self, ms: u32) {
+        if trace::active() {
+            return;
+        }
+        thread::sleep(Duration::from_millis(ms as u64));
     }
 }
 
-fn asset_path<P: AsRef<str>>(path: P) -> PathBuf {
-    Path::new("assets").join(path.as_ref())
+pub struct DirStore {
+    dir: PathBuf,
+}
+
+impl Store for DirStore {
+    fn read(&self, name: &str) -> Option<Vec<u8>> {
+        fs::read(self.dir.join(name)).ok()
+    }
+    fn contains(&self, name: &str) -> bool {
+        self.dir.join(name).is_file()
+    }
+    fn names(&self) -> Vec<String> {
+        let Ok(entries) = fs::read_dir(&self.dir) else {
+            return Vec::new();
+        };
+        entries
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_ok_and(|t| t.is_file()))
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .collect()
+    }
+}
+
+impl WritableStore for DirStore {
+    fn write(&self, name: &str, content: &[u8]) {
+        fs::write(self.dir.join(name), content).unwrap();
+    }
+    fn remove(&self, name: &str) {
+        fs::remove_file(self.dir.join(name)).unwrap();
+    }
 }

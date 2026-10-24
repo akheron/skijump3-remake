@@ -5,6 +5,7 @@ use common::sj3;
 use futures::task::noop_waker;
 use futures::Future;
 use sdl2::event::{Event, WindowEvent};
+use std::path::PathBuf;
 use std::task::Context;
 
 fn main() {
@@ -31,7 +32,14 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
 
-    let sdl_port_module = SDLPortModule::init(&mut canvas, &texture_creator, window_multiplier);
+    let data_dir = match std::env::var_os("SJ3_DATA_DIR") {
+        Some(dir) => PathBuf::from(dir),
+        None => PathBuf::from(sdl2::filesystem::pref_path("", "skijump3-remake").unwrap()),
+    };
+    std::fs::create_dir_all(&data_dir).unwrap();
+
+    let sdl_port_module =
+        SDLPortModule::init(&mut canvas, &texture_creator, window_multiplier, data_dir);
 
     // We only have one task, there's no need for a real waker
     let waker = noop_waker();

@@ -8,7 +8,7 @@ use crate::maki::MakiModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
 use crate::regfree::{REGNAME, REGNUMBER};
-use crate::rs_util::{parse_line, random, read_line};
+use crate::rs_util::{parse_line, random, read_line, write, writeln};
 use crate::table::{
     find_landing, jump_risk, lasku_anim, lasku_asento, lento_anim, parru_anim, ponn_anim,
     suksi_laskussa, suksi_lennossa,
@@ -16,20 +16,19 @@ use crate::table::{
 use crate::trace;
 use crate::tuuli::TuuliModule;
 use crate::unit::{
-    crypt, dayandtime_now, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr,
+    crypt, dayandtime, defaultkeys, injured, kword, loadgoal, makeletter, uncrypt, valuestr, Date,
     Hill, Hiscore, Stat, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS, TEAM_POINTS, WC_POINTS,
 };
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
 use std::str::from_utf8;
 
 #[cfg(not(feature = "trace"))]
 const VERSION: &[u8] = b"3.13-remake0";
 #[cfg(not(feature = "trace"))]
 const VERSION_FULL: &[u8] = b"3.13-remake0";
-// Traced frames are compared against the Pascal SDL port, which shows this version.
+// The versions of the Pascal SDL port, so that its traces can be replayed
 #[cfg(feature = "trace")]
-const VERSION: &[u8] = b"3.13-sp4";
+const VERSION: &[u8] = b"3.13";
 #[cfg(feature = "trace")]
 const VERSION_FULL: &[u8] = b"3.13-sp4";
 
@@ -53,9 +52,9 @@ pub struct SJ3Module<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> {
     wcup: bool,
     jcup: bool,
     cupslut: bool,
-    //today: Date,
+    pub today: Date,
     now: Time,
-    start: Time,
+    pub start: Time,
     stats: [[Stat; NUM_WC_HILLS as usize + 1]; 16],
     cstats: [[i32; NUM_PL + 2]; 3],
     eka: bool,
@@ -139,6 +138,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             wcup: false,
             jcup: false,
             cupslut: false,
+            today: Date::default(),
             now: Time::default(),
             start: Time::default(),
             stats: ([[Stat::default(); NUM_WC_HILLS as usize + 1]; 16]),
@@ -567,7 +567,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             skill = (17 + random((3 + pel / 25) as u32)) as u8;
         }
 
-        self.now = Time::now(); //{ haetaan current time }
+        self.now = self.u.get_now(); //{ haetaan current time }
 
         self.m.x.set(0);
         self.m.y.set(0);
@@ -1953,8 +1953,12 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                 if cjumper {
                     namestr.push(255);
                 }
-                self.u
-                    .set_hrinfo(self.nytmaki, namestr.clone(), hp, dayandtime_now());
+                self.u.set_hrinfo(
+                    self.nytmaki,
+                    namestr.clone(),
+                    hp,
+                    dayandtime(self.today, self.now),
+                );
 
                 if self.kierros > 0 {
                     self.stats[statsvictim as usize][self.osakilpailu as usize].reason
@@ -4142,7 +4146,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
     }
 
     fn reset_hiscore(&mut self, kerroin: u8) {
-        self.i.reset_tops(kerroin);
+        self.now = self.u.get_now();
+
+        self.i.reset_tops(kerroin, self.today, self.now);
         self.write_records();
     }
 
@@ -4263,8 +4269,8 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.u.vcode.set(parse_line(&mut f1).unwrap_or(1));
 
         if l1 != l3 || l2 != l4 || valuestr(&str1, 22) as i32 != l5 {
-            println!("Error #21A: Something doesn't add up in the HISCORE.SKI file.");
-            println!("Maybe you tried to edit it or something.  Please don't do it again.");
+            writeln(b"Error #21A: Something doesn't add up in the HISCORE.SKI file.");
+            writeln(b"Maybe you tried to edit it or something.  Please don't do it again.");
             // self.reset_hiscore(1);
             // self.reset_config();
             std::process::exit(1);
@@ -4556,7 +4562,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
                             ch = self.s.get_ch();
                             if let Some(chr) = char::from_u32(ch as u32) {
                                 n = chr;
-                                if ch != 27 && Path::new(&format!("NAMES{}.SKI", n)).exists() {
+                                if ch != 27 && self.s.file_exists(format!("NAMES{}.SKI", n)) {
                                     break;
                                 }
                             }
@@ -4645,20 +4651,21 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
     }
 
     pub fn alku(&mut self) {
-        println!("Ported to SDL2 by Suomipelit (https://suomipelit.github.io)");
-        println!();
-        println!("New shortkeys:");
-        println!(" * Alt+Enter          : Toggle fullscreen");
-        println!(" * Alt+(Keypad) Plus  : Increase window size");
-        println!(" * Alt+(Keypad) Minus : Decrease window size");
-        println!(" * Alt+R              : Reset window if stretched");
-        println!(" * Alt+A              : Toggle 4:3 aspect ratio");
-        println!();
-        println!("-------");
-        println!();
-        println!("SJ3 v{} by Ville Könönen 2011", from_utf8(VERSION).unwrap());
+        writeln(b"Ported to SDL2 by Suomipelit (https://suomipelit.github.io)");
+        writeln(b"");
+        writeln(b"New shortkeys:");
+        writeln(b" * Alt+Enter          : Toggle fullscreen");
+        writeln(b" * Alt+(Keypad) Plus  : Increase window size");
+        writeln(b" * Alt+(Keypad) Minus : Decrease window size");
+        writeln(b" * Alt+R              : Reset window if stretched");
+        writeln(b" * Alt+A              : Toggle 4:3 aspect ratio");
+        writeln(b"");
+        writeln(b"-------");
+        writeln(b"");
+        // The Pascal source is Latin-1, so it writes ö as the byte F6
+        writeln(&[b"SJ3 v", VERSION, b" by Ville K\xF6n\xF6nen 2011"].concat());
 
-        print!("- Loading ANIM.SKI");
+        write(b"- Loading ANIM.SKI");
         self.g.load_anim("ANIM.SKI");
 
         self.eka = true;
@@ -4669,34 +4676,33 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         self.check_param();
 
-        print!(", HISCORE.SKI");
+        write(b", HISCORE.SKI");
         self.read_records();
 
-        print!(", CONFIG.SKI");
+        write(b", CONFIG.SKI");
         self.read_config();
 
-        print!(", PLAYERS.SKI");
+        write(b", PLAYERS.SKI");
         self.i.load_profiles();
 
-        print!(", NAMES{}.SKI", self.namenumber);
+        writeln(&[b", NAMES" as &[u8], &[self.namenumber as u8], b".SKI"].concat());
         self.i
             .load_names(self.namenumber, self.jmaara, &mut self.teamlineup, true);
 
-        print!(", LANGBASE.SKI");
+        write(b"  LANGBASE.SKI");
         if self.languagenumber != 255 {
             self.l.load_language(self.languagenumber);
         }
 
         self.u.check_extra_hills(); //{ lukee ylim. SJH:t ja kirjoittaa MOREHILL.SKI:n }
 
-        print!(", MOREHILL.SKI");
+        write(b", MOREHILL.SKI");
         self.u.load_hill_info(); //{ mnimet[],kri[] ja NumExtraHills kuntoon }
 
-        print!(", Extra Hillrecords");
+        write(b", Extra Hillrecords");
         if self.u.num_extra_hills.get() > 0 {
             self.u.read_extras();
         }
-        println!();
 
         self.m.alusta();
     }
@@ -5043,7 +5049,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         let mut highlength: u8 = 20;
         let mut victimname: Vec<u8>;
         let mut return_: u8 = 0;
-        let mut datestr: Vec<u8> = dayandtime_now();
+        let mut datestr: Vec<u8> = dayandtime(self.today, self.now);
 
         match vaihe {
             1 => {

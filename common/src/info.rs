@@ -4,7 +4,9 @@ use crate::lang::LangModule;
 use crate::pcx::PcxModule;
 use crate::platform::Platform;
 use crate::rs_util::{parse_line, random, read_line};
-use crate::unit::{dayandtime_now, valuestr, Hiscore, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS};
+use crate::unit::{
+    dayandtime, valuestr, Date, Hiscore, Time, UnitModule, NUM_PL, NUM_TEAMS, NUM_WC_HILLS,
+};
 use std::cell::{Cell, RefCell};
 use std::io::BufReader;
 
@@ -162,7 +164,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         // { Fillbox(160,120,319,199,245); }
     }
 
-    pub fn reset_tops(&self, kerroin: u8) {
+    pub fn reset_tops(&self, kerroin: u8, today: Date, now: Time) {
         let scores1 = [
             [1515, 1],
             [1343, 1],
@@ -197,7 +199,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
 
         for temp in 1..=20 {
             top[temp].name = [&nimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
-            top[temp].time = dayandtime_now();
+            top[temp].time = dayandtime(today, now);
         }
 
         for temp in 1..=NUM_WC_HILLS {
@@ -207,7 +209,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             ]
             .concat();
             let len = round((self.u.hillkr(temp) as f64 / 0.94) as f32) * 10 * kerroin as i32;
-            let time = dayandtime_now();
+            let time = dayandtime(today, now);
             self.u.set_hrinfo(temp, name, len, time);
         }
 
@@ -221,7 +223,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 let len = round((self.u.hillkr(temp + NUM_WC_HILLS) as f64 / 0.94) as f32)
                     * 10
                     * kerroin as i32;
-                let time = dayandtime_now();
+                let time = dayandtime(today, now);
                 self.u.set_hrinfo(temp + NUM_WC_HILLS, name, len, time);
             }
         }
@@ -230,7 +232,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         for temp in 21..=30 {
             top[temp].pos = (temp - 20) as u8;
             top[temp].name = [&jnimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
-            top[temp].time = dayandtime_now();
+            top[temp].time = dayandtime(today, now);
             top[temp].score = scores2[temp - 21];
         }
 
@@ -239,7 +241,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             top[temp].score = scores3[temp - 31][0];
             top[temp].pos = scores3[temp - 31][1] as u8;
             top[temp].name = [&nimet[top[temp].pos as usize] as &[u8], b"\xff"].concat();
-            top[temp].time = dayandtime_now();
+            top[temp].time = dayandtime(today, now);
         }
 
         for temp in 1..=35 {
@@ -252,7 +254,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             top[temp].name = b"Not Completed".to_vec();
             top[temp].pos = 0;
             top[temp].score = 0;
-            top[temp].time = dayandtime_now();
+            top[temp].time = dayandtime(today, now);
         }
     }
 

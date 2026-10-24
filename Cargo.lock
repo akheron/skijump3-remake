@@ -69,7 +69,6 @@ dependencies = [
 name = "common"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "eyre",
  "futures",
  "libm",
@@ -106,6 +105,7 @@ checksum = "e496a50fda8aacccc86d7529e2c1e0892dbd0f898a6b5645b5561b89c3210efa"
 name = "desktop"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "common",
  "futures",
  "sdl2",

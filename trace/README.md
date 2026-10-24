@@ -2,9 +2,9 @@
 
 These scripts check the remake against the Pascal SDL port. The Pascal
 reference build runs a scenario from a key script and writes a trace of the
-input, the random numbers, the game state and a CRC of every frame. The Rust
-desktop build replays the trace and stops at the first record or frame that
-differs. See the "Tracing" section of the README of the `sp4-trace`
+input, the random numbers, the clock, the files that it finds, the game state,
+the files that it writes, its console text and a CRC of every frame. The Rust
+desktop build replays the trace and stops at the first line that differs. See the "Tracing" section of the README of the `sp4-trace`
 branch of the SDL port for the trace format.
 
 ## Setup
@@ -12,7 +12,7 @@ branch of the SDL port for the trace format.
 You need x86_64 Linux: the reference build computes floats in 80-bit x87
 precision, which other targets do not have. Install Free Pascal 3.2.2
 (Ubuntu: `fp-compiler-3.2.2`), the SDL2 and X11 libraries (`libsdl2-2.0-0`,
-`libx11-6`), `curl`, `dpkg-deb` and `git`. Then:
+`libx11-6`), `curl`, `dpkg-deb`, `git` and `python3`. Then:
 
 ```
 trace/fetch-deps.sh
@@ -22,7 +22,9 @@ git -C ../skijump3-sdl worktree add ../skijump3-sdl-trace sp4-trace
 `fetch-deps.sh` puts the X11 units of Free Pascal, the Pascal SDL2 headers
 and links to the SDL2 and X11 libraries in `trace/deps`. The scripts expect
 the `sp4-trace` branch of the SDL port in `../skijump3-sdl-trace`, next to
-this repository.
+this repository. `sp4-trace` is a local branch of the clone of the SDL port
+in `../skijump3-sdl`. It starts from SP4 (`c485d0e`), and it is not on a
+remote.
 
 The scripts read these environment variables:
 
@@ -36,8 +38,10 @@ The scripts read these environment variables:
 | `SJ3_MAXFRAMES` | | Stop the Pascal run after this many frames |
 | `SJ3_FRAMES_FROM` | | Dump the frames of a Pascal run from this frame on. A frame dump is 64000 bytes of pixels and 768 bytes of 6-bit palette. |
 | `SJ3_FRAMES_TO` | | Dump the frames of a Pascal run up to this frame |
-| `SJ3_TIMEOUT` | 300 | Kill a run after this many seconds |
+| `SJ3_TIMEOUT` | 300, 900 in `batch-seed.sh`, 4 in `explore.sh` | Kill a run after this many seconds |
+| `SJ3_TRACE_ENDTEXT` | | Trace the end text that the Pascal game writes to the console when it exits. The remake does not write it yet. |
 | `JOBS` | number of CPUs | Parallel scenarios in `regress.sh` |
+| `FULL` | | Run `cpu_qual` with the seeds 2 to 10 in `regress.sh` |
 
 ## Build
 
@@ -69,17 +73,23 @@ The last argument of `run-sdl.sh` is the random seed. The Pascal run writes:
   `SJ3_FRAMES_TO`, if one of them is set. 40000 frames take 2.6 GB.
 - `trace/runs/w1/stdout.txt`
 
-`run-rust.sh` runs the Rust binary in `trace/runs/w1-rust`, with the same
-data files in `assets/`. The replay must reach the `End` line in a key wait,
-in a frame or at the end of the game, with the same numbers of frames and
-lines. Then the last line of `trace/runs/w1-rust/stdout.txt` is `Trace replay
-complete: N records and M frames match`. Otherwise the run panics, and
-`run-rust.sh` prints the panic. When the CRC of a
-frame differs, the Rust frame goes to `trace/runs/w1-rust/actual.dat`, and the
-panic message gives the commands that dump the Pascal frame and replay again.
-With the last argument `frames`, `run-rust.sh` gives the frame dumps of the
-Pascal run to the Rust binary, and the panic message tells how many pixels and
-which palette entries differ.
+`run-rust.sh` runs the Rust binary in `trace/runs/w1-rust`, with the same data
+files in its data directory `trace/runs/w1-rust/run`. The replay must reach
+the `End` line in a key wait, in a frame or at the end of the game, with the
+same numbers of frames and lines. Then the last line of
+`trace/runs/w1-rust/stdout.txt` is `Trace replay complete: N records and M
+frames match`. Otherwise the run panics, and `run-rust.sh` prints the panic.
+When the CRC of a frame differs, the Rust frame goes to
+`trace/runs/w1-rust/actual.dat`, and the panic message gives the commands that
+dump the Pascal frame and replay again. With the last argument `frames`,
+`run-rust.sh` gives the frame dumps of the Pascal run to the Rust binary, and
+the panic message tells how many pixels and which palette entries differ. At
+the end, `run-rust.sh` compares `trace/runs/w1-rust/run` with
+`trace/runs/w1/run` byte by byte, without `Trace.txt`, and prints `files:
+same`, or `files: differ` and the files that differ.
+
+`run-sdl.sh` exits with the exit status of the game, or 137 when it kills the
+game after `SJ3_TIMEOUT` seconds.
 
 `batch-seed.sh <seed> <keys file> <maxframes>` does both steps in
 `$RUNS/<keys name>-s<seed>` and prints one `PASS` or `FAIL` line.
@@ -88,7 +98,7 @@ which palette entries differ.
 
 ```
 SJ3_FRAMES_FROM=500 SJ3_FRAMES_TO=500 SJ3_MAXFRAMES=501 trace/run-sdl.sh trace/scenarios/w1_worldcup_qual.keys trace/runs/w1 1
-python3 trace/frame2png.py trace/runs/w1/frames/000500.dat frame.png
+python3 trace/frame2png.py trace/runs/w1/frames/000500.dat trace/runs/frame.png
 python3 trace/states.py trace/runs/w1/run/Trace.txt 10
 ```
 
@@ -104,16 +114,17 @@ trace/regress.sh
 
 It builds both binaries, runs every scenario in parallel, and prints one line
 for each scenario and a summary line. The exit status is 0 if all pass. A
-scenario passes when the Pascal run exits with exit code 0, and the Rust
-replay completes.
+scenario passes when the Pascal run exits with exit code 0, the Rust replay
+completes, and the data files of the two runs are the same.
 
 | Scenario | Seeds | Frames | Description |
 | --- | --- | --- | --- |
 | `w1_worldcup_qual` | 1 | 25900 | World Cup. The human jumper jumps 122 m in the qualification and lands with telemark. |
 | `h2_early_overrotate_r` | 1 | 3000 | The human jumper rotates forward too early, lands with `R` and falls. |
 | `h3_late_crash` | 1 | 3000 | The human jumper does not land and falls. |
-| `cpu_qual` | 2, 3, 4 | 40000 | World Cup. The human jumper does not start, so the computer jumpers do the first competition. |
+| `cpu_qual` | 2, 3, 4 (2 to 10 with `FULL=1`) | 40000 | World Cup. The human jumper does not start, so the computer jumpers do the first competition. |
 | `multi5` | 1 | 49372 | World Cup through 5 competitions, made with `multicomp.py`. |
+| `setup_menu` | 1 | 5000 | Each item of the setup menu that works in the Rust port: the language, beeps and graphics detail; every item of the jumping settings; the computer jumpers and the place of the wind meter; the first two hiscore settings; one key and the default keys; the length goals; and the list of the hill maker. The run ends in the setup menu. These items are left out because of known bugs: the name file (Esc does not leave it in Rust, and on Linux the Pascal game looks for a lower case file name), the questions that reset the hiscores (a space is missing in Rust), resetting the settings and leaving the setup menu (Rust does not write `CONFIG.SKI`), and a new hill in the hill maker (not ported). |
 | `fourhills` | 1 | 3900 | Four Hills to the end of the cup, made with `multicomp.py` from the start keys `10 13 0`, `20 51 0`, `30 13 0` and `40 13 0`. The human jumper does not start. The run stops in the jump menu. Not in the regression set: at the end of `wcup`, the Rust port does not call `WriteProfiles`, `WriteRecords` and `MakeSendMe`, so the replay fails after the last jump. |
 | `a_training_kuopio` | | | Training in Kuopio. Not in the regression set: the Rust replay gives a black frame 33, after training is chosen in the menu. |
 
@@ -131,7 +142,9 @@ Enter `13 0`, `3` `51 0`, `T` `84 20`, up `0 72`, left `0 75`, right `0 77`.
   it gets the next key at once.
 - A key with frame 999999 is never available to polling, so it goes only to
   the waits that do not poll.
-- The game exits when it polls or waits for a key after the last one.
+- The game exits when it polls or waits for a key after the last one. Then
+  `frames=` in the `End` line of the trace is the number of the frame in
+  which it polled, and the next key can come some frames after it.
 
 To find the frames, run the keys that you have with `explore.sh`:
 

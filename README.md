@@ -42,6 +42,17 @@ Desktop:
 1. Install SDL development library
 2. Run `cargo run --bin desktop`
 
+The game reads its data files from `assets/` in the current directory. The
+files that the game writes go to a data directory, and the game reads a file
+from there first. A file that the game removes from `assets/` is hidden by a
+line in `.removed` in the data directory. The data directory is the
+`SJ3_DATA_DIR` environment variable or the preferences directory of SDL:
+
+- Linux: `$XDG_DATA_HOME/skijump3-remake`, by default
+  `~/.local/share/skijump3-remake`
+- macOS: `~/Library/Application Support/skijump3-remake`
+- Windows: `%APPDATA%\skijump3-remake`
+
 Web:
 
 ```
@@ -68,17 +79,19 @@ parameter or in a function result.
 ### Tracing
 
 The desktop build can replay a trace from the `sp4-trace` branch of the SDL
-port, and check that the game state and every frame match. Keypresses and
-random numbers come from the trace. Run it in a directory whose `assets`
-directory has the same data files that the Pascal game started with:
+port, and check that the game state, the written files, the console text and
+every frame match. Keypresses, random numbers, the clock and the files that the
+game finds come from the trace. Run it in a directory without
+`assets`, and with a data directory that has the same data files that the
+Pascal game started with:
 
 ```
 cargo build --release -p desktop --features trace
-SJ3_TRACE=/path/to/Trace.txt /path/to/target/release/desktop
+SJ3_DATA_DIR=/path/to/data SJ3_TRACE=/path/to/Trace.txt /path/to/target/release/desktop
 ```
 
-It stops at the first difference, or prints `Trace replay complete` at the end
-of the trace. It compares the CRC of each frame with the trace. If
+It stops at the first difference, or prints `Trace replay complete` at the
+`End` line of the trace. It compares the CRC of each frame with the trace. If
 `SJ3_FRAMES` is the directory of the frame dumps of the Pascal run, it also
 tells how a frame that differs differs from the dump.
 

@@ -1,6 +1,7 @@
 mod webport;
 
 use crate::webport::WebPlatform;
+use common::files::Store;
 use common::sj3;
 use futures::task::noop_waker;
 use std::collections::HashMap;
@@ -58,6 +59,18 @@ impl Files {
             let offset = *offset as usize;
             &self.data[offset..offset + size]
         })
+    }
+}
+
+impl Store for Files {
+    fn read(&self, name: &str) -> Option<Vec<u8>> {
+        self.file_content(name).map(<[u8]>::to_vec)
+    }
+    fn contains(&self, name: &str) -> bool {
+        self.files.contains_key(name)
+    }
+    fn names(&self) -> Vec<String> {
+        self.files.keys().cloned().collect()
     }
 }
 
