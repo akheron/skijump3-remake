@@ -1,5 +1,6 @@
+use crate::storage::LocalStorageStore;
 use crate::{AsyncState, Files};
-use common::files::{MemoryStore, Overlay, OverlayFile};
+use common::files::{Overlay, OverlayFile};
 use common::{Platform, TPalette};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
@@ -10,7 +11,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 pub struct WebPlatform {
-    files: Overlay<MemoryStore, Files>,
+    files: Overlay<LocalStorageStore, Files>,
     palette: RefCell<TPalette>,
     screen: RefCell<Vec<u32>>,
     ch: Cell<u8>,
@@ -22,6 +23,7 @@ pub struct WebPlatform {
     unshifted_keys: RefCell<HashMap<String, char>>,
     // A KeyboardEvent does not tell Left Alt from Right Alt, so follow the Right Alt key events
     right_alt: Cell<bool>,
+    close_requested: Cell<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -35,9 +37,9 @@ pub struct Modifiers {
 }
 
 impl WebPlatform {
-    pub fn new(files: Files) -> Self {
+    pub fn new(data: LocalStorageStore, files: Files) -> Self {
         Self {
-            files: Overlay::new(MemoryStore::default(), files),
+            files: Overlay::new(data, files),
             palette: RefCell::new([[0; 3]; 256]),
             screen: RefCell::new(vec![0; 320 * 200]),
             ch: Cell::new(0),
@@ -47,7 +49,19 @@ impl WebPlatform {
             keypresses: RefCell::new(vec![]),
             unshifted_keys: RefCell::new(HashMap::new()),
             right_alt: Cell::new(false),
+            close_requested: Cell::new(false),
         }
+    }
+
+    pub fn request_close(&self) {
+        self.close_requested.set(true);
+    }
+
+    pub fn reset(&self) {
+        self.close_requested.set(false);
+        self.keypresses.borrow_mut().clear();
+        self.ch.set(0);
+        self.ch2.set(0);
     }
 
     pub fn pixels(&self) -> *const u32 {
@@ -262,7 +276,7 @@ impl Platform for WebPlatform {
         self.ch2.set(ch);
     }
 
-    type WritableFile<'a> = OverlayFile<'a, MemoryStore, Files>;
+    type WritableFile<'a> = OverlayFile<'a, LocalStorageStore, Files>;
 
     fn create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::WritableFile<'a> {
         self.files.create(path.as_ref())
@@ -318,6 +332,10 @@ impl Platform for WebPlatform {
     fn wait(&self, ms: u32) {
         let end = js_sys::Date::now() + ms as f64;
         while js_sys::Date::now() < end {}
+    }
+
+    fn close_requested(&self) -> bool {
+        self.close_requested.get()
     }
 }
 
@@ -509,6 +527,7 @@ fn single_char(key: &str) -> Option<char> {
 #[cfg(test)]
 mod tests {
     use super::{Modifiers, WebPlatform};
+    use crate::storage::LocalStorageStore;
     use crate::Files;
 
     const NONE: Modifiers = Modifiers {
@@ -794,7 +813,7 @@ mod tests {
 
     #[test]
     fn keydown_learns_the_layout() {
-        let platform = WebPlatform::new(Files::new(&[0]));
+        let platform = WebPlatform::new(LocalStorageStore::in_memory(), Files::new(&[0]));
         // Shift+'-' on a Finnish keyboard, before the layout is known
         platform.keydown("_", "Slash", SHIFT);
         assert_eq!(platform.process_keypress(), (63, 0));
@@ -811,7 +830,7 @@ mod tests {
 
     #[test]
     fn right_alt_blocks_alt_x() {
-        let platform = WebPlatform::new(Files::new(&[0]));
+        let platform = WebPlatform::new(LocalStorageStore::in_memory(), Files::new(&[0]));
         platform.keydown("Alt", "AltRight", ALT);
         assert!(!platform.keydown("x", "KeyX", ALT));
         platform.keyup("AltRight");
@@ -827,7 +846,7 @@ mod tests {
 
     #[test]
     fn key_pressed_skips_modifier_keys() {
-        let platform = WebPlatform::new(Files::new(&[0]));
+        let platform = WebPlatform::new(LocalStorageStore::in_memory(), Files::new(&[0]));
         platform.keydown("Shift", "ShiftLeft", SHIFT);
         platform.keydown("A", "KeyA", SHIFT);
         assert!(platform.is_key_pressed());

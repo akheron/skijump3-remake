@@ -73,6 +73,7 @@ dependencies = [
  "futures",
  "libm",
  "rand",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -417,6 +418,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

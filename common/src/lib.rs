@@ -34,6 +34,11 @@ use std::pin::pin;
 use std::task::Poll;
 
 pub async fn sj3<P: Platform>(port: &P) {
+    rs_util::reset_console();
+    rs_util::until_halt(run(port)).await;
+}
+
+async fn run<P: Platform>(port: &P) {
     let maki_module = MakiModule::new();
     let pcx_module = PcxModule::new(&maki_module, port);
     let graph_module = GraphModule::new(&maki_module, &pcx_module, port);
@@ -80,7 +85,7 @@ pub async fn sj3<P: Platform>(port: &P) {
     }
     let close_requested = until_close_requested(port, sj3_module.main_menu()).await;
     if close_requested {
-        sj3_module.close_and_halt();
+        sj3_module.close_and_halt().await;
     }
 
     sj3_module.close();

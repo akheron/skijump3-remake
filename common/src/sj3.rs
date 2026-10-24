@@ -9,8 +9,8 @@ use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
 use crate::platform::Platform;
 use crate::regfree::{REGNAME, REGNUMBER};
 use crate::rs_util::{
-    clrscr, dos_file_name, halt, parse_line, random, read_line, textbackground, write, writeln,
-    writeln_latin1,
+    clrscr, dos_file_name, halt, parse_line, random, read_line, start_end_text, textbackground,
+    write, writeln, writeln_latin1,
 };
 use crate::table::{
     find_landing, jump_risk, lasku_anim, lasku_asento, lento_anim, parru_anim, ponn_anim,
@@ -464,7 +464,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
             self.reset_hiscore(1);
             self.reset_config();
             self.s.wait_for_key().await;
-            halt();
+            halt().await;
         }
     }
 
@@ -5387,7 +5387,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
 
         write(b", SENDME.TXT.");
 
-        trace::start_end_text();
+        start_end_text();
         textbackground(0);
         clrscr();
 
@@ -5407,9 +5407,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> SJ3Module<'g, 'i, 'l, 'm, 
         self.loppu();
     }
 
-    pub fn close_and_halt(&mut self) -> ! {
+    pub async fn close_and_halt(&mut self) -> ! {
         self.close();
-        halt();
+        halt().await;
     }
 
     // originally in SJ3UNIT.PAS

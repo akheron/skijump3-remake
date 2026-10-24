@@ -1,7 +1,10 @@
 use crate::trace;
 use std::cell::Cell;
+use std::future::{poll_fn, Future};
 use std::io::{BufRead, BufReader, IsTerminal, Read, Write};
+use std::pin::pin;
 use std::str::FromStr;
+use std::task::Poll;
 
 pub fn read_line(f: &mut BufReader<impl Read>) -> std::io::Result<Vec<u8>> {
     let mut line = Vec::new();
@@ -54,12 +57,39 @@ pub fn random(max: u32) -> u32 {
     (rand::random::<f64>() * (max as f64)) as u32
 }
 
-/// `Halt` of Pascal
-pub fn halt() -> ! {
+/// `Halt` of Pascal. A web page cannot end its program, so on the web the
+/// game stops here and `until_halt` returns.
+pub async fn halt() -> ! {
     if trace::active() {
         trace::finish();
     }
+    #[cfg(not(target_family = "wasm"))]
     std::process::exit(0);
+    #[cfg(target_family = "wasm")]
+    {
+        HALTED.with(|halted| halted.set(true));
+        loop {
+            std::future::pending::<()>().await;
+        }
+    }
+}
+
+/// Runs `program` until it ends or calls `halt`
+pub async fn until_halt(program: impl Future<Output = ()>) {
+    let mut program = pin!(program);
+    poll_fn(|cx| {
+        let poll = program.as_mut().poll(cx);
+        if HALTED.with(|halted| halted.replace(false)) {
+            Poll::Ready(())
+        } else {
+            poll
+        }
+    })
+    .await
+}
+
+thread_local! {
+    static HALTED: Cell<bool> = const { Cell::new(false) };
 }
 
 /// `Write` to the console. The terminal gets the text in UTF-8, decoded from
@@ -157,9 +187,76 @@ fn write_decoded(text: &[u8], decode: fn(u8) -> char) {
         trace::console(text);
     }
     let utf8: String = text.iter().map(|&c| decode(c)).collect();
+    #[cfg(target_family = "wasm")]
+    web_console::write(&utf8);
     let mut stdout = std::io::stdout();
     let _ = stdout.write_all(utf8.as_bytes());
     let _ = stdout.flush();
+}
+
+/// The end text of the game comes after this. The web build does not show it.
+pub fn start_end_text() {
+    trace::start_end_text();
+    #[cfg(target_family = "wasm")]
+    web_console::hide();
+}
+
+/// Shows the console text again, for a new run of the game.
+pub fn reset_console() {
+    #[cfg(target_family = "wasm")]
+    web_console::reset();
+}
+
+/// The web page has no console, so the browser console gets the text, one
+/// line per `console.log`.
+#[cfg(target_family = "wasm")]
+mod web_console {
+    use std::cell::{Cell, RefCell};
+    use wasm_bindgen::prelude::wasm_bindgen;
+
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(js_namespace = console)]
+        fn log(s: &str);
+    }
+
+    thread_local! {
+        static LINE: RefCell<String> = const { RefCell::new(String::new()) };
+        static HIDDEN: Cell<bool> = const { Cell::new(false) };
+    }
+
+    pub fn write(text: &str) {
+        if HIDDEN.with(Cell::get) {
+            return;
+        }
+        LINE.with(|line| {
+            let mut line = line.borrow_mut();
+            for c in text.chars() {
+                if c == '\n' {
+                    log(&line);
+                    line.clear();
+                } else {
+                    line.push(c);
+                }
+            }
+        });
+    }
+
+    pub fn hide() {
+        LINE.with(|line| {
+            let mut line = line.borrow_mut();
+            if !line.is_empty() {
+                log(&line);
+                line.clear();
+            }
+        });
+        HIDDEN.with(|hidden| hidden.set(true));
+    }
+
+    pub fn reset() {
+        LINE.with(|line| line.borrow_mut().clear());
+        HIDDEN.with(|hidden| hidden.set(false));
+    }
 }
 
 /// The name of a data file. DOS file names do not depend on case, and the data

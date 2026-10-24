@@ -1,5 +1,7 @@
+mod storage;
 mod webport;
 
+use crate::storage::LocalStorageStore;
 use crate::webport::{Modifiers, WebPlatform};
 use common::files::Store;
 use common::sj3;
@@ -18,6 +20,8 @@ extern "C" {
     // `log(..)`
     #[wasm_bindgen(js_namespace = console)]
     pub fn log(s: &str);
+    #[wasm_bindgen(js_namespace = console)]
+    pub fn warn(s: &str);
 }
 
 #[wasm_bindgen]
@@ -87,6 +91,12 @@ fn read_le_u32(input: &mut &[u8]) -> u32 {
     u32::from_le_bytes(int_bytes.try_into().unwrap())
 }
 
+fn start(platform: Rc<WebPlatform>) -> Pin<Box<dyn Future<Output = ()>>> {
+    Box::pin(async move {
+        sj3(platform.as_ref()).await;
+    })
+}
+
 #[wasm_bindgen]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AsyncState {
@@ -100,11 +110,11 @@ pub enum AsyncState {
 impl SJ3 {
     pub fn new(file_data: &[u8]) -> Self {
         console_error_panic_hook::set_once();
-        let platform = Rc::new(WebPlatform::new(Files::new(file_data)));
-        let platform2 = platform.clone();
-        let future = Box::pin(async move {
-            sj3(platform2.as_ref()).await;
-        });
+        let platform = Rc::new(WebPlatform::new(
+            LocalStorageStore::new(),
+            Files::new(file_data),
+        ));
+        let future = start(platform.clone());
         let waker = noop_waker();
         Self {
             platform,
@@ -113,13 +123,32 @@ impl SJ3 {
         }
     }
 
-    pub fn tick(&mut self) -> Option<AsyncState> {
-        let mut ctx = Context::from_waker(&self.waker);
-        if self.future.as_mut().poll(&mut ctx).is_ready() {
-            None
-        } else {
-            Some(self.platform.async_state.get())
+    /// When the game ends, it starts again.
+    pub fn tick(&mut self) -> AsyncState {
+        let waker = self.waker.clone();
+        let mut ctx = Context::from_waker(&waker);
+        while self.future.as_mut().poll(&mut ctx).is_ready() {
+            self.restart();
         }
+        self.platform.async_state.get()
+    }
+
+    /// Saves the files as the game does when its window is closed, and
+    /// starts the game again.
+    pub fn close(&mut self) {
+        self.platform.request_close();
+        let waker = self.waker.clone();
+        let mut ctx = Context::from_waker(&waker);
+        if self.future.as_mut().poll(&mut ctx).is_ready() {
+            self.restart();
+        } else {
+            log("The game did not stop when it was closed");
+        }
+    }
+
+    fn restart(&mut self) {
+        self.platform.reset();
+        self.future = start(self.platform.clone());
     }
 
     pub fn resume(&self) {

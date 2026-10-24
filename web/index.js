@@ -26,14 +26,10 @@ export async function run() {
   const context = canvas.getContext("2d")
 
   let waitingForKeyPress = false
-  let finished = false
   let previousTime
   let unplayedTime
 
   document.addEventListener("keydown", (event) => {
-    if (finished) {
-      return
-    }
     const used = state.keydown(
       event.key,
       event.code,
@@ -56,6 +52,16 @@ export async function run() {
 
   document.addEventListener("keyup", (event) => {
     state.keyup(event.code)
+  })
+
+  // The game saves its files here, as when the window of the desktop game is
+  // closed, and starts again in case the page is shown again.
+  window.addEventListener("pagehide", () => {
+    state.close()
+    if (waitingForKeyPress) {
+      waitingForKeyPress = false
+      startLoop()
+    }
   })
 
   startLoop()
@@ -85,7 +91,7 @@ export async function run() {
       renderToCanvas(wasm.memory.buffer, state.screen(), context)
     }
 
-    if (!waitingForKeyPress && !finished) {
+    if (!waitingForKeyPress) {
       requestAnimationFrame(onAnimationFrame)
     }
   }
@@ -103,10 +109,6 @@ export async function run() {
           break
         case AsyncState.WaitForKeyPress:
           waitingForKeyPress = true
-          return false
-        case undefined:
-          // The game has ended, and one more tick() would panic
-          finished = true
           return false
       }
     }
