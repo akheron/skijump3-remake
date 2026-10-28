@@ -1,8 +1,8 @@
 # Ski Jump International v3 (remake)
 
-This repository will be a complete rewrite of the legendary DOS game Ski Jump International v3.
+This repository is a complete rewrite of the legendary DOS game Ski Jump International v3.
 
-It's a work in progress, but already somewhat playable on web browsers: https://akheron.github.io/skijump3-remake
+It has all of the game, and you can play it on the desktop and in web browsers: https://akheron.github.io/skijump3-remake
 
 ![Screenshot](screenshot.png)
 
@@ -20,8 +20,9 @@ to compile to web browsers.
 
 The remake is written in Rust.
 
-It's currently an "almost line-by-line" rewrite of the SDL2 port of the original Pascal code.
-However, it's portable through a trait that abstracts platform specific details.
+It's a line-by-line rewrite of version SP4 of the SDL2 port of the original Pascal code. Trace
+replays check that it behaves the same as the Pascal code (see [Tracing](#tracing)). It's portable
+through a trait that abstracts platform specific details.
 
 The available platforms are SDL2 and web (through WebAssembly).
 
@@ -31,8 +32,8 @@ web browsers.
 
 Things still left to do:
 
-- Not all Pascal code has been ported yet
 - The game is not yet playable on mobile browsers. This would require a touch UI.
+- The changes of the SDL2 port after version SP4 are not ported.
 - There are low hanging fruits for performance improvements and to make the code more idiomatic Rust.
 
 ## Development
@@ -53,13 +54,42 @@ line in `.removed` in the data directory. The data directory is the
 - macOS: `~/Library/Application Support/skijump3-remake`
 - Windows: `%APPDATA%\skijump3-remake`
 
+These keys of the SDL2 port control the window:
+
+| Key | Description |
+| --- | --- |
+| Alt+Enter | Toggle fullscreen |
+| Alt+(Keypad) Plus | Increase window size |
+| Alt+(Keypad) Minus | Decrease window size |
+| Alt+R | Reset window if stretched |
+| Alt+A | Toggle 4:3 aspect ratio |
+
+Command line options:
+
+| Option | Description |
+| --- | --- |
+| `-s`, `--sw-rendering` | Use software rendering |
+| `-r` | Reset the hiscores |
+| `-z` | Reset the hiscores to zero points |
+| `-c` | Reset the settings |
+
+The game reads `-r`, `-z` and `-c` only from the first argument, and only its
+second character, as the original game does. Thus `/r` also works.
+
 Web:
+
+1. Install `wasm-bindgen-cli`, with the same version as `wasm-bindgen` in
+   `Cargo.lock`: `cargo install wasm-bindgen-cli --version 0.2.129`
+2. Build and serve:
 
 ```
 cd web
 ./build.sh
 python -m http.server -d dist
 ```
+
+The web build reads the data files from `dist/assets.pack`. It keeps the files
+that the game writes in the localStorage of the browser.
 
 ### Structure
 
