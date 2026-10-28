@@ -2,6 +2,7 @@ use crate::graph::GraphModule;
 use crate::help::{round, txtp};
 use crate::platform::Platform;
 use crate::rs_util::random;
+use crate::trace;
 use std::cell::Cell;
 use std::f64::consts::PI;
 
@@ -40,6 +41,129 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
         };
         t.alusta(0);
         t
+    }
+
+    pub fn tuo(&self, mut x: i32, mut y: i32) {
+        match self.tpaikka.get() {
+            11 => {
+                x += 10;
+                y -= 20;
+            }
+            12 => {
+                x += 15;
+                y -= 5;
+            }
+            13 => {
+                x -= 10;
+                y += 12;
+            }
+            _ => {}
+        }
+        self.tuulix.set(x);
+        self.tuuliy.set(y);
+    }
+
+    pub fn aseta_paikka(&self, place: u8) {
+        self.tpaikka.set(place);
+
+        let mut tuulix = 10;
+        let mut tuuliy = 180;
+
+        match self.tpaikka.get() {
+            2 => {
+                tuuliy = 97;
+            }
+            3 => {
+                tuulix = 268;
+            }
+            4 => {
+                tuulix = 150;
+            }
+            5 => {
+                tuulix = 268;
+                tuuliy = 97;
+            }
+            6 => {
+                tuulix = 268;
+                tuuliy = 21;
+            }
+            7 => {
+                tuulix = 150;
+                tuuliy = 21;
+            }
+            8 => {
+                tuulix = 56;
+                tuuliy = 33;
+            }
+            _ => {}
+        }
+        self.tuulix.set(tuulix);
+        self.tuuliy.set(tuuliy);
+    }
+
+    pub fn alusta(&self, place: u8) {
+        let temp1 = random(180) as i32; //{ Tuulen rajoja }
+        let temp2 = random(120) as i32;
+        self.windy.set(temp2); //{ ns. tuulisuusindeksi }
+
+        self.traja1.set(temp1 - temp2);
+        self.traja2.set(temp1 + temp2);
+        self.tkulma
+            .set((random(temp2 as u32 * 2) as i32 + self.traja1.get()) as f32);
+        self.voim.set(random(50) as i32);
+        if random(2) == 0 {
+            self.tsuun.set(true);
+        } else {
+            self.tsuun.set(false);
+        }
+
+        self.aseta_paikka(place);
+
+        trace::record(
+            "WindInit",
+            &[
+                ("windy", self.windy.get().into()),
+                ("voim", self.voim.get().into()),
+                ("traja1", self.traja1.get().into()),
+                ("traja2", self.traja2.get().into()),
+                ("tkulma", self.tkulma.get().into()),
+                ("tsuun", self.tsuun.get().into()),
+            ],
+        );
+    }
+
+    pub fn siirra(&self) {
+        if (self.tsuun.get()) && (self.tkulma.get() > self.traja2.get() as f32) {
+            self.tsuun.set(false);
+        }
+        if !self.tsuun.get() && (self.tkulma.get() < self.traja1.get() as f32) {
+            self.tsuun.set(true);
+        }
+        if random(50) == 0 {
+            self.tsuun.set(!self.tsuun.get());
+        }
+        if self.tsuun.get() {
+            self.tkulma
+                .set((self.tkulma.get() as f64 + random(4) as f64 / 5.0) as f32);
+        } else {
+            self.tkulma
+                .set((self.tkulma.get() as f64 - random(4) as f64 / 5.0) as f32);
+        }
+    }
+
+    pub fn hae(&self) {
+        self.siirra();
+        self.value.set(round(
+            (libm::cos(PI * self.tkulma.get() as f64 / 180.0) * self.voim.get() as f64) as f32,
+        ));
+
+        trace::record(
+            "Wind",
+            &[
+                ("tkulma", self.tkulma.get().into()),
+                ("value", self.value.get().into()),
+            ],
+        );
     }
 
     pub fn piirra(&self) {
@@ -88,108 +212,5 @@ impl<'g, 'm, 'p, 's, 'si, P: Platform> TuuliModule<'g, 'm, 'p, 's, P> {
             .write_font(self.tuulix.get() + 15, self.tuuliy.get() + 5, &[s[0]]);
         self.g
             .write_font(self.tuulix.get() + 24, self.tuuliy.get() + 5, &[s[2]]);
-    }
-
-    pub fn hae(&self) {
-        self.siirra();
-        self.value.set(round(
-            (libm::cos(PI * self.tkulma.get() as f64 / 180.0) * self.voim.get() as f64) as f32,
-        ));
-    }
-
-    pub fn alusta(&self, place: u8) {
-        let temp1 = random(180) as i32; //{ Tuulen rajoja }
-        let temp2 = random(120) as i32;
-        self.windy.set(temp2); //{ ns. tuulisuusindeksi }
-
-        self.traja1.set(temp1 - temp2);
-        self.traja2.set(temp1 + temp2);
-        self.tkulma
-            .set((random(temp2 as u32 * 2) as i32 + self.traja1.get()) as f32);
-        self.voim.set(random(50) as i32);
-        if random(2) == 0 {
-            self.tsuun.set(true);
-        } else {
-            self.tsuun.set(false);
-        }
-
-        self.aseta_paikka(place);
-    }
-
-    pub fn siirra(&self) {
-        if (self.tsuun.get()) && (self.tkulma.get() > self.traja2.get() as f32) {
-            self.tsuun.set(false);
-        }
-        if !self.tsuun.get() && (self.tkulma.get() < self.traja1.get() as f32) {
-            self.tsuun.set(true);
-        }
-        if random(50) == 0 {
-            self.tsuun.set(!self.tsuun.get());
-        }
-        if self.tsuun.get() {
-            self.tkulma
-                .set((self.tkulma.get() as f64 + random(4) as f64 / 5.0) as f32);
-        } else {
-            self.tkulma
-                .set((self.tkulma.get() as f64 - random(4) as f64 / 5.0) as f32);
-        }
-    }
-
-    pub fn tuo(&self, mut x: i32, mut y: i32) {
-        match self.tpaikka.get() {
-            11 => {
-                x += 10;
-                y += 20;
-            }
-            12 => {
-                x += 15;
-                y += 5;
-            }
-            13 => {
-                x -= 10;
-                y += 12;
-            }
-            _ => {}
-        }
-        self.tuulix.set(x);
-        self.tuuliy.set(y);
-    }
-
-    pub fn aseta_paikka(&self, place: u8) {
-        self.tpaikka.set(place);
-
-        let mut tuulix = 10;
-        let mut tuuliy = 180;
-
-        match self.tpaikka.get() {
-            2 => {
-                tuuliy = 97;
-            }
-            3 => {
-                tuulix = 268;
-            }
-            4 => {
-                tuulix = 150;
-            }
-            5 => {
-                tuulix = 268;
-                tuuliy = 97;
-            }
-            6 => {
-                tuulix = 268;
-                tuuliy = 21;
-            }
-            7 => {
-                tuulix = 150;
-                tuuliy = 21;
-            }
-            8 => {
-                tuulix = 56;
-                tuuliy = 33;
-            }
-            _ => {}
-        }
-        self.tuulix.set(tuulix);
-        self.tuuliy.set(tuuliy);
     }
 }

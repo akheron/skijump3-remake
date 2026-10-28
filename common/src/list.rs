@@ -241,7 +241,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> ListModule<'g, 'l, 'm, 'p, 's, 'u, P> 
                 _ => {}
             }
 
-            if self.s.get_ch2() == 0 {
+            if self.s.get_ch() == 0 {
                 match self.s.get_ch2() {
                     68 | 45 => {
                         self.status = -2;

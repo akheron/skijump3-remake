@@ -54,6 +54,47 @@ impl LumiModule {
         l
     }
 
+    pub fn update(
+        &mut self,
+        mut buffer: RefMut<[u8]>,
+        delta_x: i32,
+        delta_y: i32,
+        tuuli: i32,
+        draw: bool,
+    ) {
+        if self.max >= LUMI_MAX {
+            self.max = LUMI_MAX - 1;
+        }
+
+        for i in 0..=self.max
+        //with LH[i]
+        {
+            let mut lumi = &mut self.lh[i as usize];
+            if draw {
+                lumi.x += self.sine[lumi.sin_pos as usize] + (delta_x << 9) + tuuli;
+                lumi.sin_pos += 1;
+                lumi.sin_pos &= SINE_LGT - 1;
+                lumi.y += lumi.gravity + (delta_y << 8);
+            }
+            let offset: u16 = ((lumi.x >> 10) + (lumi.y >> 10) * 320) as u16;
+            if (offset < 63679)
+                && (buffer[offset as usize] >= TAUSTA_MIN)
+                && (buffer[offset as usize + 1] >= TAUSTA_MIN)
+                && (buffer[offset as usize] < TAUSTA_MAX)
+                && (buffer[offset as usize + 1] < TAUSTA_MAX)
+            {
+                if lumi.style == 1 {
+                    buffer[offset as usize] = lumi.c1 as u8;
+                    buffer[offset as usize + 1] = (lumi.c1 >> 8) as u8;
+                    buffer[offset as usize + 320] = lumi.c2 as u8;
+                    buffer[offset as usize + 320 + 1] = (lumi.c2 >> 8) as u8;
+                } else {
+                    buffer[offset as usize] = lumi.c1 as u8;
+                }
+            }
+        }
+    }
+
     fn reset(&mut self) {
         for i in 0..SINE_LGT {
             self.sine[i as usize] = round_half_even(
@@ -97,47 +138,6 @@ impl LumiModule {
         }
 
         self.reset();
-    }
-
-    pub fn update(
-        &mut self,
-        mut buffer: RefMut<[u8]>,
-        delta_x: i32,
-        delta_y: i32,
-        tuuli: i32,
-        draw: bool,
-    ) {
-        if self.max >= LUMI_MAX {
-            self.max = LUMI_MAX - 1;
-        }
-
-        for i in 0..=self.max
-        //with LH[i]
-        {
-            let mut lumi = &mut self.lh[i as usize];
-            if draw {
-                lumi.x += self.sine[lumi.sin_pos as usize] + (delta_x << 9) + tuuli;
-                lumi.sin_pos += 1;
-                lumi.sin_pos &= SINE_LGT - 1;
-                lumi.y += lumi.gravity + (delta_y << 8);
-            }
-            let offset: u16 = ((lumi.x >> 10) + (lumi.y >> 10) * 320) as u16;
-            if (offset < 63679)
-                && (buffer[offset as usize] >= TAUSTA_MIN)
-                && (buffer[offset as usize + 1] >= TAUSTA_MIN)
-                && (buffer[offset as usize] < TAUSTA_MAX)
-                && (buffer[offset as usize + 1] < TAUSTA_MAX)
-            {
-                if lumi.style == 1 {
-                    buffer[offset as usize] = lumi.c1 as u8;
-                    buffer[offset as usize + 1] = (lumi.c1 >> 8) as u8;
-                    buffer[offset as usize + 320] = lumi.c2 as u8;
-                    buffer[offset as usize + 320 + 1] = (lumi.c2 >> 8) as u8;
-                } else {
-                    buffer[offset as usize] = lumi.c1 as u8;
-                }
-            }
-        }
     }
 }
 

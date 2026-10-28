@@ -1,8 +1,12 @@
+mod storage;
 mod webport;
 
-use crate::webport::WebPlatform;
+use crate::storage::LocalStorageStore;
+use crate::webport::{Modifiers, WebPlatform};
+use common::files::Store;
 use common::sj3;
 use futures::task::noop_waker;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -16,6 +20,8 @@ extern "C" {
     // `log(..)`
     #[wasm_bindgen(js_namespace = console)]
     pub fn log(s: &str);
+    #[wasm_bindgen(js_namespace = console)]
+    pub fn warn(s: &str);
 }
 
 #[wasm_bindgen]
@@ -61,6 +67,18 @@ impl Files {
     }
 }
 
+impl Store for Files {
+    fn read(&self, name: &str) -> Option<Cow<'_, [u8]>> {
+        self.file_content(name).map(Cow::Borrowed)
+    }
+    fn contains(&self, name: &str) -> bool {
+        self.files.contains_key(name)
+    }
+    fn names(&self) -> Vec<String> {
+        self.files.keys().cloned().collect()
+    }
+}
+
 fn read_le_u8(input: &mut &[u8]) -> u8 {
     let (int_bytes, rest) = input.split_at(std::mem::size_of::<u8>());
     *input = rest;
@@ -71,6 +89,12 @@ fn read_le_u32(input: &mut &[u8]) -> u32 {
     let (int_bytes, rest) = input.split_at(std::mem::size_of::<u32>());
     *input = rest;
     u32::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
+fn start(platform: Rc<WebPlatform>) -> Pin<Box<dyn Future<Output = ()>>> {
+    Box::pin(async move {
+        sj3(platform.as_ref()).await;
+    })
 }
 
 #[wasm_bindgen]
@@ -86,11 +110,11 @@ pub enum AsyncState {
 impl SJ3 {
     pub fn new(file_data: &[u8]) -> Self {
         console_error_panic_hook::set_once();
-        let platform = Rc::new(WebPlatform::new(Files::new(file_data)));
-        let platform2 = platform.clone();
-        let future = Box::pin(async move {
-            sj3(platform2.as_ref()).await;
-        });
+        let platform = Rc::new(WebPlatform::new(
+            LocalStorageStore::new(),
+            Files::new(file_data),
+        ));
+        let future = start(platform.clone());
         let waker = noop_waker();
         Self {
             platform,
@@ -99,13 +123,32 @@ impl SJ3 {
         }
     }
 
-    pub fn tick(&mut self) -> Option<AsyncState> {
-        let mut ctx = Context::from_waker(&self.waker);
-        if self.future.as_mut().poll(&mut ctx).is_ready() {
-            None
-        } else {
-            Some(self.platform.async_state.get())
+    /// When the game ends, it starts again.
+    pub fn tick(&mut self) -> AsyncState {
+        let waker = self.waker.clone();
+        let mut ctx = Context::from_waker(&waker);
+        while self.future.as_mut().poll(&mut ctx).is_ready() {
+            self.restart();
         }
+        self.platform.async_state.get()
+    }
+
+    /// Saves the files as the game does when its window is closed, and
+    /// starts the game again.
+    pub fn close(&mut self) {
+        self.platform.request_close();
+        let waker = self.waker.clone();
+        let mut ctx = Context::from_waker(&waker);
+        if self.future.as_mut().poll(&mut ctx).is_ready() {
+            self.restart();
+        } else {
+            log("The game did not stop when it was closed");
+        }
+    }
+
+    fn restart(&mut self) {
+        self.platform.reset();
+        self.future = start(self.platform.clone());
     }
 
     pub fn resume(&self) {
@@ -116,22 +159,34 @@ impl SJ3 {
         self.platform.pixels()
     }
 
-    pub fn keydown(&self, key: &str) {
-        if let Some((ch, ch2)) = match key {
-            "ArrowUp" => Some((0, 72)),
-            "ArrowLeft" => Some((0, 75)),
-            "ArrowRight" => Some((0, 77)),
-            "ArrowDown" => Some((0, 80)),
-            "Enter" => Some((13, 0)),
-            "Escape" => Some((27, 0)),
-            " " => Some((32, 0)),
-            "R" => Some((82, 19)),
-            "T" => Some((84, 20)),
-            "r" => Some((114, 19)),
-            "t" => Some((116, 20)),
-            _ => None,
-        } {
-            self.platform.keydown(ch, ch2);
-        }
+    /// Returns whether the game uses the key.
+    pub fn keydown(
+        &self,
+        key: &str,
+        code: &str,
+        shift: bool,
+        ctrl: bool,
+        alt: bool,
+        alt_graph: bool,
+        meta: bool,
+        caps_lock: bool,
+    ) -> bool {
+        let modifiers = Modifiers {
+            shift,
+            ctrl,
+            alt,
+            alt_graph,
+            meta,
+            caps_lock,
+        };
+        self.platform.keydown(key, code, modifiers)
+    }
+
+    pub fn keyup(&self, code: &str) {
+        self.platform.keyup(code);
+    }
+
+    pub fn set_unshifted_key(&self, code: &str, key: &str) {
+        self.platform.set_unshifted_key(code, key);
     }
 }

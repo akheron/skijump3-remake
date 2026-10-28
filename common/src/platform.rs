@@ -32,6 +32,11 @@ pub trait Platform {
     where
         Self: 'a;
     fn create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Self::WritableFile<'a>;
+    /// `create_file` for a `Rewrite` whose `IOResult` the game checks: `None`
+    /// when the file cannot be written
+    fn try_create_file<'a, P: AsRef<str>>(&'a self, path: P) -> Option<Self::WritableFile<'a>> {
+        Some(self.create_file(path))
+    }
 
     type ReadableFile<'a>: Read
     where
@@ -40,4 +45,26 @@ pub trait Platform {
 
     fn file_exists<P: AsRef<str>>(&self, path: P) -> bool;
     fn remove_file<P: AsRef<str>>(&self, path: P);
+    /// `FindFirst` and `FindNext`: the names of the files that match a
+    /// pattern like `*.SJH`
+    fn find_files(&self, pattern: &str) -> Vec<String>;
+
+    /// `GetDate` of the DOS unit: year, month, day and day of the week (0 is Sunday)
+    fn get_date(&self) -> (u16, u16, u16, u16);
+    /// `GetTime` of the DOS unit: hour, minute, second and hundredths of a second
+    fn get_time(&self) -> (u16, u16, u16, u16);
+
+    /// `ParamStr`: the command line argument number `index`, from 1, or an
+    /// empty string
+    fn param_str(&self, index: usize) -> String;
+    /// `Wait` of the SDL port
+    fn wait(&self, ms: u32);
+
+    /// `DeinitGraphics` of the SDL port: closes the game window
+    fn deinit_graphics(&self) {}
+    /// True after the player asked to close the game. Then the game runs the
+    /// close callback of the SDL port, `CloseAndHalt`.
+    fn close_requested(&self) -> bool {
+        false
+    }
 }

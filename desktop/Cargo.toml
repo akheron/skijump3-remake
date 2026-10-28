@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chrono = "0.4.23"
 common = { path = "../common" }
 futures = "0.3.28"
-sdl2 = "0.35.2"
+sdl2 = "0.38.0"
+
+[features]
+trace = ["common/trace"]

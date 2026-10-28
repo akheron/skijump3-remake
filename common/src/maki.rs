@@ -35,14 +35,6 @@ impl MakiModule {
         }
     }
 
-    pub fn lue(&self, osoite: i32) -> u8 {
-        self.graffa.borrow()[osoite as usize]
-    }
-
-    pub fn kirjoita(&self, osoite: i32, arvo: u8) {
-        self.graffa.borrow_mut()[osoite as usize] = arvo;
-    }
-
     pub fn paivita_kirjoitus_sivu(&self) {
         let mut graffa = self.graffa.borrow_mut();
         let video = self.video.borrow();
@@ -52,17 +44,12 @@ impl MakiModule {
         }
     }
 
-    pub fn tulosta(&self) {
-        let a: i32 = self.y.get() * X_SIZE as i32;
-        let b: i32 = ALUE as i32 - (self.x.get() >> 1) - (self.y.get() >> 1) * X_SIZE as i32;
-        self.kopioi_maki(a, b);
+    pub fn lue(&self, osoite: i32) -> u8 {
+        self.graffa.borrow()[osoite as usize]
     }
-    pub fn alusta(&self) -> bool {
-        // The original code just allocates some buffers and sets some function pointers.
-        true
-    }
-    pub fn lopeta(&self) {
-        // Empty in the original sources
+
+    pub fn kirjoita(&self, osoite: i32, arvo: u8) {
+        self.graffa.borrow_mut()[osoite as usize] = arvo;
     }
 
     fn kopioi_maki(&self, osoite: i32, delta: i32) {
@@ -90,11 +77,27 @@ impl MakiModule {
             }
         }
     }
-
     pub fn lukitse_kirjoitus_sivu(&self, sivu: u32) {
         if sivu < SIVUJA * 2 {
             self.siirto_osoite.set(sivu * SIVU_KOKO);
         }
+    }
+    pub fn tulosta(&self) {
+        let a: i32 = self.y.get() * X_SIZE as i32;
+        let b: i32 = ALUE as i32 - (self.x.get() >> 1) - (self.y.get() >> 1) * X_SIZE as i32;
+        self.kopioi_maki(a, b);
+    }
+
+    pub fn aseta_moodi(&self, _m: u16) {
+        // Not needed in port
+    }
+
+    pub fn profiili(&self, x: i32) -> i32 {
+        let mut temp: i32 = 0;
+        if (x > 0) && (x < 1300) {
+            temp = self.profiili_y.borrow()[x as usize] as i32;
+        }
+        temp
     }
 
     pub fn laske_linjat(&self, keula_x: &mut i32, kr: i32, pk: f32) {
@@ -122,7 +125,7 @@ impl MakiModule {
             }
         }
 
-        for x in X_SIZE..1300 {
+        for x in X_SIZE..=1300 {
             profiili_y[x as usize] = profiili_y[X_SIZE as usize - 1];
         }
 
@@ -136,7 +139,7 @@ impl MakiModule {
 
         *keula_x -= 1; //{ se mennee yhden liian pitk�ksi }
 
-        for x in *keula_x..(X_SIZE - 10) as i32 {
+        for x in *keula_x..=(X_SIZE - 10) as i32 {
             let x2 = x - *keula_x; //{ suhteellinen keulan alap��h�n X }
             let y2 = profiili_y[x as usize] as i32 - profiili_y[*keula_x as usize] as i32; //{ suhteellinen Y }
             let hp = round_half_even(f64::sqrt((x2 * x2 + y2 * y2) as f64) * pk as f64 * 0.5) * 5; //{ +10? }
@@ -151,14 +154,11 @@ impl MakiModule {
             }
         }
     }
-    pub fn aseta_moodi(&self, m: u16) {
-        unimplemented!()
+    pub fn alusta(&self) -> bool {
+        // The original code just allocates some buffers and sets some function pointers.
+        true
     }
-    pub fn profiili(&self, x: i32) -> i32 {
-        let mut temp: i32 = 0;
-        if (x > 0) && (x < 1300) {
-            temp = self.profiili_y.borrow()[x as usize] as i32;
-        }
-        temp
+    pub fn lopeta(&self) {
+        // Empty in the original sources
     }
 }
