@@ -32,7 +32,6 @@ web browsers.
 
 Things still left to do:
 
-- The game is not yet playable on mobile browsers. This would require a touch UI.
 - The changes of the SDL2 port after version SP4 are not ported.
 - There are low hanging fruits for performance improvements and to make the code more idiomatic Rust.
 

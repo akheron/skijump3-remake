@@ -5,7 +5,7 @@ use crate::lang::LangModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::PcxModule;
-use crate::platform::Platform;
+use crate::platform::{Arrows, Controls, Platform};
 use crate::rs_util::{dos_file_name, dos_name_bytes, parse_line, read_line};
 use crate::trace;
 use crate::tuuli::TuuliModule;
@@ -228,6 +228,7 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
             ski_anim = r.rd[3][turn_index(rturns)] as i32;
             wind = r.rd[4][turn_index(rturns)] as i32 - 128;
 
+            let _controls = self.s.controls(Controls::Replay { intro: r.intro });
             loop {
                 //{ replayluuppi }
 
@@ -706,8 +707,12 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
         self.clearscreen();
         self.g.font_color(246);
         self.g.write_font(170, 80, self.l.lstr(290));
-        self.u
-            .getch(177 + self.g.font_len(self.l.lstr(290)), 80, 243)
+        self.s
+            .with_controls(
+                Controls::AnyKey,
+                self.u
+                    .getch(177 + self.g.font_len(self.l.lstr(290)), 80, 243),
+            )
             .await;
         self.g.draw_screen().await;
     }
@@ -788,6 +793,10 @@ impl<'g, 'i, 'l, 'm, 'p, 's, 't, 'u, P: Platform> ReplModule<'g, 'i, 'l, 'm, 'p,
             if r.numreplays > 0 {
                 index = 1;
 
+                let _controls = self.s.controls(Controls::Select {
+                    arrows: Arrows::LeftRight,
+                    delete: true,
+                });
                 loop {
                     if oldindex != index {
                         r.result = 0;

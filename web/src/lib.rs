@@ -1,4 +1,5 @@
 mod storage;
+mod touch;
 mod webport;
 
 use crate::storage::LocalStorageStore;
@@ -188,5 +189,16 @@ impl SJ3 {
 
     pub fn set_unshifted_key(&self, code: &str, key: &str) {
         self.platform.set_unshifted_key(code, key);
+    }
+
+    pub fn press(&self, ch: u8, ch2: u8) {
+        self.platform.press(ch, ch2);
+    }
+
+    /// Returns the buttons of the touch controls as JSON, if they changed after the previous call
+    pub fn take_changed_buttons(&self) -> Option<String> {
+        self.platform
+            .take_changed_controls()
+            .map(|controls| touch::to_json(&touch::buttons(controls)))
     }
 }

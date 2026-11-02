@@ -1,7 +1,7 @@
 use crate::storage::LocalStorageStore;
 use crate::{AsyncState, Files};
 use common::files::{Overlay, OverlayFile};
-use common::{Platform, TPalette};
+use common::{Controls, Platform, TPalette};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -24,6 +24,9 @@ pub struct WebPlatform {
     // A KeyboardEvent does not tell Left Alt from Right Alt, so follow the Right Alt key events
     right_alt: Cell<bool>,
     close_requested: Cell<bool>,
+    controls: RefCell<Vec<Controls>>,
+    shown_controls: Cell<Option<Controls>>,
+    controls_changed: Cell<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -50,6 +53,9 @@ impl WebPlatform {
             unshifted_keys: RefCell::new(HashMap::new()),
             right_alt: Cell::new(false),
             close_requested: Cell::new(false),
+            controls: RefCell::new(vec![]),
+            shown_controls: Cell::new(None),
+            controls_changed: Cell::new(false),
         }
     }
 
@@ -96,6 +102,37 @@ impl WebPlatform {
     pub fn set_unshifted_key(&self, code: &str, key: &str) {
         if let Some(c) = single_char(key) {
             self.unshifted_keys.borrow_mut().insert(code.to_string(), c);
+        }
+    }
+
+    /// Presses a key of the touch controls
+    pub fn press(&self, ch: u8, ch2: u8) {
+        self.keypresses
+            .borrow_mut()
+            .push((String::new(), (ch, ch2)));
+    }
+
+    /// Returns the controls of the latest key read, if they changed after the previous call
+    pub fn take_changed_controls(&self) -> Option<Controls> {
+        if self.controls_changed.replace(false) {
+            self.shown_controls.get()
+        } else {
+            None
+        }
+    }
+
+    // The controls change only when the game reads a key. Between two screens, the game can draw
+    // frames, as in a fade, while no screen has set its controls.
+    fn show_controls(&self) {
+        let controls = self
+            .controls
+            .borrow()
+            .last()
+            .copied()
+            .unwrap_or(Controls::All);
+        if controls != Controls::Unchanged && self.shown_controls.get() != Some(controls) {
+            self.shown_controls.set(Some(controls));
+            self.controls_changed.set(true);
         }
     }
 
@@ -236,6 +273,7 @@ impl Platform for WebPlatform {
     }
 
     async fn key_pressed(&self) -> bool {
+        self.show_controls();
         self.async_state.set(AsyncState::KeyPressed);
         WebPortFuture { p: self }.await;
         self.is_key_pressed()
@@ -246,6 +284,7 @@ impl Platform for WebPlatform {
         if self.close_requested.get() {
             return (self.ch.get(), self.ch2.get());
         }
+        self.show_controls();
         if self.keypresses.borrow().is_empty() {
             self.async_state.set(AsyncState::WaitForKeyPress);
             WebPortFuture { p: self }.await;
@@ -341,6 +380,14 @@ impl Platform for WebPlatform {
     fn close_requested(&self) -> bool {
         self.close_requested.get()
     }
+
+    fn push_controls(&self, controls: Controls) {
+        self.controls.borrow_mut().push(controls);
+    }
+
+    fn pop_controls(&self) {
+        self.controls.borrow_mut().pop();
+    }
 }
 
 /// Returns the key value if it is the character of the key without Shift.
@@ -352,7 +399,9 @@ fn unshifted_key(key: &str, code: &str, modifiers: Modifiers) -> Option<char> {
         || modifiers.alt_graph
         || modifiers.meta
         || modifiers.caps_lock;
-    (!modified && !code.starts_with("Numpad") && !is_composed(c, code)).then_some(c)
+    // A soft keyboard gives an empty code, which tells nothing of the key position
+    (!modified && !code.is_empty() && !code.starts_with("Numpad") && !is_composed(c, code))
+        .then_some(c)
 }
 
 /// Returns the key as SDL gives it: the character of the key without Shift in the current layout,
@@ -405,7 +454,7 @@ fn us_qwerty_key(code: &str) -> Option<char> {
     Some(c)
 }
 
-fn named_key(key: &str) -> Option<(u8, u8)> {
+pub(crate) fn named_key(key: &str) -> Option<(u8, u8)> {
     let keypress = match key {
         "Enter" => (13, 0),
         "Escape" => (27, 0),
@@ -467,7 +516,7 @@ fn us_qwerty_shift(c: char) -> Option<char> {
     Some(shifted)
 }
 
-fn character(ch: char) -> Option<(u8, u8)> {
+pub(crate) fn character(ch: char) -> Option<(u8, u8)> {
     let ch1 = match ch as u32 {
         32..=126 => ch as u8,
 
@@ -533,6 +582,7 @@ mod tests {
     use super::{Modifiers, WebPlatform};
     use crate::storage::LocalStorageStore;
     use crate::Files;
+    use common::{Controls, Platform};
 
     const NONE: Modifiers = Modifiers {
         shift: false,
@@ -833,6 +883,18 @@ mod tests {
     }
 
     #[test]
+    fn keydown_without_code_does_not_learn_the_layout() {
+        let platform = WebPlatform::new(LocalStorageStore::in_memory(), Files::new(&[0]));
+        // A soft keyboard gives every key with an empty code
+        platform.keydown("a", "", NONE);
+        assert_eq!(platform.process_keypress(), (97, 30));
+        platform.keydown("b", "", NONE);
+        assert_eq!(platform.process_keypress(), (98, 48));
+        platform.keydown("C", "", SHIFT);
+        assert_eq!(platform.process_keypress(), (67, 0));
+    }
+
+    #[test]
     fn right_alt_blocks_alt_x() {
         let platform = WebPlatform::new(LocalStorageStore::in_memory(), Files::new(&[0]));
         platform.keydown("Alt", "AltRight", ALT);
@@ -862,5 +924,35 @@ mod tests {
         // WaitForKeyPress returns also for a modifier key
         platform.keydown("Shift", "ShiftLeft", SHIFT);
         assert_eq!(platform.process_keypress(), (0, 0));
+    }
+
+    #[test]
+    fn controls_change_at_a_key_read() {
+        let platform = WebPlatform::new(LocalStorageStore::in_memory(), Files::new(&[0]));
+        platform.show_controls();
+        assert_eq!(platform.take_changed_controls(), Some(Controls::All));
+
+        platform.push_controls(Controls::AnyKey);
+        assert_eq!(platform.take_changed_controls(), None);
+        platform.show_controls();
+        assert_eq!(platform.take_changed_controls(), Some(Controls::AnyKey));
+        platform.show_controls();
+        assert_eq!(platform.take_changed_controls(), None);
+
+        platform.pop_controls();
+        platform.show_controls();
+        assert_eq!(platform.take_changed_controls(), Some(Controls::All));
+    }
+
+    #[test]
+    fn unchanged_keeps_the_controls() {
+        let platform = WebPlatform::new(LocalStorageStore::in_memory(), Files::new(&[0]));
+        platform.push_controls(Controls::AnyKey);
+        platform.show_controls();
+        platform.take_changed_controls();
+
+        platform.push_controls(Controls::Unchanged);
+        platform.show_controls();
+        assert_eq!(platform.take_changed_controls(), None);
     }
 }

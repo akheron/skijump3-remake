@@ -4,7 +4,7 @@ use crate::lang::LangModule;
 use crate::lumi::LumiModule;
 use crate::maki::{MakiModule, SIVUJA};
 use crate::pcx::PcxModule;
-use crate::platform::Platform;
+use crate::platform::{Arrows, Controls, Platform};
 use crate::rs_util::{
     clrscr, dos_file_name, dos_name_bytes, gotoxy, halt, parse_line, random, read_line,
     textbackground, textcolor, val, val_code, window, write, writeln,
@@ -206,6 +206,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         let mut newstr = oldstr.to_vec();
 
+        let _controls = self.s.controls(Controls::Text);
         loop {
             let cx = self.g.font_len(&newstr);
 
@@ -264,6 +265,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         let mut newstr = oldstr.to_vec();
 
+        let _controls = self.s.controls(Controls::Text);
         loop {
             let cx = self.g.font_len(&newstr);
 
@@ -389,6 +391,10 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         self.draw_goal(&goals, NUM_WC_HILLS + 1, 0); //{ exit }
 
+        let _controls = self.s.controls(Controls::Select {
+            arrows: Arrows::All,
+            delete: false,
+        });
         loop {
             let y = index * 8 + 24;
             self.draw_goal(&goals, index, 1);
@@ -564,7 +570,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             self.g.write_font(80, 130, b"PRESS A KEY...");
             self.g.draw_screen().await;
 
-            self.s.wait_for_key().await;
+            self.s
+                .with_controls(Controls::AnyKey, self.s.wait_for_key())
+                .await;
         }
 
         self.p.savyta_paletti(1, act_hill.bk_bright);
@@ -619,6 +627,10 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         let boxcol = 240;
 
+        let _controls = self.s.controls(Controls::Select {
+            arrows: Arrows::UpDown,
+            delete: del,
+        });
         while !out {
             self.g
                 .box_(xx, yy, xx + length as u16, yy + height as u16, bgcolor);
@@ -1175,7 +1187,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             hill.bk_index = b"1".to_vec();
             hill.fr_index = b"1".to_vec();
 
-            self.s.wait_for_key().await;
+            self.s
+                .with_controls(Controls::AnyKey, self.s.wait_for_key())
+                .await;
 
             self.m.aseta_moodi(0x13);
         }
@@ -1290,7 +1304,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
                     .concat(),
                 );
                 writeln(b"Maybe it's been edited or something.  That won't do.  Exiting.");
-                self.s.wait_for_key().await;
+                self.s
+                    .with_controls(Controls::AnyKey, self.s.wait_for_key())
+                    .await;
                 halt().await;
             } else {
                 beep(self.s, 1);
@@ -1309,7 +1325,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
                 writeln(b"");
                 writeln(b"Press a key...");
 
-                self.s.wait_for_key().await;
+                self.s
+                    .with_controls(Controls::AnyKey, self.s.wait_for_key())
+                    .await;
                 Self::default_hill(hill);
 
                 self.m.aseta_moodi(0x13);
@@ -1492,7 +1510,12 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
                             );
                             self.g.write_font(80, 110, b"WRITE OVER? (Y/N):");
 
-                            self.getch(190, 110, 243).await;
+                            self.s
+                                .with_controls(
+                                    Controls::YesNo { yes: b'Y' },
+                                    self.getch(190, 110, 243),
+                                )
+                                .await;
 
                             if self.s.get_ch().to_ascii_uppercase() != b'Y' {
                                 leave2 = false;
@@ -1698,7 +1721,14 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
                             .concat(),
                         );
 
-                        self.getch(190, 110, 243).await;
+                        self.s
+                            .with_controls(
+                                Controls::YesNo {
+                                    yes: self.l.lch(6, 1),
+                                },
+                                self.getch(190, 110, 243),
+                            )
+                            .await;
 
                         if self.s.get_ch().to_ascii_uppercase() != self.l.lch(6, 1) {
                             leave2 = false;
@@ -2002,7 +2032,14 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
             .concat(),
         );
 
-        self.getch(220, 110, 243).await;
+        self.s
+            .with_controls(
+                Controls::YesNo {
+                    yes: self.l.lch(6, 1),
+                },
+                self.getch(220, 110, 243),
+            )
+            .await;
 
         if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1).to_ascii_uppercase() {
             self.s.remove_file(dos_file_name(filestr));
@@ -2181,6 +2218,7 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
     }
 
     pub async fn wait_for_key3(&self, xx: i32, yy: i32) -> bool {
+        let _controls = self.s.controls(Controls::AnyKey);
         while self.s.key_pressed().await {
             self.s.wait_for_key_press().await;
         }
@@ -2232,7 +2270,14 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
         self.g.write_font(70, 90, str1);
         self.g.write_font(70, 110, str2);
 
-        self.getch(70 + tempb, 110, 243).await;
+        self.s
+            .with_controls(
+                Controls::YesNo {
+                    yes: self.l.lstr(6)[0],
+                },
+                self.getch(70 + tempb, 110, 243),
+            )
+            .await;
 
         tempb = 1;
         if self.s.get_ch().to_ascii_uppercase() == self.l.lstr(6)[0] {
@@ -2261,7 +2306,9 @@ impl<'g, 'h, 'l, 'm, 'p, 's, 'si, P: Platform> UnitModule<'g, 'l, 'm, 'p, 's, P>
 
         self.g.draw_screen().await;
 
-        self.s.wait_for_key().await;
+        self.s
+            .with_controls(Controls::AnyKey, self.s.wait_for_key())
+            .await;
     }
 
     pub fn main_menu_text(&self, phase: u8, version: &[u8]) {

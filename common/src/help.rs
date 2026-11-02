@@ -1,4 +1,4 @@
-use crate::platform::Platform;
+use crate::platform::{Controls, Platform};
 use crate::rs_util::{clrscr, halt, textbackground, textcolor, val_code, window, write, writeln};
 
 /// The original `round` takes a single, so its argument is rounded to f32 first.
@@ -99,6 +99,7 @@ pub async fn fileok(s: &impl Platform, found: bool, filename: &[u8]) {
         );
         // The game has no console input, so the Enter of `Readln` comes from
         // the game window.
+        let _controls = s.controls(Controls::AnyKey);
         s.putsaa();
         while s.wait_for_key_press().await.0 != 13 && !s.close_requested() {}
         halt().await;

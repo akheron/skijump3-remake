@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
   <title>Ski Jump International v3 (remake)</title>
   <style>
     body {
@@ -28,14 +33,145 @@
         margin-top: 1em;
         text-align: center;
     }
+    .controls,
+    .rotate {
+        display: none;
+    }
+    #text-input {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        font-size: 16px;
+    }
+
+    @media (pointer: coarse) {
+        html, body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        footer {
+            display: none;
+        }
+        .outer {
+            --side: 104px;
+            --gap: 6px;
+            box-sizing: border-box;
+            height: 100dvh;
+            align-items: center;
+            gap: 8px;
+            --pad-left: max(6px, env(safe-area-inset-left));
+            --pad-right: max(6px, env(safe-area-inset-right));
+            padding: env(safe-area-inset-top) var(--pad-right)
+                     env(safe-area-inset-bottom) var(--pad-left);
+        }
+        /* The browser gives the same inset to both sides, but only the camera side needs it */
+        :root[data-camera-side="left"] .outer {
+            --pad-right: 6px;
+        }
+        :root[data-camera-side="right"] .outer {
+            --pad-left: 6px;
+        }
+        .inner {
+            flex: 0 1 calc(100dvh * 1.6);
+            min-width: 0;
+            max-width: none;
+        }
+        canvas {
+            display: block;
+        }
+        .controls {
+            --unit: calc((var(--side) - var(--gap)) / 2);
+            flex: 0 0 var(--side);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: var(--unit) var(--side) var(--unit);
+            gap: var(--gap);
+        }
+        .controls button {
+            padding: 0;
+            border: 2px solid #8a8ad0;
+            border-radius: 10px;
+            background: #26265a;
+            color: #fff;
+            font: bold 18px sans-serif;
+            touch-action: none;
+        }
+        .controls button.pressed {
+            background: #5a5ab0;
+        }
+        .controls button.main {
+            font-size: 28px;
+        }
+        /* The grid areas must stay in sync with the slot names of web/src/touch.rs */
+        .pad {
+            grid-template-areas:
+                "up   up"
+                "left right"
+                "down down";
+        }
+        /* The hidden left and right buttons keep their row, with no height */
+        .pad[data-arrows="up-down"] {
+            grid-template-rows:
+                calc(var(--side) - var(--gap) / 2) 0 calc(var(--side) - var(--gap) / 2);
+        }
+        .actions {
+            grid-template-areas:
+                "esc    corner"
+                "main   main"
+                "extra1 extra2";
+        }
+    }
+
+    @media (pointer: coarse) and (orientation: portrait) {
+        .outer {
+            display: none;
+        }
+        .rotate {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1em;
+            height: 100dvh;
+            font-size: 20px;
+        }
+        .rotate .phone {
+            width: 60px;
+            height: 100px;
+            border: 4px solid #fff;
+            border-radius: 10px;
+            animation: rotate 2s ease-in-out infinite;
+        }
+    }
+
+    @keyframes rotate {
+        0%, 20% { transform: rotate(0deg); }
+        60%, 100% { transform: rotate(-90deg); }
+    }
   </style>
 </head>
 <body>
 <div class="outer">
+  <div class="controls pad" id="pad" data-slots="up down left right"></div>
   <div class="inner">
     <canvas id="screen"></canvas>
   </div>
+  <div class="controls actions" id="actions" data-slots="esc corner main extra1 extra2"></div>
 </div>
+<div class="rotate">
+  <div class="phone"></div>
+  <div>Rotate your device</div>
+</div>
+<input id="text-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false">
 <footer>
   <a href="https://suomipelit.github.io/" target="_blank">Suomipelit community</a> //
   <a href="https://github.com/suomipelit/skijump3-remake" target="_blank">GitHub</a>

@@ -6,7 +6,7 @@ use crate::list::ListModule;
 use crate::lumi::LumiModule;
 use crate::maki::MakiModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
-use crate::platform::Platform;
+use crate::platform::{Arrows, Controls, JumpPhase, Platform};
 use crate::regfree::{REGNAME, REGNUMBER};
 use crate::repl::ReplModule;
 use crate::rs_util::{
@@ -471,7 +471,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
             writeln(b"Maybe you tried to edit it or something.  Please don't do it again.");
             self.reset_hiscore(1);
             self.reset_config();
-            self.s.wait_for_key().await;
+            self.s
+                .with_controls(Controls::AnyKey, self.s.wait_for_key())
+                .await;
             halt().await;
         }
     }
@@ -767,7 +769,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                         let mut ch;
                         loop {
                             let ok;
-                            self.u.getch(255, 70, 245).await;
+                            self.s
+                                .with_controls(Controls::Text, self.u.getch(255, 70, 245))
+                                .await;
                             ch = self.s.get_ch();
 
                             if ch != 27 {
@@ -843,8 +847,14 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                         );
                         self.g.write_font(80, 110, self.l.lstr(193));
 
-                        self.u
-                            .getch(88 + self.g.font_len(self.l.lstr(193)), 110, 243)
+                        self.s
+                            .with_controls(
+                                Controls::YesNo {
+                                    yes: self.l.lch(6, 1),
+                                },
+                                self.u
+                                    .getch(88 + self.g.font_len(self.l.lstr(193)), 110, 243),
+                            )
                             .await;
 
                         if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1) {
@@ -1681,6 +1691,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
         self.tuuli.hae();
 
+        let controls = self
+            .s
+            .controls(self.jump_controls(self.info_phase(), cjumper, draw));
         if draw && self.s.get_ch() != 27 {
             loop {
                 //{ INFORUUTU LUUPPI! }
@@ -1773,7 +1786,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                     }
 
                     if self.s.get_ch().to_ascii_uppercase() == self.l.lch(60, 1) {
-                        self.setup_menu().await;
+                        self.s.with_controls(Controls::All, self.setup_menu()).await;
+                        // The setup menu can change the language, and with it the setup key
+                        controls.set(self.jump_controls(self.info_phase(), cjumper, draw));
                         self.s.set_ch(1);
                         self.p
                             .load_suit(self.i.profile.borrow()[actprofile as usize].suitcolor, 0);
@@ -1838,6 +1853,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
         rstartx = x;
         rstarty = y;
 
+        controls.set(self.jump_controls(JumpPhase::Start, cjumper, draw));
         if self.s.get_ch() != 27 && draw {
             loop {
                 //{ ISTUU PARRULLA LUUPPI }
@@ -2000,7 +2016,9 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
             self.g.draw_screen().await;
 
-            self.s.wait_for_key().await;
+            self.s
+                .with_controls(Controls::AnyKey, self.s.wait_for_key())
+                .await;
             self.s.set_ch(27);
         }
 
@@ -2026,6 +2044,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
         kulmalaskuri = 200;
 
+        controls.set(self.jump_controls(JumpPhase::Air, cjumper, draw));
         if self.s.get_ch() != 27 {
             //{ hyppy - main }
             loop {
@@ -2764,6 +2783,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                 grade = kupat;
             }
 
+            controls.set(self.jump_controls(JumpPhase::Landing, cjumper, draw));
             if draw {
                 //{ ***  LASKU  *** }
                 loop {
@@ -3252,6 +3272,13 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
             self.g.draw_screen().await;
 
+            controls.set(self.jump_controls(
+                JumpPhase::Result {
+                    save_replay: (!cjumper).then(|| self.l.lch(298, 2)),
+                },
+                cjumper,
+                draw,
+            ));
             if draw {
                 self.s.putsaa();
                 self.cupslut = self.s.wait_for_key2().await;
@@ -3345,6 +3372,25 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
             }
         }
         //{$ENDIF}
+    }
+
+    fn jump_controls(&self, phase: JumpPhase, cjumper: bool, draw: bool) -> Controls {
+        if draw {
+            Controls::Jump {
+                phase,
+                keys: self.k,
+                computer: cjumper,
+            }
+        } else {
+            Controls::Unchanged
+        }
+    }
+
+    fn info_phase(&self) -> JumpPhase {
+        JumpPhase::Info {
+            setup: self.l.lch(60, 1),
+            practice: self.treeni,
+        }
     }
 
     async fn showstats(&mut self) {
@@ -3535,7 +3581,10 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
                 }
 
                 self.g.draw_screen().await;
-                self.cupslut = self.s.wait_for_key2().await;
+                self.cupslut = self
+                    .s
+                    .with_controls(Controls::AnyKey, self.s.wait_for_key2())
+                    .await;
             }
         } else {
             player = 1;
@@ -4183,6 +4232,7 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
             leave = false;
 
+            let _controls = self.s.controls(Controls::List);
             loop {
                 good = false;
 
@@ -5925,6 +5975,10 @@ impl<'g, 'h, 'i, 'l, 'm, 'p, 'r, 's, 't, 'u, P: Platform>
 
         let maxpel = NUM_PL as i32 - self.i.pmaara.get() as i32;
 
+        let _controls = self.s.controls(Controls::Select {
+            arrows: Arrows::UpDown,
+            delete: false,
+        });
         loop {
             self.kothmaara += 1;
             let k = self.kothmaara as usize;

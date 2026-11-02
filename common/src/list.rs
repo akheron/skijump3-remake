@@ -2,7 +2,7 @@ use crate::graph::{AsBytes, GraphModule};
 use crate::help::{txt, txtp};
 use crate::lang::LangModule;
 use crate::pcx::PcxModule;
-use crate::platform::Platform;
+use crate::platform::{Controls, Platform};
 use crate::unit::{UnitModule, NUM_PL};
 
 struct Res {
@@ -213,6 +213,7 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> ListModule<'g, 'l, 'm, 'p, 's, 'u, P> 
 
         self.g.draw_screen().await;
 
+        let _controls = self.s.controls(Controls::List);
         loop {
             temp = self.status;
             if from == 0 {

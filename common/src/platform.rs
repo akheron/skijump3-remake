@@ -1,6 +1,66 @@
+use std::future::Future;
 use std::io::{Read, Write};
 
 pub type TPalette = [[u8; 3]; 256];
+
+/// The keys that the game reads. The web port shows touch controls for them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Controls {
+    /// Any key of a keyboard
+    All,
+    /// Enter, Esc, the arrow keys in `arrows`, and Delete if `delete`
+    Select {
+        arrows: Arrows,
+        delete: bool,
+    },
+    /// The pages of a list: Left, Right, Enter and Esc
+    List,
+    /// Any key continues
+    AnyKey,
+    /// The key of the letter `yes` means yes, and any other key means no
+    YesNo {
+        yes: u8,
+    },
+    Text,
+    /// `keys` are the jump keys `k` of the game: take-off, rotate forward, rotate backward,
+    /// telemark landing and two-footed landing at the indexes 1 to 5
+    Jump {
+        phase: JumpPhase,
+        keys: [u16; 6],
+        computer: bool,
+    },
+    /// The replay playback. In the intro replay, only Esc works.
+    Replay {
+        intro: bool,
+    },
+    /// The touch controls stay as they are, as in a jump that the game does not show
+    Unchanged,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Arrows {
+    UpDown,
+    LeftRight,
+    All,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JumpPhase {
+    /// The info screen before the jump. The key `setup` opens the setup menu. In `practice`,
+    /// + and - move the start place.
+    Info {
+        setup: u8,
+        practice: bool,
+    },
+    Start,
+    /// The inrun and the flight
+    Air,
+    Landing,
+    /// `save_replay` is the key that saves the replay, if the replay can be saved
+    Result {
+        save_replay: Option<u8>,
+    },
+}
 
 pub trait Platform {
     fn set_palette(&self, input: &TPalette);
@@ -66,5 +126,39 @@ pub trait Platform {
     /// close callback of the SDL port, `CloseAndHalt`.
     fn close_requested(&self) -> bool {
         false
+    }
+
+    /// The touch controls are `controls` until the matching `pop_controls`
+    fn push_controls(&self, _controls: Controls) {}
+    fn pop_controls(&self) {}
+
+    fn controls(&self, controls: Controls) -> ControlsGuard<'_, Self> {
+        self.push_controls(controls);
+        ControlsGuard { platform: self }
+    }
+
+    async fn with_controls<F: Future>(&self, controls: Controls, future: F) -> F::Output {
+        let _controls = self.controls(controls);
+        future.await
+    }
+}
+
+/// Keeps the touch controls of `Platform::controls` until it is dropped
+#[must_use]
+pub struct ControlsGuard<'a, P: Platform + ?Sized> {
+    platform: &'a P,
+}
+
+impl<P: Platform + ?Sized> ControlsGuard<'_, P> {
+    /// Changes the controls of this guard. No guard made after this one can still be alive.
+    pub fn set(&self, controls: Controls) {
+        self.platform.pop_controls();
+        self.platform.push_controls(controls);
+    }
+}
+
+impl<P: Platform + ?Sized> Drop for ControlsGuard<'_, P> {
+    fn drop(&mut self) {
+        self.platform.pop_controls();
     }
 }

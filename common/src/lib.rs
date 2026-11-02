@@ -30,7 +30,7 @@ use crate::repl::ReplModule;
 use crate::sj3::SJ3Module;
 use crate::tuuli::TuuliModule;
 use crate::unit::{Date, UnitModule};
-pub use platform::{Platform, TPalette};
+pub use platform::{Arrows, Controls, JumpPhase, Platform, TPalette};
 use std::future::{poll_fn, Future};
 use std::pin::pin;
 use std::task::Poll;

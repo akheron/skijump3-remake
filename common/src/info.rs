@@ -2,7 +2,7 @@ use crate::graph::GraphModule;
 use crate::help::{beep, fileok, nmstr, paraletter, round, toansi, txt, txtp, upstr};
 use crate::lang::LangModule;
 use crate::pcx::{PcxModule, NUM_SKIS, NUM_SUITS};
-use crate::platform::Platform;
+use crate::platform::{Arrows, Controls, Platform};
 use crate::rs_util::{
     dos_file_name, dos_name_bytes, halt, invalid_input_error, pad_left, parse_line, random,
     read_line, val, val_code, writeln, UncheckedText,
@@ -416,7 +416,9 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
             self.g.write_font(85, 110, b"-");
         }
         self.g.draw_screen().await;
-        self.s.wait_for_key().await;
+        self.s
+            .with_controls(Controls::AnyKey, self.s.wait_for_key())
+            .await;
     }
 
     pub fn find_customs(&self, num_customs: &mut i32, filenames: &mut [Vec<u8>]) {
@@ -582,6 +584,10 @@ impl<P: Platform> CustomHillSelection<'_, '_, '_, '_, '_, '_, '_, P> {
         if numcustoms > 0 {
             actcustom = 1;
 
+            let _controls = s.controls(Controls::Select {
+                arrows: Arrows::LeftRight,
+                delete: true,
+            });
             loop {
                 self.i
                     .load_custom(
@@ -760,7 +766,8 @@ impl<P: Platform> CustomHillSelection<'_, '_, '_, '_, '_, '_, '_, P> {
                 );
                 g.write_font(80, 110, b"WRITE OVER? (Y/N):");
 
-                self.i.u.getch(190, 110, 243).await;
+                s.with_controls(Controls::YesNo { yes: b'Y' }, self.i.u.getch(190, 110, 243))
+                    .await;
             }
 
             if s.get_ch().to_ascii_uppercase() == b'Y' {
@@ -1058,7 +1065,9 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
 
         if whatset == b'0' && l1 != l2 {
             writeln(b"Error #92: Something wrong with the namefile. Shit.");
-            self.s.wait_for_key().await;
+            self.s
+                .with_controls(Controls::AnyKey, self.s.wait_for_key())
+                .await;
             halt().await;
         }
     }
@@ -1679,6 +1688,10 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         let y = 44;
 
         let mut ch;
+        let _controls = self.s.controls(Controls::Select {
+            arrows: Arrows::UpDown,
+            delete: false,
+        });
         loop {
             self.g
                 .fill_box((x - 2) as u16, (y - 1) as u16, 318, (y + 6) as u16, 245);
@@ -1761,7 +1774,14 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         self.g.write_font(70, 90, str1);
         self.g.write_font(70, 110, str2);
 
-        self.u.getch(70 + temp, 110, 243).await;
+        self.s
+            .with_controls(
+                Controls::YesNo {
+                    yes: self.l.lch(6, 1),
+                },
+                self.u.getch(70 + temp, 110, 243),
+            )
+            .await;
 
         let mut tempboo = false;
         if self.s.get_ch().to_ascii_uppercase() == self.l.lch(6, 1) {
@@ -1863,6 +1883,10 @@ impl<'g, 'l, 'm, 'p, 's, 'u, P: Platform> InfoModule<'g, 'l, 'm, 'p, 's, 'u, P> 
         let mut sch1: u8 = 0;
         let mut sch2: u8 = 0;
 
+        let _controls = self.s.controls(Controls::Select {
+            arrows: Arrows::LeftRight,
+            delete: false,
+        });
         loop {
             let (str1, color) = if index as usize > NUM_PL {
                 (self.l.lstr(index as u32).to_vec(), 240)
